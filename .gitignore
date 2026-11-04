@@ -1,0 +1,31 @@
+# Dependencies and builds
+node_modules/
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+
+# Environment files — .env.render holds the live Atlas credential.
+.env
+.env.*
+!.env.example
+!.env.production
+
+# Local uploads (Render's persistent disk is the production store)
+backend/uploads/
+
+# Logs and tooling output
+*.log
+logs/
+.firebase/
+firebase-debug.log
+firebasesdk-debug.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Scratch image generation output (unreferenced by the app)
+vibe_images/

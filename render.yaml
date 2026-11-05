@@ -36,11 +36,12 @@ services:
     rootDir: backend              # build & start from the backend/ subfolder
     env: production
 
-    # PLAN NOTE: `starter` ($7/mo) is chosen because Render's `free` instance
-    # type does NOT support persistent disks, and uploads must survive redeploys.
-    # If you accept losing uploaded files on every restart/redeploy you can set
-    # `plan: free` and delete the `disks:` block + UPLOAD_DIR env var below.
-    plan: starter
+    # PLAN NOTE: `free` is what the service currently runs on. It spins down when
+    # idle (~30-60s cold start) and CANNOT mount a persistent disk, so uploads are
+    # written into the source checkout and are deleted on every redeploy.
+    # To keep uploaded images permanently, switch to `plan: starter` ($7/mo),
+    # re-add the `disks:` block, and set UPLOAD_DIR=/var/uploads.
+    plan: free
     # REGION NOTE: oregon is Render's default region. Pick the region closest to
     # your MongoDB Atlas cluster to cut latency (Atlas M0 free tier is usually on
     # AWS us-east-1 / a nearby region; align them if possible).
@@ -96,28 +97,25 @@ services:
         sync: false
         value: https://ijwi-ry--ukuri.web.app,https://ijwi-ry--ukuri.firebaseapp.com
 
-      # --- upload persistence ---
-      # Points uploads at the persistent disk mounted below. backend/src/config/env.js
-      # reads UPLOAD_DIR, and both backend/src/routes/uploadRoutes.js (multer
-      # destination) and backend/src/app.js (express.static) resolve their paths
-      # through it, so uploads land on the disk instead of the source checkout.
-      # Without this the files would be written under /opt/render/project/src,
-      # which Render wipes on every deploy and where a disk CANNOT be mounted.
+      # --- uploads ---
+      # backend/src/config/env.js reads UPLOAD_DIR, and both
+      # uploadRoutes.js (multer destination) and app.js (express.static) resolve
+      # through it. On the `free` plan there is no disk and /var is NOT writable
+      # (mkdir '/var/uploads' -> EACCES, crash loop), so uploads live in the
+      # source checkout and are wiped on each redeploy.
       - key: UPLOAD_DIR
-        value: /var/uploads
-      # The repo tracks backend/uploads, and Render checks the source out at
-      # /opt/render/project/src. server.js copies any file missing from
-      # UPLOAD_DIR here on boot, so images the database already references are
-      # not broken on the first deploy of an empty disk. Existing files on the
-      # disk are never overwritten.
+        value: /opt/render/project/src/backend/uploads
+      # server.js copies any file missing from UPLOAD_DIR out of this folder on
+      # boot, so images the database already references are not broken when the
+      # disk starts empty. Existing files are never overwritten. On the free plan
+      # both paths are the same directory, so nothing is copied.
       - key: SEED_UPLOADS_DIR
         value: /opt/render/project/src/backend/uploads
 
-    # Persistent disk so uploaded images survive redeployments / restarts.
-    # mountPath MUST be absolute and OUTSIDE the source dir (/opt/render/project/
-    # src). Size is in GB (Render minimum = 1 GB). The Express app must write and
-    # serve uploads from this exact path (see UPLOAD_DIR above).
-    disks:
-      - name: uploads
-        mountPath: /var/uploads
-        size: 1
+    # Persistent disk — ONLY available on paid plans. To use it: set
+    # `plan: starter` above, uncomment this block, and change UPLOAD_DIR to
+    # /var/uploads (the mount path must be absolute and outside the source dir).
+    # disks:
+    #   - name: uploads
+    #     mountPath: /var/uploads
+    #     size: 1

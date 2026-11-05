@@ -21,6 +21,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import NewsBanner from '../../components/news/NewsBanner'
 import { cn } from '../../utils/cn'
+import { useSeo } from '../../utils/useSeo'
 
 const topics = [
   { name: 'Rwanda', key: 'category.rwanda' },
@@ -218,6 +219,7 @@ function CompactStory({ article, index }: { article: Article; index?: number }) 
 
 export default function HomePage() {
   const { t } = useI18n()
+  useSeo({ path: '/' })
   const [searchParams] = useSearchParams()
   const [latest, setLatest] = useState<Article[]>([])
   const [trending, setTrending] = useState<Article[]>([])

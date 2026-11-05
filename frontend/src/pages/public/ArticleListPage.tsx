@@ -5,6 +5,7 @@ import { publicAPI } from '../../services/api'
 import { Loading, LoadingGrid } from '../../components/common/Loading'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
+import { useSeo } from '../../utils/useSeo'
 import { useAuth } from '../../context/AuthContext'
 import { articleAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
@@ -165,6 +166,8 @@ export default function ArticleListPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [total, setTotal] = useState(0)
   const [showAllCategories, setShowAllCategories] = useState(false)
+
+  useSeo({ title: t('nav.articles'), path: '/articles' })
 
   const page = parseInt(searchParams.get('page') || '1')
   const search = searchParams.get('search') || ''

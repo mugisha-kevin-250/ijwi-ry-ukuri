@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /$
+Allow: /articles
+Allow: /article/
+Allow: /categories
+Allow: /category/
+Allow: /search
+# Authenticated areas and the admin portal must never be crawled.
+Disallow: /mugishaimekevin
+Disallow: /writer
+Disallow: /editor
+Disallow: /user/
+Disallow: /login
+Disallow: /register
+
+Sitemap: https://ijwi-ry--ukuri.web.app/sitemap.xml

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
+import { useSeo } from '../../utils/useSeo'
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams()
@@ -11,6 +12,7 @@ export default function SearchPage() {
   const [results, setResults] = useState<any>({ articles: [], authors: [] })
   const [loading, setLoading] = useState(false)
   const { t } = useI18n()
+  useSeo({ title: query ? `"${query}"` : t('nav.search'), path: '/search' })
 
   useEffect(() => {
     setTerm(query)

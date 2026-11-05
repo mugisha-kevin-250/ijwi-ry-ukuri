@@ -10,6 +10,7 @@ import ArticleList from '../../components/news/ArticleList'
 import { LoadingCard, LoadingGrid } from '../../components/common/Loading'
 import EmptyState from '../../components/common/EmptyState'
 import { cn } from '../../utils/cn'
+import { useSeo } from '../../utils/useSeo'
 
 export default function ArticleDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -23,6 +24,28 @@ export default function ArticleDetailPage() {
   const [isBookmarked, setIsBookmarked] = useState(false)
   const [isFollowing, setIsFollowing] = useState(false)
   const [likeCount, setLikeCount] = useState(0)
+
+  useSeo({
+    title: article?.title,
+    description: article?.summary,
+    path: slug ? `/article/${slug}` : undefined,
+    image: article?.featuredImage,
+    type: 'article',
+    jsonLd: article
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'NewsArticle',
+          headline: article.title,
+          description: article.summary,
+          image: article.featuredImage ? [article.featuredImage] : undefined,
+          datePublished: article.publishedAt ?? article.createdAt,
+          dateModified: article.updatedAt ?? article.createdAt,
+          inLanguage: article.language ?? 'rw',
+          author: { '@type': 'Person', name: typeof article.author === 'object' ? article.author.fullName : '' },
+          publisher: { '@type': 'Organization', name: "Ijwi ry'ukuri" },
+        }
+      : undefined,
+  })
 
   useEffect(() => {
     const fetchArticle = async () => {

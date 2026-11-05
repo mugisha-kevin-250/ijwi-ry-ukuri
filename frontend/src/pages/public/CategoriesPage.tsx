@@ -7,12 +7,14 @@ import { resolveCategories, type ResolvedCategory } from '../../data/categoryVis
 import CategoryCard from '../../components/news/CategoryCard'
 import { Loading } from '../../components/common/Loading'
 import EmptyState from '../../components/common/EmptyState'
+import { useSeo } from '../../utils/useSeo'
 
 export default function CategoriesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [resolved, setResolved] = useState<ResolvedCategory[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { t } = useI18n()
+  useSeo({ title: t('nav.categories'), path: '/categories' })
 
   const search = searchParams.get('search') || ''
 

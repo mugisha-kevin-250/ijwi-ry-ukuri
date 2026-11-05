@@ -14,6 +14,10 @@ module.exports = {
   // Media already referenced by the database is copied onto an empty UPLOAD_DIR at boot.
   SEED_UPLOADS_DIR: process.env.SEED_UPLOADS_DIR || path.join(__dirname, '../../uploads'),
   PUBLIC_URL: process.env.PUBLIC_URL || '',
+  // Web Push (VAPID). The private key stays in the gitignored env files.
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'https://ijwi-ry--ukuri.web.app',
   RATE_PER_1000_VIEWS: Number(process.env.RATE_PER_1000_VIEWS || 5000),
   MINIMUM_PAYOUT: Number(process.env.MINIMUM_PAYOUT || 10000),
   NODE_ENV: process.env.NODE_ENV || 'development'

@@ -1,15 +1,14 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 
-export type ThemeMode = 'light' | 'dark' | 'system'
+export type ThemeMode = 'light' | 'dark'
 
-const SUPPORTED_THEMES: ThemeMode[] = ['light', 'dark', 'system']
+const SUPPORTED_THEMES: ThemeMode[] = ['light', 'dark']
 
-function systemPrefersDark() {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-}
-
-function resolveDark(theme: ThemeMode) {
-  return theme === 'dark' || (theme === 'system' && systemPrefersDark())
+// Dark mode is an explicit choice only. A device set to dark must still open the
+// site in light mode, so anything other than a stored 'dark' (including the
+// legacy 'system' value) resolves to light.
+function readStoredTheme(): ThemeMode {
+  return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'
 }
 
 interface ThemeContextType {
@@ -21,28 +20,11 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const stored = localStorage.getItem('theme') as ThemeMode | null
-    return stored && SUPPORTED_THEMES.includes(stored) ? stored : 'system'
-  })
-
-  const [isDark, setIsDark] = useState(() => resolveDark(theme))
+  const [theme, setThemeState] = useState<ThemeMode>(readStoredTheme)
 
   useEffect(() => {
     localStorage.setItem('theme', theme)
-    const dark = resolveDark(theme)
-    setIsDark(dark)
-    document.documentElement.classList.toggle('dark', dark)
-
-    if (theme !== 'system') return
-
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const handleChange = (event: MediaQueryListEvent) => {
-      setIsDark(event.matches)
-      document.documentElement.classList.toggle('dark', event.matches)
-    }
-    media.addEventListener('change', handleChange)
-    return () => media.removeEventListener('change', handleChange)
+    document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
 
   const setTheme = (next: ThemeMode) => {
@@ -50,7 +32,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, setTheme }}>
+    <ThemeContext.Provider value={{ theme, isDark: theme === 'dark', setTheme }}>
       {children}
     </ThemeContext.Provider>
   )

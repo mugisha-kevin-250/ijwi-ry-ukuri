@@ -255,3 +255,14 @@ export const adminAPI = {
   deleteArticle: (id: string) =>
     apiClient.delete(`/admin/articles/${id}`),
 }
+
+export const pushAPI = {
+  getStatus: () =>
+    apiClient.get<{ enabled: boolean }>('/push/status'),
+
+  getSubscribers: () =>
+    apiClient.get<{ count: number; enabled: boolean }>('/push/subscriptions'),
+
+  broadcast: (payload: { title: string; body: string; url?: string }) =>
+    apiClient.post<{ sent: number; failed: number; expired: number; total: number }>('/push/broadcast', payload),
+}

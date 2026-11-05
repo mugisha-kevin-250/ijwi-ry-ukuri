@@ -7,6 +7,7 @@ const Category = require('../models/Category');
 const PlatformSetting = require('../models/PlatformSetting');
 const { protect, authorize } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
+const pushService = require('../utils/pushService');
 
 const router = express.Router();
 
@@ -225,9 +226,11 @@ router.put('/articles/:id/status', async (req, res, next) => {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
 
+    const firstPublish = article.status !== 'published' && status === 'published';
     article.status = status;
     if (status === 'published' && !article.publishedAt) article.publishedAt = new Date();
     await article.save();
+    if (firstPublish) pushService.notifyArticlePublished(article);
 
     const populated = await article.populate([
       { path: 'author', select: 'fullName username avatar' },

@@ -8,6 +8,32 @@
 | Source | https://github.com/mugisha-kevin-250/ijwi-ry-ukuri (branch `main`) | — |
 
 ## What is already done
+- Light mode is the only startup state: `ThemeContext` ignores the device
+  `prefers-color-scheme`, so a dark-mode phone still opens the site white. Dark turns
+  on only from Settings -> Theme (stored as `theme=dark` in localStorage).
+- PWA install: logo-derived icons (`frontend/scripts/generate-icons.mjs` ->
+  `frontend/public/icons/` + `favicon-*.png`), `frontend/public/site.webmanifest`,
+  and `frontend/public/sw.js` (offline shell/pages/public API reads; signed-in routes
+  are never cached). `InstallPromptBanner` shows the blue/white install + alerts prompt.
+- Web Push: backend `web-push` with VAPID (`backend/src/routes/pushRoutes.js`),
+  subscriptions in the `pushsubscriptions` Atlas collection, automatic alerts when a
+  story is first published, plus a manual broadcast in Admin -> Settings.
+- Search: `frontend/public/robots.txt`, a generated `frontend/public/sitemap.xml`
+  (every article and category as its own URL), per-route canonical/OG/Twitter tags and
+  `NewsArticle` JSON-LD (`frontend/src/utils/useSeo.ts`), and the Search Console
+  verification `<meta name="google-site-verification">` in `frontend/index.html`
+  (never remove that tag or ownership is lost).
+
+### Regenerating PWA + SEO assets
+```
+cd frontend
+npm run icons       # Logo.png -> icons/ + favicons (needs jimp, a devDependency)
+npm run sitemap     # live API -> public/sitemap.xml (also runs automatically in prebuild)
+```
+`npm run build` regenerates the sitemap first, so publishing new stories only needs a
+rebuild + redeploy to grow the sitemap.
+
+## Migration and pre-existing setup
 - Local content migrated into Atlas (`backend/scripts/migrate-local-to-atlas.js`), and the
   dev backend runs against Atlas.
 - Frontend built with `frontend/.env.production` and deployed to Firebase Hosting.
@@ -42,6 +68,11 @@ Env vars: see the gitignored `.env.render`. Two things the free plan forces:
 - `NODE_VERSION=20`. Without it Render builds on its rolling default (Node 24 was
   used on the first attempt), which makes deploys non-reproducible.
 
+**Push notifications need one more paste**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
+and `VAPID_SUBJECT` (values in `.env.render`). Everything else works without them —
+`GET /api/push/status` reports `enabled: false`, the app hides the alerts prompt, and
+`POST /api/push/broadcast` answers 503 instead of crashing.
+
 To move uploads onto a real disk: upgrade to `starter`, uncomment the `disks:` block
 in `render.yaml`, mount it at `/var/uploads`, and set `UPLOAD_DIR=/var/uploads`
 (`SEED_UPLOADS_DIR` stays at the source path so the disk gets seeded on first boot).
@@ -60,6 +91,23 @@ If Render renames the service (name taken), update `frontend/.env.production`, t
   production when `MONGODB_URI` is unset, so a silent in-memory DB is no longer possible.)
 - Home page, `/article/<slug>` and `/category/<slug>` opened **directly** must render, not
   404 — that proves the SPA rewrite in `firebase.json`.
+- `GET /robots.txt`, `/sitemap.xml`, `/site.webmanifest` and `/sw.js` must all return
+  200 from Firebase Hosting (they are copied from `frontend/public/` into `dist/`).
+  `/sw.js` must carry `Cache-Control: no-store` — otherwise an updated worker can take a
+  whole day to reach installed devices.
+- `GET /api/push/public-key` returns the VAPID key; `GET /api/push/status` returns
+  `enabled: true`. The app fetches the key from the API, so a rotated pair needs no
+  frontend rebuild.
+
+## Getting indexed (Search Console)
+1. Property `https://ijwi-ry--ukuri.web.app/` — verify with the **HTML tag** method. The
+   tag is already in `frontend/index.html`; click Verify once the deploy is live.
+2. Submit `https://ijwi-ry--ukuri.web.app/sitemap.xml` under Pages -> Sitemaps.
+3. Use URL Inspection -> Request indexing for the home page and a few articles. Google
+   needs the pages to return content, which they do after JS runs; "soft 404" reports
+   usually mean the article list was empty when crawled.
+4. After each publishing session, `npm run build` regenerates the sitemap from the live
+   API and the deploy pushes it.
 
 ## Releasing a frontend change
 ```

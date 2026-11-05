@@ -15,6 +15,7 @@ const editorRoutes = require('./routes/editorRoutes');
 const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const pushRoutes = require('./routes/pushRoutes');
 
 const env = require('./config/env');
 
@@ -73,6 +74,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/articles', articleRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/uploads', express.static(env.UPLOAD_DIR));
 
 app.use(notFoundHandler);

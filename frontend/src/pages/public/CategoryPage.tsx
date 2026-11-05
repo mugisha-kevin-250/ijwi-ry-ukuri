@@ -8,6 +8,7 @@ import { Loading, LoadingGrid } from '../../components/common/Loading'
 import EmptyState from '../../components/common/EmptyState'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
+import { useSeo } from '../../utils/useSeo'
 
 export default function CategoryPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -17,6 +18,12 @@ export default function CategoryPage() {
   const [articles, setArticles] = useState<Article[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [total, setTotal] = useState(0)
+
+  useSeo({
+    title: category?.name,
+    description: category?.description,
+    path: slug ? `/category/${slug}` : undefined,
+  })
 
   const page = parseInt(searchParams.get('page') || '1')
   const sort = searchParams.get('sort') || 'latest'

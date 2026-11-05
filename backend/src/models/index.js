@@ -13,5 +13,6 @@ module.exports = {
   WriterWeeklyStat: require('./WriterWeeklyStat'),
   WriterEarning: require('./WriterEarning'),
   Payout: require('./Payout'),
+  PushSubscription: require('./PushSubscription'),
   PlatformSetting: require('./PlatformSetting')
 };

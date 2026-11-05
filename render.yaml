@@ -112,6 +112,20 @@ services:
       - key: SEED_UPLOADS_DIR
         value: /opt/render/project/src/backend/uploads
 
+      # --- web push (VAPID) ---
+      # Paste both values from the gitignored `.env.render`. Without them the API
+      # still serves everything except push: /api/push/status reports
+      # enabled=false and /api/push/broadcast answers 503.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+        value: REPLACE_WITH_VAPID_PUBLIC_KEY
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+        value: REPLACE_WITH_VAPID_PRIVATE_KEY
+      # Google uses this contact string when a push endpoint misbehaves.
+      - key: VAPID_SUBJECT
+        value: https://ijwi-ry--ukuri.web.app
+
     # Persistent disk — ONLY available on paid plans. To use it: set
     # `plan: starter` above, uncomment this block, and change UPLOAD_DIR to
     # /var/uploads (the mount path must be absolute and outside the source dir).

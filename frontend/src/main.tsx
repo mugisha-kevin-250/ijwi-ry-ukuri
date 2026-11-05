@@ -8,8 +8,12 @@ import { AuthProvider } from './context/AuthContext'
 import { I18nProvider } from './context/I18nContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { router } from './router'
+import InstallPromptBanner from './components/pwa/InstallPromptBanner'
+import { registerServiceWorker } from './pwa/serviceWorker'
 
 import './index.css'
+
+registerServiceWorker()
 
 declare global {
   interface Window {
@@ -32,6 +36,7 @@ ReactDOM.createRoot(document.getElementById('app')!).render(
       <I18nProvider>
         <AuthProvider>
           <RouterProvider router={router} />
+          <InstallPromptBanner />
           <ToastContainer
             position="bottom-right"
             autoClose={5000}

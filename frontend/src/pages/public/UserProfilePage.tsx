@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Eye, Heart, MessageCircle, Users, Edit2, Camera, Monitor, Moon, Sun } from 'lucide-react'
+import { Eye, Heart, MessageCircle, Users, Edit2, Camera, Moon, Sun } from 'lucide-react'
 import { userAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
@@ -11,7 +11,6 @@ import { apiClient } from '../../services/apiClient'
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string; icon: typeof Sun }[] = [
   { value: 'light', labelKey: 'settings.themeLight', icon: Sun },
   { value: 'dark', labelKey: 'settings.themeDark', icon: Moon },
-  { value: 'system', labelKey: 'settings.themeSystem', icon: Monitor },
 ]
 
 export default function UserProfilePage() {

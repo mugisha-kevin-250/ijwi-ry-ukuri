@@ -2,6 +2,7 @@ const express = require('express');
 const Article = require('../models/Article');
 const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
+const pushService = require('../utils/pushService');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 
 const router = express.Router();
@@ -57,9 +58,11 @@ router.put('/articles/:id/publish', async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
+    const firstPublish = article.status !== 'published';
     article.status = 'published';
     article.publishedAt = new Date();
     await article.save();
+    if (firstPublish) pushService.notifyArticlePublished(article);
     return successResponse(res, 200, 'Article published', { article });
   } catch (error) {
     next(error);

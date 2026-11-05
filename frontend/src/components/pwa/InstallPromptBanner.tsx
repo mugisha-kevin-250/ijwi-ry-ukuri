@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bell, Download, X } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
+import { pushAPI } from '../../services/api'
 import { isStandalone } from '../../pwa/serviceWorker'
 import { enablePushNotifications, pushSupported } from '../../pwa/pushNotifications'
 import { cn } from '../../utils/cn'
@@ -44,10 +45,19 @@ export default function InstallPromptBanner() {
     }
 
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
-    const timer = window.setTimeout(() => {
+    const timer = window.setTimeout(async () => {
       if (promptRef.current) return
-      if (isIosSafari()) setVariant('ios')
-      else if (pushSupported()) setVariant('notifications')
+      if (isIosSafari()) {
+        setVariant('ios')
+        return
+      }
+      if (!pushSupported()) return
+      // Asking for permission when the server cannot deliver anything is noise.
+      const enabled = await pushAPI
+        .getStatus()
+        .then((response) => Boolean(response.data.data?.enabled))
+        .catch(() => false)
+      if (enabled) setVariant('notifications')
     }, REVEAL_DELAY_MS)
 
     const onInstalled = () => {

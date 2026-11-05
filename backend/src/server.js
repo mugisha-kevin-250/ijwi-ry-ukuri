@@ -1,6 +1,7 @@
 const app = require('./app');
 const { connectDatabase } = require('./config/database');
 const { seedDefaults } = require('./utils/seedDefaults');
+const { seedUploads } = require('./utils/seedUploads');
 const env = require('./config/env');
 
 async function connectDatabaseWithRetry() {
@@ -49,6 +50,8 @@ async function startServer() {
   try {
     await connectDatabase();
     await seedDefaults();
+    const seeded = seedUploads();
+    if (seeded) console.log(`Seeded ${seeded} upload file(s) onto ${env.UPLOAD_DIR}`);
     listenForRequests(env.PORT);
   } catch (error) {
     console.error('Failed to start server:', error.message);

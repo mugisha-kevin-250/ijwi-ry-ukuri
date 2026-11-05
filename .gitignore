@@ -11,8 +11,10 @@ build/
 !.env.example
 !.env.production
 
-# Local uploads (Render's persistent disk is the production store)
-backend/uploads/
+# Local uploads are committed so a fresh Render disk can be seeded from them;
+# only the log/scratch files that can accumulate beside them are ignored.
+backend/uploads/*.tmp
+.DS_Store
 
 # Logs and tooling output
 *.log

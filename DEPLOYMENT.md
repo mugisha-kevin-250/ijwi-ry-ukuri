@@ -65,5 +65,7 @@ reverted on restart.
   one, so uploads would disappear on every redeploy.
 - The QA test article `Qa Test Inkuru Y'igagerageza` is still in Atlas — delete it from
   Admin -> News if you do not want it live.
-- Category artwork in `frontend/public/images/` ships in the build; `backend/uploads/`
-  (user uploads) is gitignored and lives on the Render disk.
+- Category artwork in `frontend/public/images/` ships in the build. `backend/uploads/`
+  (user uploads) is tracked so Render's empty disk can be seeded from it: on boot
+  `server.js` copies any missing file from `SEED_UPLOADS_DIR` into `UPLOAD_DIR`, never
+  overwriting what production already wrote.

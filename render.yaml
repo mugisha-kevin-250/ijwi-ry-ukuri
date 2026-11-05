@@ -105,6 +105,13 @@ services:
       # which Render wipes on every deploy and where a disk CANNOT be mounted.
       - key: UPLOAD_DIR
         value: /var/uploads
+      # The repo tracks backend/uploads, and Render checks the source out at
+      # /opt/render/project/src. server.js copies any file missing from
+      # UPLOAD_DIR here on boot, so images the database already references are
+      # not broken on the first deploy of an empty disk. Existing files on the
+      # disk are never overwritten.
+      - key: SEED_UPLOADS_DIR
+        value: /opt/render/project/src/backend/uploads
 
     # Persistent disk so uploaded images survive redeployments / restarts.
     # mountPath MUST be absolute and OUTSIDE the source dir (/opt/render/project/

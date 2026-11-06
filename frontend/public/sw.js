@@ -2,7 +2,7 @@
  * Cached data is limited to public news reads, so a signed-in user's private
  * responses are never stored on a shared device.
  */
-const VERSION = 'ijwi-v2'
+const VERSION = 'ijwi-v3'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const PAGE_CACHE = `${VERSION}-pages`
@@ -105,6 +105,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (isCacheableApi(url)) {
+    // Reader-specific flags (liked / following) ride on these reads, so a
+    // signed-in response must never reach the offline cache.
+    if (request.headers.get('Authorization')) return
     event.respondWith(networkFirst(request, DATA_CACHE))
   }
 })

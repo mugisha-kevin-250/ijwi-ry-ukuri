@@ -9,6 +9,7 @@ import { I18nProvider } from './context/I18nContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { router } from './router'
 import InstallPromptBanner from './components/pwa/InstallPromptBanner'
+import AppSplash from './components/common/AppSplash'
 import { registerServiceWorker } from './pwa/serviceWorker'
 
 import './index.css'
@@ -36,6 +37,7 @@ ReactDOM.createRoot(document.getElementById('app')!).render(
       <I18nProvider>
         <AuthProvider>
           <RouterProvider router={router} />
+          <AppSplash />
           <InstallPromptBanner />
           <ToastContainer
             position="bottom-right"

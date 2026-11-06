@@ -5,15 +5,18 @@ const assert = require('node:assert');
 const request = require('supertest');
 const app = require('../src/app');
 const mongoose = require('mongoose');
+const Category = require('../src/models/Category');
 const { connectDatabase, disconnectDatabase } = require('../src/config/database');
 
 let token;
 let editorToken;
 let articleId;
+let articleSlug;
 let payoutId;
 
 test.before(async () => {
   await connectDatabase();
+  await Category.create({ name: 'General', slug: 'general', description: 'Test category', isActive: true });
 });
 
 test.after(async () => {
@@ -65,11 +68,12 @@ test('article creation', async () => {
 
   assert.equal(response.status, 201);
   articleId = response.body.data.article._id;
+  articleSlug = response.body.data.article.slug;
 });
 
-test('article submission', async () => {
+test('writer publishes their own article', async () => {
   const response = await request(app)
-    .post(`/api/writers/articles/${articleId}/submit`)
+    .post(`/api/writers/articles/${articleId}/publish`)
     .set('Authorization', `Bearer ${token}`);
 
   assert.equal(response.status, 200);
@@ -97,13 +101,65 @@ test('article approval and publish', async () => {
 test('view tracking and duplicate prevention', async () => {
   const first = await request(app)
     .post(`/api/articles/${articleId}/view`)
-    .send({ anonymousSessionId: 'session-abc', readingDurationMs: 60000 });
+    .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-abc', readingDurationMs: 60000 });
   assert.equal(first.status, 200);
+  assert.equal(first.body.data.result.countView, true);
+  assert.equal(first.body.data.result.uniqueView, true);
+  assert.equal(first.body.data.views, 1);
+  assert.equal(first.body.data.validViews, 1);
 
   const second = await request(app)
     .post(`/api/articles/${articleId}/view`)
-    .send({ anonymousSessionId: 'session-abc', readingDurationMs: 30000 });
+    .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-abc', readingDurationMs: 30000 });
   assert.equal(second.status, 200);
+  assert.equal(second.body.data.result.duplicateBlocked, true);
+  assert.equal(second.body.data.views, 1);
+
+  const bounce = await request(app)
+    .post(`/api/articles/${articleId}/view`)
+    .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-xyz', readingDurationMs: 800 });
+  assert.equal(bounce.body.data.result.countView, false);
+  assert.equal(bounce.body.data.views, 1);
+
+  // Past the duplicate window the same reader counts again, but not as a new reader.
+  const repeatReader = await request(app)
+    .post(`/api/articles/${articleId}/view`)
+    .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-abc', readingDurationMs: 60000 });
+  assert.equal(repeatReader.body.data.result.countView, false);
+
+  const newReader = await request(app)
+    .post(`/api/articles/${articleId}/view`)
+    .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-new', readingDurationMs: 20000 });
+  assert.equal(newReader.body.data.result.uniqueView, true);
+  assert.equal(newReader.body.data.result.isValid, true);
+  assert.equal(newReader.body.data.views, 2);
+  assert.equal(newReader.body.data.validViews, 2);
+});
+
+test('likes are idempotent and report the live count', async () => {
+  const like = await request(app)
+    .post(`/api/articles/${articleId}/like`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(like.status, 200);
+  assert.equal(like.body.data.likes, 1);
+
+  const repeat = await request(app)
+    .post(`/api/articles/${articleId}/like`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(repeat.status, 200);
+  assert.equal(repeat.body.data.likes, 1);
+
+  const unlike = await request(app)
+    .delete(`/api/articles/${articleId}/like`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(unlike.status, 200);
+  assert.equal(unlike.body.data.likes, 0);
+
+  const repeatUnlike = await request(app)
+    .delete(`/api/articles/${articleId}/like`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(repeatUnlike.status, 200);
+  assert.equal(repeatUnlike.body.data.likes, 0);
 });
 
 test('likes, comments, bookmarks', async () => {
@@ -122,6 +178,21 @@ test('likes, comments, bookmarks', async () => {
     .post(`/api/articles/${articleId}/bookmark`)
     .set('Authorization', `Bearer ${token}`);
   assert.equal(bookmarkResponse.status, 200);
+});
+
+test('article access reports the reader state', async () => {
+  const list = await request(app).get('/api/articles').set('Authorization', `Bearer ${token}`);
+  assert.equal(list.status, 200);
+  const seen = list.body.data.articles.find((item) => item._id === articleId);
+  assert.equal(seen.liked, true);
+  assert.equal(seen.bookmarked, true);
+
+  const detail = await request(app).get(`/api/articles/${articleSlug}`).set('Authorization', `Bearer ${token}`);
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.data.article.liked, true);
+
+  const anon = await request(app).get(`/api/articles/${articleSlug}`);
+  assert.equal(anon.body.data.article.liked, undefined);
 });
 
 test('writer stats and payout approval', async () => {

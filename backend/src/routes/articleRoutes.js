@@ -72,11 +72,12 @@ router.post('/:id/like', protect, async (req, res, next) => {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
     const existing = await Like.findOne({ article: article._id, user: req.user._id });
-    if (existing) return errorResponse(res, 400, 'Already liked');
-    await Like.create({ article: article._id, user: req.user._id });
-    article.likes = Number(article.likes || 0) + 1;
-    await article.save();
-    return successResponse(res, 200, 'Liked', { article });
+    if (!existing) {
+      await Like.create({ article: article._id, user: req.user._id });
+      article.likes = Number(article.likes || 0) + 1;
+      await article.save();
+    }
+    return successResponse(res, 200, 'Liked', { liked: true, likes: Number(article.likes || 0) });
   } catch (error) {
     next(error);
   }
@@ -87,11 +88,12 @@ router.delete('/:id/like', protect, async (req, res, next) => {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
     const existing = await Like.findOne({ article: article._id, user: req.user._id });
-    if (!existing) return errorResponse(res, 400, 'Like not found');
-    await existing.deleteOne();
-    article.likes = Math.max(0, Number(article.likes || 0) - 1);
-    await article.save();
-    return successResponse(res, 200, 'Like removed');
+    if (existing) {
+      await existing.deleteOne();
+      article.likes = Math.max(0, Number(article.likes || 0) - 1);
+      await article.save();
+    }
+    return successResponse(res, 200, 'Like removed', { liked: false, likes: Number(article.likes || 0) });
   } catch (error) {
     next(error);
   }
@@ -144,8 +146,11 @@ router.post('/:id/view', optionalAuth, async (req, res, next) => {
 
     const userId = req.user ? req.user._id : null;
     const anonymousSessionId = req.body.anonymousSessionId || req.headers['x-session-id'] || null;
-    const readingDurationMs = Number(req.body.readingDurationMs || 0);
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    const readingDurationMs = Math.min(Math.max(0, Number(req.body.readingDurationMs || 0)), 2 * 60 * 60 * 1000);
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const ip = String(Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor || '')
+      .split(',')[0]
+      .trim() || req.socket.remoteAddress || '';
     const userAgent = req.headers['user-agent'] || '';
 
     const result = await calculateValidView({
@@ -157,14 +162,27 @@ router.post('/:id/view', optionalAuth, async (req, res, next) => {
       readingDurationMs
     });
 
-    if (result.isValid) {
+    let countersChanged = false;
+    if (result.countView) {
       article.views = Number(article.views || 0) + 1;
-      article.validViews = Number(article.validViews || 0) + 1;
-      article.uniqueViews = Number(article.uniqueViews || 0) + 1;
-      await article.save();
+      countersChanged = true;
     }
+    if (result.isValid) {
+      article.validViews = Number(article.validViews || 0) + 1;
+      countersChanged = true;
+    }
+    if (result.uniqueView) {
+      article.uniqueViews = Number(article.uniqueViews || 0) + 1;
+      countersChanged = true;
+    }
+    if (countersChanged) await article.save();
 
-    return successResponse(res, 200, 'View processed', { result });
+    return successResponse(res, 200, 'View processed', {
+      result,
+      views: Number(article.views || 0),
+      validViews: Number(article.validViews || 0),
+      uniqueViews: Number(article.uniqueViews || 0)
+    });
   } catch (error) {
     next(error);
   }

@@ -1,7 +1,12 @@
-// Writes public/sitemap.xml from the live API so every published story and
-// category is listed as its own URL. Runs automatically before `npm run build`;
-// re-run it after publishing news that must be indexed sooner.
-//   cd frontend && npm run sitemap
+// Writes the sitemap set into public/ from the live API, one file per kind of
+// content, plus a sitemap index at public/sitemap.xml:
+//   sitemap.xml              index  -> lists every file below
+//   sitemap-pages.xml        static pages (home, all articles, categories, search)
+//   sitemap-articles.xml     one URL per published story
+//   sitemap-categories.xml   one URL per category feed
+//   sitemap-writers.xml      one URL per author profile page
+// Runs automatically before `npm run build`; re-run it after publishing news that
+// must be indexed sooner:  cd frontend && npm run sitemap
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -57,46 +62,106 @@ function urlEntry(loc, lastmod, priority, changefreq) {
   ].filter(Boolean).join('\n')
 }
 
+function urlset(entries) {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`
+}
+
+function write(name, xml) {
+  fs.writeFileSync(path.join(root, 'public', name), xml)
+  return `${SITE_URL}/${name}`
+}
+
 async function main() {
   const base = apiBase()
-  const entries = [
-    urlEntry(`${SITE_URL}/`, isoDate(new Date().toISOString()), '1.0', 'daily'),
-    urlEntry(`${SITE_URL}/articles`, isoDate(new Date().toISOString()), '0.9', 'hourly'),
-    urlEntry(`${SITE_URL}/categories`, null, '0.7', 'daily'),
-    urlEntry(`${SITE_URL}/search`, null, '0.4', 'monthly'),
-  ]
+  const today = isoDate(new Date().toISOString())
 
-  let articleCount = 0
-  let categoryCount = 0
+  let articles = []
+  let categories = []
   try {
-    const articles = await publishedArticles(base)
-    articleCount = articles.length
-    for (const article of articles) {
-      if (!article?.slug) continue
-      entries.push(urlEntry(`${SITE_URL}/article/${article.slug}`, isoDate(article.publishedAt || article.createdAt), '0.8', 'weekly'))
-    }
+    articles = await publishedArticles(base)
   } catch (error) {
     console.warn(`sitemap: could not read articles from ${base} (${error.message}); writing static routes only`)
   }
-
   try {
-    const categories = (await json(`${base}/categories`))?.categories ?? []
-    categoryCount = categories.length
-    for (const category of categories) {
-      if (!category?.slug) continue
-      entries.push(urlEntry(`${SITE_URL}/category/${category.slug}`, null, '0.6', 'daily'))
-    }
+    categories = (await json(`${base}/categories`))?.categories ?? []
   } catch (error) {
     console.warn(`sitemap: could not read categories (${error.message})`)
   }
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${entries.join('\n')}
-</urlset>
+  const latestArticle = articles
+    .map((a) => isoDate(a.publishedAt || a.createdAt))
+    .filter(Boolean)
+    .sort()
+    .pop() || today
+
+  const files = []
+
+  files.push({
+    name: 'sitemap-pages.xml',
+    xml: urlset([
+      urlEntry(`${SITE_URL}/`, today, '1.0', 'daily'),
+      urlEntry(`${SITE_URL}/articles`, today, '0.9', 'hourly'),
+      urlEntry(`${SITE_URL}/categories`, today, '0.7', 'daily'),
+      urlEntry(`${SITE_URL}/search`, null, '0.4', 'monthly'),
+    ]),
+  })
+
+  files.push({
+    name: 'sitemap-articles.xml',
+    xml: urlset(
+      articles
+        .filter((a) => a?.slug)
+        .map((a) => urlEntry(`${SITE_URL}/article/${a.slug}`, isoDate(a.publishedAt || a.createdAt), '0.8', 'weekly'))
+    ),
+  })
+
+  files.push({
+    name: 'sitemap-categories.xml',
+    xml: urlset(
+      categories
+        .filter((c) => c?.slug)
+        .map((c) => urlEntry(`${SITE_URL}/category/${c.slug}`, latestArticle, '0.6', 'daily'))
+    ),
+  })
+
+  // One profile page per author that has something published.
+  const authors = new Map()
+  for (const article of articles) {
+    const id = article?.author?._id
+    if (!id) continue
+    const stamp = isoDate(article.publishedAt || article.createdAt)
+    if (!authors.has(id) || (stamp && stamp > authors.get(id))) authors.set(id, stamp)
+  }
+  files.push({
+    name: 'sitemap-writers.xml',
+    xml: urlset(
+      [...authors.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([id, lastmod]) => urlEntry(`${SITE_URL}/user/${id}`, lastmod, '0.5', 'weekly'))
+    ),
+  })
+
+  const written = files.map((file) => ({ name: file.name, url: write(file.name, file.xml) }))
+
+  const index = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${written
+  .map(({ name }) => {
+    const lastmod = name === 'sitemap-articles.xml' || name === 'sitemap-pages.xml' ? latestArticle : null
+    return ['  <sitemap>', `    <loc>${escape(`${SITE_URL}/${name}`)}</loc>`, lastmod ? `    <lastmod>${lastmod}</lastmod>` : null, '  </sitemap>']
+      .filter(Boolean)
+      .join('\n')
+  })
+  .join('\n')}
+</sitemapindex>
 `
-  fs.writeFileSync(path.join(root, 'public', 'sitemap.xml'), xml)
-  console.log(`sitemap.xml: ${entries.length} URLs (${articleCount} articles, ${categoryCount} categories)`)
+  const indexUrl = write('sitemap.xml', index)
+
+  console.log(`sitemap index:     ${indexUrl}`)
+  for (const { url } of written) console.log(`  -> ${url}`)
+  console.log(
+    `${articles.length} articles, ${categories.length} categories, ${authors.size} writers, 4 static pages`
+  )
 }
 
 main().catch((error) => {

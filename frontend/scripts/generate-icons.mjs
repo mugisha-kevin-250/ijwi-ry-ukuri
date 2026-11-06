@@ -22,6 +22,28 @@ function fit(image, size, padding = 0) {
   return image.clone().resize(target, target).background(BRAND_BLUE).contain(size, size, Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_CENTER)
 }
 
+// Google and older browsers still request /favicon.ico directly. An .ico file may
+// carry plain PNG payloads, so the generated favicons are wrapped without re-encoding.
+function icoFrom(entries) {
+  const header = Buffer.alloc(6 + entries.length * 16)
+  header.writeUInt16LE(0, 0) // reserved
+  header.writeUInt16LE(1, 2) // type: icon
+  header.writeUInt16LE(entries.length, 4)
+  let offset = header.length
+  const parts = entries.map(({ size, buffer }, index) => {
+    const base = 6 + index * 16
+    header.writeUInt8(size >= 256 ? 0 : size, base)
+    header.writeUInt8(size >= 256 ? 0 : size, base + 1)
+    header.writeUInt16LE(1, base + 4) // colour planes
+    header.writeUInt16LE(32, base + 6) // bits per pixel
+    header.writeUInt32LE(buffer.length, base + 8)
+    header.writeUInt32LE(offset, base + 12)
+    offset += buffer.length
+    return buffer
+  })
+  return Buffer.concat([header, ...parts])
+}
+
 async function main() {
   if (!fs.existsSync(iconsDir)) fs.mkdirSync(iconsDir, { recursive: true })
 
@@ -44,6 +66,13 @@ async function main() {
   ]
 
   await Promise.all(tasks)
+
+  const ico = icoFrom([16, 32, 48].map((size) => ({
+    size,
+    buffer: fs.readFileSync(path.join(publicDir, `favicon-${size}x${size}.png`)),
+  })))
+  fs.writeFileSync(path.join(publicDir, 'favicon.ico'), ico)
+  console.log(`wrote ${path.relative(root, path.join(publicDir, 'favicon.ico'))} (${ico.length} bytes)`)
 }
 
 main().catch((error) => {

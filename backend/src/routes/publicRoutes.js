@@ -3,6 +3,7 @@ const Category = require('../models/Category');
 const Article = require('../models/Article');
 const User = require('../models/User');
 const { optionalAuth } = require('../middleware/auth');
+const { withEngagement } = require('../services/engagementService');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 
 const router = express.Router();
@@ -26,7 +27,7 @@ router.get('/articles', optionalAuth, async (req, res, next) => {
       .skip((Number(page) - 1) * Number(limit));
 
     const total = await Article.countDocuments(filter);
-    return successResponse(res, 200, 'Articles fetched', { articles, total, page: Number(page), limit: Number(limit) });
+    return successResponse(res, 200, 'Articles fetched', { articles: await withEngagement(req.user, articles), total, page: Number(page), limit: Number(limit) });
   } catch (error) {
     next(error);
   }
@@ -38,7 +39,8 @@ router.get('/articles/:slug', optionalAuth, async (req, res, next) => {
       .populate('author', 'fullName username avatar')
       .populate('category', 'name slug');
     if (!article) return errorResponse(res, 404, 'Article not found');
-    return successResponse(res, 200, 'Article fetched', { article });
+    const [decorated] = await withEngagement(req.user, [article]);
+    return successResponse(res, 200, 'Article fetched', { article: decorated });
   } catch (error) {
     next(error);
   }
@@ -80,7 +82,7 @@ router.get('/categories', async (req, res, next) => {
   }
 });
 
-router.get('/categories/:slug', async (req, res, next) => {
+router.get('/categories/:slug', optionalAuth, async (req, res, next) => {
   try {
     const { page = 1, limit = 12, sort = 'latest' } = req.query;
     const category = await Category.findOne({ slug: req.params.slug, isActive: true });
@@ -100,7 +102,7 @@ router.get('/categories/:slug', async (req, res, next) => {
       .skip((Number(page) - 1) * Number(limit));
 
     const total = await Article.countDocuments({ category: category._id, status: 'published' });
-    return successResponse(res, 200, 'Category articles fetched', { category, articles, total, page: Number(page), limit: Number(limit) });
+    return successResponse(res, 200, 'Category articles fetched', { category, articles: await withEngagement(req.user, articles), total, page: Number(page), limit: Number(limit) });
   } catch (error) {
     next(error);
   }

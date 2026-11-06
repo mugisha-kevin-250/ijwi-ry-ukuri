@@ -43,6 +43,20 @@ html {
   }
 }
 
+/* The splash progress bar keeps sweeping while first load is in flight. */
+@keyframes app-splash-sweep {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+
+.app-splash-bar {
+  animation: app-splash-sweep 1.2s ease-in-out infinite;
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.6;

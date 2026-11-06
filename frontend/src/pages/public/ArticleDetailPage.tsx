@@ -11,6 +11,8 @@ import { LoadingCard, LoadingGrid } from '../../components/common/Loading'
 import EmptyState from '../../components/common/EmptyState'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
+import { requestSignIn } from '../../utils/signInPrompt'
+import { useArticleViewTracking } from '../../utils/viewTracking'
 
 export default function ArticleDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -63,28 +65,10 @@ export default function ArticleDetailPage() {
         }
         setArticle(articleData)
         setLikeCount(articleData.likes || 0)
+        setIsLiked(Boolean(articleData.liked))
+        setIsBookmarked(Boolean(articleData.bookmarked))
+        setIsFollowing(Boolean(articleData.followingAuthor))
         setRelatedArticles(relatedRes.data.data?.articles?.filter((a: Article) => a._id !== articleData._id).slice(0, 3) || [])
-
-        // Check follow status if user is logged in and article has author
-        if (user && articleData.author) {
-          const authorId = typeof articleData.author === 'object' ? articleData.author._id : articleData.author
-          try {
-            const followRes = await articleAPI.checkFollowStatus(authorId)
-            setIsFollowing(followRes.data.data.isFollowing)
-          } catch (e) {
-            console.warn('Follow status check failed:', e)
-          }
-        }
-
-        // Track view
-        try {
-          await articleAPI.trackView(articleData._id, {
-            readingDurationMs: 0,
-            anonymousSessionId: localStorage.getItem('anon_session_id') || undefined
-          })
-        } catch (e) {
-          console.warn('View tracking failed:', e)
-        }
       } catch (error) {
         console.error('Failed to fetch article:', error)
         navigate('/articles')
@@ -95,40 +79,41 @@ export default function ArticleDetailPage() {
     fetchArticle()
   }, [slug, navigate, user])
 
+  useArticleViewTracking(article?._id)
+
   const handleLike = async () => {
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
     if (!article) return
+    const next = !isLiked
+    setIsLiked(next)
+    setLikeCount((prev) => Math.max(0, prev + (next ? 1 : -1)))
     try {
-      if (isLiked) {
-        await articleAPI.unlikeArticle(article._id)
-        setLikeCount(prev => prev - 1)
-      } else {
-        await articleAPI.likeArticle(article._id)
-        setLikeCount(prev => prev + 1)
-      }
-      setIsLiked(!isLiked)
+      const response = next ? await articleAPI.likeArticle(article._id) : await articleAPI.unlikeArticle(article._id)
+      const likes = (response.data.data as any)?.likes
+      if (typeof likes === 'number') setLikeCount(likes)
     } catch (error) {
+      setIsLiked(!next)
+      setLikeCount((prev) => Math.max(0, prev + (next ? -1 : 1)))
       console.error('Failed to like article:', error)
     }
   }
 
   const handleBookmark = async () => {
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
     if (!article) return
+    const next = !isBookmarked
+    setIsBookmarked(next)
     try {
-      if (isBookmarked) {
-        await articleAPI.unbookmarkArticle(article._id)
-      } else {
-        await articleAPI.bookmarkArticle(article._id)
-      }
-      setIsBookmarked(!isBookmarked)
+      if (next) await articleAPI.bookmarkArticle(article._id)
+      else await articleAPI.unbookmarkArticle(article._id)
     } catch (error) {
+      setIsBookmarked(!next)
       console.error('Failed to bookmark article:', error)
     }
   }
@@ -155,20 +140,18 @@ export default function ArticleDetailPage() {
   const handleFollow = async () => {
     if (!article) return
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
     const author = typeof article.author === 'object' ? article.author : null
     if (!author) return
+    const next = !isFollowing
+    setIsFollowing(next)
     try {
-      if (isFollowing) {
-        await articleAPI.unfollowWriter(author._id)
-        setIsFollowing(false)
-      } else {
-        await articleAPI.followWriter(author._id)
-        setIsFollowing(true)
-      }
+      if (next) await articleAPI.followWriter(author._id)
+      else await articleAPI.unfollowWriter(author._id)
     } catch (error) {
+      setIsFollowing(!next)
       console.error('Failed to follow/unfollow author:', error)
     }
   }
@@ -394,7 +377,6 @@ export default function ArticleDetailPage() {
 }
 
 function CommentsSection({ articleId }: { articleId: string }) {
-  const navigate = useNavigate()
   const { user } = useAuth()
   const { t } = useI18n()
   const [comments, setComments] = useState<Comment[]>([])
@@ -419,7 +401,7 @@ function CommentsSection({ articleId }: { articleId: string }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
     if (!newComment.trim()) return

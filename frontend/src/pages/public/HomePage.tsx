@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
   ArrowUpRight,
@@ -22,6 +22,7 @@ import { useI18n } from '../../context/I18nContext'
 import NewsBanner from '../../components/news/NewsBanner'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
+import { requestSignIn } from '../../utils/signInPrompt'
 
 const topics = [
   { name: 'Rwanda', key: 'category.rwanda' },
@@ -66,33 +67,27 @@ function StoryCard({ article }: { article: Article }) {
   const { t } = useI18n()
   const category = articleCategory(article)
   const { user } = useAuth()
-  const navigate = useNavigate()
-  const [isFollowing, setIsFollowing] = useState(false)
-  const [isLiked, setIsLiked] = useState(false)
-
-  useEffect(() => {
-    if (user && article.author) {
-      const authorId = typeof article.author === 'object' ? article.author._id : article.author
-      articleAPI.checkFollowStatus(authorId).then(res => setIsFollowing(res.data.data.isFollowing)).catch(() => {})
-    }
-  }, [user, article])
+  const [isFollowing, setIsFollowing] = useState(Boolean(article.followingAuthor))
+  const [isLiked, setIsLiked] = useState(Boolean(article.liked))
+  const [likeCount, setLikeCount] = useState(article.likes || 0)
 
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
+    const next = !isLiked
+    setIsLiked(next)
+    setLikeCount((prev) => Math.max(0, prev + (next ? 1 : -1)))
     try {
-      if (isLiked) {
-        await articleAPI.unlikeArticle(article._id)
-        setIsLiked(false)
-      } else {
-        await articleAPI.likeArticle(article._id)
-        setIsLiked(true)
-      }
+      const response = next ? await articleAPI.likeArticle(article._id) : await articleAPI.unlikeArticle(article._id)
+      const likes = (response.data.data as any)?.likes
+      if (typeof likes === 'number') setLikeCount(likes)
     } catch (error) {
+      setIsLiked(!next)
+      setLikeCount((prev) => Math.max(0, prev + (next ? -1 : 1)))
       console.error('Failed to like article:', error)
     }
   }
@@ -122,20 +117,18 @@ function StoryCard({ article }: { article: Article }) {
     e.preventDefault()
     e.stopPropagation()
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
     const author = typeof article.author === 'object' ? article.author : null
     if (!author) return
+    const next = !isFollowing
+    setIsFollowing(next)
     try {
-      if (isFollowing) {
-        await articleAPI.unfollowWriter(author._id)
-        setIsFollowing(false)
-      } else {
-        await articleAPI.followWriter(author._id)
-        setIsFollowing(true)
-      }
+      if (next) await articleAPI.followWriter(author._id)
+      else await articleAPI.unfollowWriter(author._id)
     } catch (error) {
+      setIsFollowing(!next)
       console.error('Failed to follow/unfollow author:', error)
     }
   }
@@ -182,11 +175,15 @@ function StoryCard({ article }: { article: Article }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleLike}
-                className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-red-500 transition-colors"
+                aria-pressed={isLiked}
+                className={cn(
+                  'inline-flex items-center gap-1 text-sm transition-colors',
+                  isLiked ? 'text-red-500 font-semibold' : 'text-slate-500 hover:text-red-500'
+                )}
                 title={t('writer.likes')}
               >
-                <Heart className="h-4 w-4" />
-                <span>{(article.likes || 0).toLocaleString()}</span>
+                <Heart className={cn('h-4 w-4', isLiked && 'fill-current')} />
+                <span>{likeCount.toLocaleString()}</span>
               </button>
               <button
                 onClick={handleShare}

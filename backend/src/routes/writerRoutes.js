@@ -190,7 +190,9 @@ router.get('/me/dashboard', protect, authorize('WRITER'), async (req, res, next)
       { $group: { _id: null, total: { $sum: '$validViews' } } }
     ]);
     const earnings = await WriterEarning.find({ writerId: req.user._id }).sort({ weekStart: -1 }).limit(5);
-    const followersCount = await Follow.countDocuments({ following: req.user._id });
+    // Follow.writer references a WriterProfile, not the User account.
+    const writerProfile = await WriterProfile.findOne({ user: req.user._id }).select('_id');
+    const followersCount = writerProfile ? await Follow.countDocuments({ writer: writerProfile._id }) : 0;
     return successResponse(res, 200, 'Writer dashboard', {
       totalArticles,
       publishedArticles,

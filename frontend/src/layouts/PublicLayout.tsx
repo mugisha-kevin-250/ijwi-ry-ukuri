@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import Header from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
 import BottomNav from '../components/layout/BottomNav'
+import SignInPrompt from '../components/auth/SignInPrompt'
 
 export default function PublicLayout() {
   const { pathname } = useLocation()
@@ -14,6 +15,7 @@ export default function PublicLayout() {
       </main>
       {pathname !== '/' && <Footer />}
       <BottomNav />
+      <SignInPrompt />
     </div>
   )
 }

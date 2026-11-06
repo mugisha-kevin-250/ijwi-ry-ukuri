@@ -47,6 +47,9 @@ export interface Article {
   publishedAt?: string
   createdAt: string
   updatedAt: string
+  liked?: boolean
+  bookmarked?: boolean
+  followingAuthor?: boolean
 }
 
 export interface Comment {

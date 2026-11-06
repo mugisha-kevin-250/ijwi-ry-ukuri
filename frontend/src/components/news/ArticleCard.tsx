@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { Calendar, Eye, Heart, Tag, UserPlus, Share2, Bookmark } from 'lucide-react'
 import type { Article } from '../../types'
 import { cn } from '../../utils/cn'
+import { requestSignIn } from '../../utils/signInPrompt'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import { articleAPI } from '../../services/api'
@@ -29,8 +30,8 @@ export default function ArticleCard({
   const category = typeof article.category === 'object' ? article.category : null
   const { user } = useAuth()
   const { t } = useI18n()
-  const navigate = useNavigate()
-  const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isBookmarked, setIsBookmarked] = useState(Boolean(article.bookmarked))
+  const [isFollowing, setIsFollowing] = useState(Boolean(article.followingAuthor))
 
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -58,13 +59,17 @@ export default function ArticleCard({
     e.preventDefault()
     e.stopPropagation()
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
     if (!author) return
+    const next = !isFollowing
+    setIsFollowing(next)
     try {
-      await articleAPI.followWriter(author._id)
+      if (next) await articleAPI.followWriter(author._id)
+      else await articleAPI.unfollowWriter(author._id)
     } catch (error) {
+      setIsFollowing(!next)
       console.error('Failed to follow author:', error)
     }
   }
@@ -73,18 +78,16 @@ export default function ArticleCard({
     e.preventDefault()
     e.stopPropagation()
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
+    const next = !isBookmarked
+    setIsBookmarked(next)
     try {
-      if (isBookmarked) {
-        await articleAPI.unbookmarkArticle(article._id)
-        setIsBookmarked(false)
-      } else {
-        await articleAPI.bookmarkArticle(article._id)
-        setIsBookmarked(true)
-      }
+      if (next) await articleAPI.bookmarkArticle(article._id)
+      else await articleAPI.unbookmarkArticle(article._id)
     } catch (error) {
+      setIsBookmarked(!next)
       console.error('Failed to bookmark article:', error)
     }
   }
@@ -281,7 +284,11 @@ export default function ArticleCard({
                 </button>
                 <button
                   onClick={handleFollow}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-green-500 transition-colors"
+                  aria-pressed={isFollowing}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                    isFollowing ? 'text-green-600' : 'text-gray-500 hover:text-green-600'
+                  )}
                   aria-label={t('articles.follow')}
                   title={t('articles.follow')}
                 >

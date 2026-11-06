@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useSearchParams, useNavigate } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import type { Article, Category } from '../../types'
 import { publicAPI } from '../../services/api'
 import { Loading, LoadingGrid } from '../../components/common/Loading'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
+import { requestSignIn } from '../../utils/signInPrompt'
 import { useAuth } from '../../context/AuthContext'
 import { articleAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
@@ -16,33 +17,27 @@ function StoryCard({ article }: { article: Article }) {
   const category = typeof article.category === 'object' ? article.category : null
   const author = typeof article.author === 'object' ? article.author : null
   const { user } = useAuth()
-  const navigate = useNavigate()
-  const [isFollowing, setIsFollowing] = useState(false)
-  const [isLiked, setIsLiked] = useState(false)
-
-  useEffect(() => {
-    if (user && article.author) {
-      const authorId = typeof article.author === 'object' ? article.author._id : article.author
-      articleAPI.checkFollowStatus(authorId).then(res => setIsFollowing(res.data.data.isFollowing)).catch(() => {})
-    }
-  }, [user, article])
+  const [isFollowing, setIsFollowing] = useState(Boolean(article.followingAuthor))
+  const [isLiked, setIsLiked] = useState(Boolean(article.liked))
+  const [likeCount, setLikeCount] = useState(article.likes || 0)
 
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
+    const next = !isLiked
+    setIsLiked(next)
+    setLikeCount((prev) => Math.max(0, prev + (next ? 1 : -1)))
     try {
-      if (isLiked) {
-        await articleAPI.unlikeArticle(article._id)
-        setIsLiked(false)
-      } else {
-        await articleAPI.likeArticle(article._id)
-        setIsLiked(true)
-      }
+      const response = next ? await articleAPI.likeArticle(article._id) : await articleAPI.unlikeArticle(article._id)
+      const likes = (response.data.data as any)?.likes
+      if (typeof likes === 'number') setLikeCount(likes)
     } catch (error) {
+      setIsLiked(!next)
+      setLikeCount((prev) => Math.max(0, prev + (next ? -1 : 1)))
       console.error('Failed to like article:', error)
     }
   }
@@ -72,20 +67,18 @@ function StoryCard({ article }: { article: Article }) {
     e.preventDefault()
     e.stopPropagation()
     if (!user) {
-      navigate('/login')
+      requestSignIn()
       return
     }
     const author = typeof article.author === 'object' ? article.author : null
     if (!author) return
+    const next = !isFollowing
+    setIsFollowing(next)
     try {
-      if (isFollowing) {
-        await articleAPI.unfollowWriter(author._id)
-        setIsFollowing(false)
-      } else {
-        await articleAPI.followWriter(author._id)
-        setIsFollowing(true)
-      }
+      if (next) await articleAPI.followWriter(author._id)
+      else await articleAPI.unfollowWriter(author._id)
     } catch (error) {
+      setIsFollowing(!next)
       console.error('Failed to follow/unfollow author:', error)
     }
   }
@@ -137,11 +130,15 @@ function StoryCard({ article }: { article: Article }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleLike}
-                className="inline-flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-red-500 transition-colors"
+                aria-pressed={isLiked}
+                className={cn(
+                  'inline-flex items-center gap-1 text-sm transition-colors',
+                  isLiked ? 'text-red-500 font-semibold' : 'text-[var(--color-text-muted)] hover:text-red-500'
+                )}
                 title={t('writer.likes')}
               >
-                <Heart className="h-4 w-4" />
-                <span>{(article.likes || 0).toLocaleString()}</span>
+                <Heart className={cn('h-4 w-4', isLiked && 'fill-current')} />
+                <span>{likeCount.toLocaleString()}</span>
               </button>
               <button
                 onClick={handleShare}

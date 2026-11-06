@@ -6,10 +6,18 @@ const Follow = require('../models/Follow');
 const Like = require('../models/Like');
 const Comment = require('../models/Comment');
 const Bookmark = require('../models/Bookmark');
+const WriterProfile = require('../models/WriterProfile');
 const { protect, optionalAuth } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 
 const router = express.Router();
+
+// Follow.writer references a WriterProfile, not the User account.
+async function countFollowers(userId) {
+  const profile = await WriterProfile.findOne({ user: userId }).select('_id');
+  if (!profile) return 0;
+  return Follow.countDocuments({ writer: profile._id });
+}
 
 router.get('/me', protect, async (req, res, next) => {
   try {
@@ -59,7 +67,7 @@ router.get('/me/stats', protect, async (req, res, next) => {
   try {
     const [articles, followers, following, likesAgg] = await Promise.all([
       Article.find({ author: req.user._id }),
-      Follow.countDocuments({ writer: req.user._id }),
+      countFollowers(req.user._id),
       Follow.countDocuments({ follower: req.user._id }),
       Article.aggregate([{ $match: { author: req.user._id } }, { $group: { _id: null, totalLikes: { $sum: '$likes' }, totalViews: { $sum: '$views' } } }])
     ]);
@@ -83,7 +91,7 @@ router.get('/:id/profile', optionalAuth, async (req, res, next) => {
     if (!user) return errorResponse(res, 404, 'User not found');
     const [articles, followers, following, likesAgg] = await Promise.all([
       Article.find({ author: user._id, status: 'published' }).sort({ publishedAt: -1 }),
-      Follow.countDocuments({ writer: user._id }),
+      countFollowers(user._id),
       Follow.countDocuments({ follower: user._id }),
       Article.aggregate([{ $match: { author: user._id } }, { $group: { _id: null, totalLikes: { $sum: '$likes' }, totalViews: { $sum: '$views' } } }])
     ]);

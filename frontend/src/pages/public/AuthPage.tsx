@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight, LockKeyhole, Mail, UserRound } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const { login, register } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const from = (location.state as { from?: string } | null)?.from
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -25,7 +27,10 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         await login(email.trim(), password)
       }
       const currentUser = JSON.parse(localStorage.getItem('user') || 'null') as { role?: string } | null
-      navigate(currentUser?.role === 'ADMIN' ? '/mugishaimekevin/dashboard' : currentUser?.role === 'WRITER' ? '/writer/dashboard' : '/', { replace: true })
+      const roleHome = currentUser?.role === 'ADMIN' ? '/mugishaimekevin/dashboard' : currentUser?.role === 'WRITER' ? '/writer/dashboard' : '/'
+      // A visitor sent here by the sign-in prompt goes back to the story they were reading.
+      const publicFrom = from && !/^\/(login|register|mugishaimekevin|writer)/.test(from)
+      navigate(publicFrom ? from : roleHome, { replace: true })
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'We could not complete your request. Please try again.')
     } finally {

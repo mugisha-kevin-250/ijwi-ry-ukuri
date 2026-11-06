@@ -155,14 +155,8 @@ export const articleAPI = {
   unfollowWriter: (writerId: string) =>
     apiClient.delete(`/writers/${writerId}/follow`),
 
-  checkFollowStatus: (writerId: string) =>
-    apiClient.get<{ isFollowing: boolean }>(`/writers/${writerId}/follow/status`),
-
   reportArticle: (id: string, data: { reason: string; details?: string }) =>
     apiClient.post(`/articles/${id}/report`, data),
-
-  trackView: (id: string, data: { readingDurationMs?: number; anonymousSessionId?: string }) =>
-    apiClient.post(`/articles/${id}/view`, data),
 }
 
 export const userAPI = {

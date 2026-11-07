@@ -290,6 +290,11 @@ export default function HomePage() {
   const sideStories = trending.filter((article) => article._id !== featured?._id).slice(0, 4)
   const latestGrid = latest.filter((article) => article._id !== featured?._id).slice(0, 6)
   const popularStories = popular.length ? popular : trending
+  // The banner leads with whatever is trending and fills the rest from the newest
+  // reads, so it always has several slides to rotate through.
+  const bannerStories = [...trending, ...latest].filter(
+    (article, position, all) => article && all.findIndex((item) => item && item._id === article._id) === position,
+  )
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
@@ -339,8 +344,8 @@ export default function HomePage() {
 <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(280px,0.9fr)]">
           <div>
             <SectionHeading title={t('home.top')} />
-            {loading ? <div className="aspect-[16/8] animate-pulse rounded-xl bg-slate-200" /> : featured ? (
-              <NewsBanner articles={latest} categories={categories} />
+            {loading ? <div className="aspect-[16/8] animate-pulse rounded-xl bg-slate-200" /> : bannerStories.length ? (
+              <NewsBanner articles={bannerStories} categories={categories} />
             ) : <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-sm text-slate-500">{t('home.emptyTop')}</div>}
           </div>
 

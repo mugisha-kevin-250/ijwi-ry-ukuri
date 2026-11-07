@@ -25,16 +25,6 @@ function articleTimestamp(article: Article): number {
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
-function isSameLocalDay(timestamp: number, now: Date): boolean {
-  if (!timestamp) return false
-  const date = new Date(timestamp)
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  )
-}
-
 /** article.category is either a populated object or a bare id/name string. */
 function slideCategory(article: Article, categories: Category[]): SlideCategory | null {
   const populated = typeof article.category === 'object' && article.category !== null ? article.category : null
@@ -98,21 +88,30 @@ export default function NewsBanner({ articles, categories = [] }: NewsBannerProp
   const pageVisible = usePageVisible()
 
   const slides = useMemo<Slide[]>(() => {
-    const usable = articles.filter((article) => article && article._id && article.slug && article.title)
-    const sorted = [...usable].sort((a, b) => articleTimestamp(b) - articleTimestamp(a))
-    const now = new Date()
-    const todays = sorted.filter((article) => isSameLocalDay(articleTimestamp(article), now))
-    // Fall back to the most recent articles when nothing was published today.
-    const pool = todays.length ? todays : sorted
+    const ranked = articles.filter((article) => article && article._id && article.slug && article.title)
+    const withImages = ranked.filter((article) => article.featuredImage)
+    // Artwork is the whole point of a banner, so image stories take the slots when
+    // there are enough of them; otherwise every read gets a turn.
+    const pool = (withImages.length >= 3 ? withImages : ranked).slice(0, MAX_SLIDES * 3)
 
-    const leads = new Map<string, Slide>()
-    pool.forEach((article) => {
-      const category = slideCategory(article, categories)
-      const key = category ? category.key : 'other'
-      // Sorted newest-first, so the first article seen per category is its newest one.
-      if (!leads.has(key)) leads.set(key, { article, category })
-    })
-    return Array.from(leads.values()).slice(0, MAX_SLIDES)
+    const picked: Slide[] = []
+    const takenIds = new Set<string>()
+    const takenCategories = new Set<string>()
+    // Two passes: every topic gets one slot before any topic takes a second, so a
+    // single busy category cannot own the whole banner.
+    for (const diversifyByTopic of [true, false]) {
+      for (const article of pool) {
+        if (picked.length === MAX_SLIDES) break
+        if (takenIds.has(article._id)) continue
+        const category = slideCategory(article, categories)
+        const key = category ? category.key : 'other'
+        if (diversifyByTopic && takenCategories.has(key)) continue
+        takenIds.add(article._id)
+        takenCategories.add(key)
+        picked.push({ article, category })
+      }
+    }
+    return picked
   }, [articles, categories])
 
   const count = slides.length

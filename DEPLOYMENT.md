@@ -93,8 +93,8 @@ feature until the key is in.
 | Paste into | Variable | Where the value comes from | Without it |
 | --- | --- | --- | --- |
 | Render env | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `.env.render`, generated with `npx web-push generate-vapid-keys` | `GET /api/push/status` -> `enabled: false`, the alerts prompt stays hidden, `/api/push/broadcast` answers 503. |
-| Render env | `GOOGLE_CLIENT_ID` | Google Cloud -> APIs & Services -> Credentials -> OAuth 2.0 Client ID (Web application). Add **Authorized JavaScript origins**: `https://ijwi-ry--ukuri.web.app` and `http://localhost:5173`. | `POST /api/auth/google` -> 503. |
-| `frontend/.env.production` (then rebuild) | `VITE_GOOGLE_CLIENT_ID` | the same Client ID, the public half | the "Continue with Google" button is not rendered at all. |
+| Render env | `GOOGLE_CLIENT_ID` | `423361172120-8m17rtkmh91qc5b3r9o3qc3s5c2tvh9f.apps.googleusercontent.com` — Google Cloud -> Google Auth Platform -> Credentials -> OAuth client ID (Web application). Its **Authorized JavaScript origins** are `https://ijwi-ry--ukuri.web.app` and `http://localhost:5173`. The *client secret* is not used by this flow; never paste it anywhere. | `POST /api/auth/google` -> 503 "Google sign-in is not configured on this server". |
+| `frontend/.env.production` (then rebuild) | `VITE_GOOGLE_CLIENT_ID` | the same Client ID, the public half — already set and deployed | the "Continue with Google" button is not rendered at all. |
 
 ## Uploaded images live in the database
 

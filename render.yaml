@@ -126,9 +126,11 @@ services:
       # (Web application). Authorized origins must include the Firebase Hosting
       # domain. The frontend reads the same value from VITE_GOOGLE_CLIENT_ID, so a
       # mismatch means the backend rejects every token.
+      # A client id is public (it ships inside the browser bundle), so it is safe
+      # to commit — the client SECRET is not needed by this flow and must never be
+      # stored here.
       - key: GOOGLE_CLIENT_ID
-        sync: false
-        value: REPLACE_WITH_GOOGLE_CLIENT_ID.apps.googleusercontent.com
+        value: 423361172120-8m17rtkmh91qc5b3r9o3qc3s5c2tvh9f.apps.googleusercontent.com
 
       # --- web push (VAPID) ---
       # Paste both values from the gitignored `.env.render`. Without them the API

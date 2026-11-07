@@ -8,9 +8,44 @@ function closeAll(pcs: Map<string, RTCPeerConnection>) {
     pc.onicecandidate = null
     pc.ontrack = null
     pc.onconnectionstatechange = null
+    pc.onnegotiationneeded = null
     pc.close()
   })
   pcs.clear()
+}
+
+/**
+ * One offer at a time per call. Chrome fires `onnegotiationneeded` by itself as
+ * soon as a track is added, so an offer sent by hand next to it produces two:
+ * the viewer answers the second one while this side still expects the answer to
+ * the first, `setRemoteDescription` throws, and the call never connects.
+ */
+function negotiator(socket: Socket, pc: RTCPeerConnection, peerId: string) {
+  let running = false
+  let queued = false
+
+  const send = async () => {
+    if (running) {
+      queued = true
+      return
+    }
+    running = true
+    try {
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      socket.emit('live:signal', { to: peerId, data: { sdp: pc.localDescription } })
+    } catch {
+      // The connectionstatechange handler already drops calls that are beyond help.
+    } finally {
+      running = false
+      if (queued) {
+        queued = false
+        void send()
+      }
+    }
+  }
+
+  return send
 }
 
 /**
@@ -32,35 +67,20 @@ export function startBroadcaster(
     if (pcs.has(peerId)) return
     const pc = new RTCPeerConnection(ICE_SERVERS)
     pcs.set(peerId, pc)
-    stream.getTracks().forEach((track) => pc.addTrack(track, stream))
 
     pc.onicecandidate = (event) => {
       if (event.candidate) socket.emit('live:signal', { to: peerId, data: { candidate: event.candidate } })
-    }
-    // restartIce() below only does something if an offerer answers the renegotiation
-    // it asks for; without this the viewer would stay on a dead call forever.
-    pc.onnegotiationneeded = async () => {
-      try {
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        socket.emit('live:signal', { to: peerId, data: { sdp: pc.localDescription } })
-      } catch {
-        // The connectionstatechange handler already drops dead calls.
-      }
     }
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed') pc.restartIce()
       if (pc.connectionState === 'closed') pcs.delete(peerId)
     }
 
-    try {
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-      socket.emit('live:signal', { to: peerId, data: { sdp: pc.localDescription } })
-    } catch {
-      pcs.delete(peerId)
-      pc.close()
-    }
+    // Adding the tracks is what asks Chrome for the first offer; restartIce()
+    // asks for the later ones. Both leave through the same handler.
+    const negotiate = negotiator(socket, pc, peerId)
+    pc.onnegotiationneeded = () => void negotiate()
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream))
   }
 
   const onSignal = async ({ from, data }: Signal) => {
@@ -118,6 +138,7 @@ export function startViewer(
   socket: Socket,
   onStream: (stream: MediaStream) => void,
   onFailed: () => void = () => {},
+  onState: (state: RTCPeerConnectionState) => void = () => {},
 ): () => void {
   let pc: RTCPeerConnection | null = null
   let hostId: string | null = null
@@ -132,34 +153,55 @@ export function startViewer(
     pc = null
   }
 
+  const buildPeer = () => {
+    pc = new RTCPeerConnection(ICE_SERVERS)
+    pc.onicecandidate = (event) => {
+      if (event.candidate && hostId) socket.emit('live:signal', { to: hostId, data: { candidate: event.candidate } })
+    }
+    // A track that arrives without its stream still has to be shown, otherwise
+    // the viewer is left staring at an empty black player.
+    pc.ontrack = (event) => onStream(event.streams[0] || new MediaStream([event.track]))
+    pc.onconnectionstatechange = () => {
+      if (!pc) return
+      onState(pc.connectionState)
+      if (pc.connectionState !== 'failed') return
+      closePeer()
+      // The broadcaster only sends an offer when a viewer joins, so a dead call
+      // can only come back by asking for it again.
+      onFailed()
+    }
+    onState(pc.connectionState)
+  }
+
   const onSignal = async ({ from, data }: Signal) => {
     if (!from || !data) return
 
     if (data.sdp && data.sdp.type === 'offer') {
+      // A second offer from the same broadcaster is a renegotiation (an ICE
+      // restart after a dead call), so it belongs on the live peer. Only a
+      // different socket id means the camera moved to another tab.
+      if (pc && hostId === from) {
+        try {
+          await pc.setRemoteDescription(data.sdp)
+          for (const candidate of pending.splice(0)) await pc.addIceCandidate(candidate)
+          const answer = await pc.createAnswer()
+          await pc.setLocalDescription(answer)
+          socket.emit('live:signal', { to: from, data: { sdp: pc.localDescription } })
+        } catch {
+          closePeer()
+        }
+        return
+      }
+
       hostId = from
-      // A reconnect gives the broadcaster a new socket id and a fresh offer. The
-      // call to the old id can never recover, so it has to be dropped here.
       closePeer()
-      pc = new RTCPeerConnection(ICE_SERVERS)
-      pc.onicecandidate = (event) => {
-        if (event.candidate && hostId) socket.emit('live:signal', { to: hostId, data: { candidate: event.candidate } })
-      }
-      // A track that arrives without its stream still has to be shown, otherwise
-      // the viewer is left staring at an empty black player.
-      pc.ontrack = (event) => onStream(event.streams[0] || new MediaStream([event.track]))
-      pc.onconnectionstatechange = () => {
-        if (!pc || pc.connectionState !== 'failed') return
-        closePeer()
-        // The broadcaster only sends an offer when a viewer joins, so a dead call
-        // can only come back by asking for it again.
-        onFailed()
-      }
+      buildPeer()
       try {
-        await pc.setRemoteDescription(data.sdp)
-        for (const candidate of pending.splice(0)) await pc.addIceCandidate(candidate)
-        const answer = await pc.createAnswer()
-        await pc.setLocalDescription(answer)
-        socket.emit('live:signal', { to: hostId, data: { sdp: pc.localDescription } })
+        await pc!.setRemoteDescription(data.sdp)
+        for (const candidate of pending.splice(0)) await pc!.addIceCandidate(candidate)
+        const answer = await pc!.createAnswer()
+        await pc!.setLocalDescription(answer)
+        socket.emit('live:signal', { to: hostId, data: { sdp: pc!.localDescription } })
       } catch {
         closePeer()
       }

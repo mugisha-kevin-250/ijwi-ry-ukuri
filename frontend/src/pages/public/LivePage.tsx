@@ -7,7 +7,7 @@ import type { Live, LiveComment } from '../../types'
 import { liveAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
-import { connectLiveSocket } from '../../utils/liveSocket'
+import { connectLiveSocket, relayConfigured } from '../../utils/liveSocket'
 import { openCamera, startBroadcaster, startViewer, stopTracks } from '../../utils/liveMedia'
 import { shareArticle } from '../../utils/shareArticle'
 import { requestSignIn } from '../../utils/signInPrompt'
@@ -41,6 +41,7 @@ export default function LivePage() {
   const [remoteReady, setRemoteReady] = useState(false)
   const [audioOn, setAudioOn] = useState(false)
   const [isWaitingTooLong, setIsWaitingTooLong] = useState(false)
+  const [peerState, setPeerState] = useState<string>('new')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
 
@@ -159,14 +160,19 @@ export default function LivePage() {
       }
       rejoinRef.current = watch
       watch()
-      stopPeersRef.current = startViewer(socket, attachStream, () => {
-        setRemoteReady(false)
-        // A connection that keeps dying must not keep adding a view each time;
-        // after two automatic attempts the viewer has to tap the retry button.
-        if (autoRetryRef.current >= 2) return
-        autoRetryRef.current += 1
-        watch()
-      })
+      stopPeersRef.current = startViewer(
+        socket,
+        attachStream,
+        () => {
+          setRemoteReady(false)
+          // A connection that keeps dying must not keep adding a view each time;
+          // after two automatic attempts the viewer has to tap the retry button.
+          if (autoRetryRef.current >= 2) return
+          autoRetryRef.current += 1
+          watch()
+        },
+        setPeerState,
+      )
     }
 
     const onConnect = () => { void connect() }
@@ -319,6 +325,7 @@ export default function LivePage() {
                   {isWaitingTooLong && (
                     <>
                       <p className="text-xs text-slate-300">{t('live.stalledHint')}</p>
+                      <p className="text-[11px] uppercase tracking-wide text-slate-400">{t('live.stage')} · {peerState}</p>
                       <button
                         type="button"
                         onClick={() => rejoinRef.current?.()}
@@ -428,6 +435,11 @@ export default function LivePage() {
             <p className="text-sm text-[var(--color-text-muted)]">
               {t('live.onAirHint')} <span className="font-semibold">{stats.viewers}</span> {t('live.watching')}
             </p>
+            {!relayConfigured && (
+              <p className="w-full rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                {t('live.noRelay')}
+              </p>
+            )}
             <button
               onClick={() => void handleEnd()}
               className="inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
@@ -439,7 +451,7 @@ export default function LivePage() {
         )}
       </div>
 
-      <section className="flex max-h-[560px] flex-col rounded-xl border border-[var(--color-border)] bg-white" aria-label={t('live.chat')}>
+      <section translate="no" className="flex max-h-[560px] flex-col rounded-xl border border-[var(--color-border)] bg-white" aria-label={t('live.chat')}>
         <h2 className="border-b border-[var(--color-border)] px-4 py-3 text-sm font-bold text-[var(--color-text)]">
           {t('live.chat')}
         </h2>

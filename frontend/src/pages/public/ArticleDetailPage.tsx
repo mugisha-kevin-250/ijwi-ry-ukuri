@@ -17,6 +17,13 @@ import { requestSignIn } from '../../utils/signInPrompt'
 import { useArticleViewTracking } from '../../utils/viewTracking'
 import { useArticleBookmark, useArticleLike, useAuthorFollow, useVisiblePoll } from '../../utils/engagementStore'
 import { shareArticle } from '../../utils/shareArticle'
+import { categoryGroupSlug, categoryLabel } from '../../data/categoryVisuals'
+
+/** article.category arrives populated or as a bare id, depending on the route. */
+function storyCategory(article: Article | null) {
+  if (!article) return null
+  return typeof article.category === 'object' && article.category !== null ? article.category : null
+}
 
 export default function ArticleDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -59,7 +66,7 @@ export default function ArticleDetailPage() {
       try {
         const [articleRes, relatedRes] = await Promise.all([
           publicAPI.getArticleBySlug(slug),
-          publicAPI.getArticles({ limit: 4 }),
+          publicAPI.getArticles({ page: 1, limit: 24 }),
         ])
         const payload = articleRes.data.data as any
         const articleData = (payload?.article ?? payload) as Article | null
@@ -68,7 +75,12 @@ export default function ArticleDetailPage() {
           return
         }
         setArticle(articleData)
-        setRelatedArticles(relatedRes.data.data?.articles?.filter((a: Article) => a._id !== articleData._id).slice(0, 3) || [])
+        // Stories from the same section first, then whatever else is newest, so
+        // the sidebar reads as a follow-up to what the reader just finished.
+        const pool = (relatedRes.data.data?.articles as Article[] | undefined)?.filter((a) => a._id !== articleData._id) || []
+        const section = categoryGroupSlug(storyCategory(articleData))
+        const sameSection = pool.filter((a) => categoryGroupSlug(storyCategory(a)) === section)
+        setRelatedArticles([...sameSection, ...pool.filter((a) => !sameSection.includes(a))].slice(0, 4))
       } catch (error) {
         console.error('Failed to fetch article:', error)
         navigate('/articles')
@@ -182,7 +194,8 @@ export default function ArticleDetailPage() {
   }
 
   return (
-    <article className="max-w-4xl mx-auto space-y-8">
+    <div className="mx-auto max-w-4xl lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,270px)_minmax(0,1fr)] lg:items-start lg:gap-10">
+      <article className="space-y-8 lg:col-start-2 lg:row-start-1">
       <Link
         to="/articles"
         className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white font-semibold text-base hover:bg-brand-700 transition-colors shadow-lg"
@@ -198,7 +211,7 @@ export default function ArticleDetailPage() {
             className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300"
           >
             <Tag className="h-3.5 w-3.5" aria-hidden="true" />
-            {category.name}
+            {categoryLabel(category, t)}
           </Link>
         )}
         <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white leading-tight">{article.title}</h1>
@@ -344,18 +357,21 @@ export default function ArticleDetailPage() {
         </div>
       )}
 
-      {relatedArticles.length > 0 && (
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('articles.related')}</h2>
-          <ArticleList articles={relatedArticles} variant="grid" />
-        </section>
-      )}
-
-      <section className="space-y-4">
+      <section translate="no" className="space-y-4">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('articles.comments')}</h2>
         <CommentsSection articleId={article._id} />
       </section>
-    </article>
+      </article>
+
+      {/* On a big screen the follow-up stories sit beside the text; on a phone
+          they land under the comments once the reader is done. */}
+      {relatedArticles.length > 0 && (
+        <aside className="mt-10 space-y-4 lg:col-start-1 lg:row-start-1 lg:mt-0">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('articles.related')}</h2>
+          <ArticleList articles={relatedArticles} variant="list" />
+        </aside>
+      )}
+    </div>
   )
 }
 

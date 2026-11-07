@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { Category } from '../../types'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
-import { resolveCategories, type ResolvedCategory } from '../../data/categoryVisuals'
+import { categoryGroupSlugs, categoryLabel, resolveCategories, type ResolvedCategory } from '../../data/categoryVisuals'
 import CategoryCard from '../../components/news/CategoryCard'
 import { Loading } from '../../components/common/Loading'
 import EmptyState from '../../components/common/EmptyState'
@@ -36,12 +36,13 @@ export default function CategoriesPage() {
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase()
     if (!term) return resolved
-    return resolved.filter(({ category }) =>
-      category.name.toLowerCase().includes(term) ||
-      category.slug.toLowerCase().includes(term) ||
-      (category.description || '').toLowerCase().includes(term)
-    )
-  }, [resolved, search])
+    return resolved.filter(({ category }) => {
+      // Readers search with either language, so every spelling of the section
+      // counts: 'amasport', 'sports' and 'imikino' all find the same card.
+      const names = [categoryLabel(category, t), category.name, category.slug, ...categoryGroupSlugs(category)]
+      return names.some((value) => value.toLowerCase().includes(term)) || (category.description || '').toLowerCase().includes(term)
+    })
+  }, [resolved, search, t])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()

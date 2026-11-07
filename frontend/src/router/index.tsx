@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../context/AuthContext'
 import AdminLayout from '../layouts/AdminLayout'
@@ -66,50 +66,67 @@ function RequireAdmin({ children }: { children: ReactNode }) {
   return children
 }
 
+// Readers who click a story from the footer were left wherever they had scrolled
+// on the previous page, so each new page opens at the top and back/forward still
+// returns them to the spot they left.
+function RootLayout() {
+  return (
+    <>
+      <Outlet />
+      <ScrollRestoration />
+    </>
+  )
+}
+
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <PublicLayout />,
+    element: <RootLayout />,
     children: [
-      { index: true, element: <HomePage /> },
-      { path: 'login', element: <AuthPage mode="login" /> },
-      { path: 'register', element: <AuthPage mode="register" /> },
-      { path: 'articles', element: <ArticleListPage /> },
-      { path: 'article/:slug', element: <ArticleDetailPage /> },
-      { path: 'categories', element: <CategoriesPage /> },
-      { path: 'live', element: <LivePage /> },
-      { path: 'live/:id', element: <LivePage /> },
-      { path: 'category/:slug', element: <CategoryPage /> },
-      { path: 'search', element: <SearchPage /> },
-      { path: 'user/:id', element: <UserProfilePage /> },
+      {
+        path: '/',
+        element: <PublicLayout />,
+        children: [
+          { index: true, element: <HomePage /> },
+          { path: 'login', element: <AuthPage mode="login" /> },
+          { path: 'register', element: <AuthPage mode="register" /> },
+          { path: 'articles', element: <ArticleListPage /> },
+          { path: 'article/:slug', element: <ArticleDetailPage /> },
+          { path: 'categories', element: <CategoriesPage /> },
+          { path: 'live', element: <LivePage /> },
+          { path: 'live/:id', element: <LivePage /> },
+          { path: 'category/:slug', element: <CategoryPage /> },
+          { path: 'search', element: <SearchPage /> },
+          { path: 'user/:id', element: <UserProfilePage /> },
+        ],
+      },
+      {
+        path: '/writer',
+        element: <WriterLayout variant="writer" />,
+        children: [
+          { index: true, element: <Navigate to="dashboard" replace /> },
+          { path: 'dashboard', element: <RequireRole role="WRITER"><WriterDashboardPage /></RequireRole> },
+          { path: 'articles', element: <RequireRole role="WRITER"><WriterArticlesPage /></RequireRole> },
+          { path: 'articles/new', element: <RequireRole role="WRITER"><WriterArticleEditorPage /></RequireRole> },
+          { path: 'articles/:id/edit', element: <RequireRole role="WRITER"><WriterArticleEditorPage /></RequireRole> },
+          { path: 'earnings', element: <RequireRole role="WRITER"><WriterEarningsPage /></RequireRole> },
+          { path: 'profile', element: <RequireRole role="WRITER"><UserProfilePage /></RequireRole> },
+        ],
+      },
+      {
+        path: '/mugishaimekevin',
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <Navigate to="dashboard" replace /> },
+          { path: 'dashboard', element: <RequireAdmin><DashboardPage kind="admin" /></RequireAdmin> },
+          { path: 'users', element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
+          { path: 'users/:id', element: <RequireAdmin><AdminUserDetailPage /></RequireAdmin> },
+          { path: 'articles', element: <RequireAdmin><AdminArticlesPage /></RequireAdmin> },
+          { path: 'payouts', element: <RequireAdmin><AdminPayoutsPage /></RequireAdmin> },
+          { path: 'settings', element: <RequireAdmin><AdminSettingsPage /></RequireAdmin> },
+        ],
+      },
+      { path: '/mugishaimekevin/login', element: <AdminLoginPage /> },
+      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
-  {
-    path: '/writer',
-    element: <WriterLayout variant="writer" />,
-    children: [
-      { index: true, element: <Navigate to="dashboard" replace /> },
-      { path: 'dashboard', element: <RequireRole role="WRITER"><WriterDashboardPage /></RequireRole> },
-      { path: 'articles', element: <RequireRole role="WRITER"><WriterArticlesPage /></RequireRole> },
-      { path: 'articles/new', element: <RequireRole role="WRITER"><WriterArticleEditorPage /></RequireRole> },
-      { path: 'articles/:id/edit', element: <RequireRole role="WRITER"><WriterArticleEditorPage /></RequireRole> },
-      { path: 'earnings', element: <RequireRole role="WRITER"><WriterEarningsPage /></RequireRole> },
-      { path: 'profile', element: <RequireRole role="WRITER"><UserProfilePage /></RequireRole> },
-    ],
-  },
-  {
-    path: '/mugishaimekevin',
-    element: <AdminLayout />,
-    children: [
-      { index: true, element: <Navigate to="dashboard" replace /> },
-      { path: 'dashboard', element: <RequireAdmin><DashboardPage kind="admin" /></RequireAdmin> },
-      { path: 'users', element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
-      { path: 'users/:id', element: <RequireAdmin><AdminUserDetailPage /></RequireAdmin> },
-      { path: 'articles', element: <RequireAdmin><AdminArticlesPage /></RequireAdmin> },
-      { path: 'payouts', element: <RequireAdmin><AdminPayoutsPage /></RequireAdmin> },
-      { path: 'settings', element: <RequireAdmin><AdminSettingsPage /></RequireAdmin> },
-    ],
-  },
-  { path: '/mugishaimekevin/login', element: <AdminLoginPage /> },
-  { path: '*', element: <Navigate to="/" replace /> },
 ])

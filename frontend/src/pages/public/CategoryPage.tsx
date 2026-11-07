@@ -9,6 +9,7 @@ import EmptyState from '../../components/common/EmptyState'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
+import { categoryLabel } from '../../data/categoryVisuals'
 
 export default function CategoryPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -19,8 +20,10 @@ export default function CategoryPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [total, setTotal] = useState(0)
 
+  const sectionName = categoryLabel(category, t)
+
   useSeo({
-    title: category?.name,
+    title: category ? sectionName : undefined,
     description: category?.description,
     path: slug ? `/category/${slug}` : undefined,
   })
@@ -92,10 +95,10 @@ export default function CategoryPage() {
         <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" aria-label={t('nav.categories')}>
           <Link to="/categories" className="hover:text-brand-600 dark:hover:text-brand-400">{t('nav.categories')}</Link>
           <span aria-hidden="true">/</span>
-          <span className="text-gray-900 dark:text-white font-medium">{category.name}</span>
+          <span className="text-gray-900 dark:text-white font-medium">{sectionName}</span>
         </nav>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{category.name}</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{sectionName}</h1>
           {category.description && (
             <p className="text-gray-600 dark:text-gray-400 mt-2">{category.description}</p>
           )}

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Menu, X, User, LogOut, LayoutDashboard, PenTool, Settings, Users, DollarSign, List, Search } from 'lucide-react'
-import { toast } from 'react-toastify'
+import { Menu, X, User, LogOut, LayoutDashboard, Settings, Search } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../common/Avatar'
@@ -15,40 +14,39 @@ interface HeaderProps {
 }
 
 export default function Header({ variant = 'public', sidebarCollapsed = false }: HeaderProps) {
-  const { user, logout, token, becomeWriter } = useAuth()
+  const { user, logout, token } = useAuth()
   const { t } = useI18n()
   const navigate = useNavigate()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
-  const [isApplying, setIsApplying] = useState(false)
   const [searchValue, setSearchValue] = useState('')
 
   const navLinks = [
-    { href: '/', label: t('nav.home'), icon: LayoutDashboard },
-    { href: '/articles', label: t('nav.articles'), icon: List },
-    { href: '/categories', label: t('nav.categories'), icon: Settings },
-    { href: '/search', label: t('nav.search'), icon: Search },
+    { href: '/', label: t('nav.home') },
+    { href: '/articles', label: t('nav.articles') },
+    { href: '/categories', label: t('nav.categories') },
+    { href: '/search', label: t('nav.search') },
   ]
 
   const writerNavLinks = [
-    { href: '/writer/dashboard', label: t('nav.writer.dashboard'), icon: LayoutDashboard },
-    { href: '/writer/articles', label: t('nav.writer.myArticles'), icon: PenTool },
-    { href: '/writer/profile', label: t('nav.writer.profile'), icon: User },
+    { href: '/writer/dashboard', label: t('nav.writer.dashboard') },
+    { href: '/writer/articles', label: t('nav.writer.myArticles') },
+    { href: '/writer/profile', label: t('nav.writer.profile') },
   ]
 
   const editorNavLinks = [
-    { href: '/editor/dashboard', label: t('nav.editor.dashboard'), icon: LayoutDashboard },
-    { href: '/editor/pending', label: t('nav.editor.pending'), icon: List },
+    { href: '/editor/dashboard', label: t('nav.editor.dashboard') },
+    { href: '/editor/pending', label: t('nav.editor.pending') },
   ]
 
   const adminNavLinks = [
-    { href: '/mugishaimekevin/dashboard', label: t('nav.admin.dashboard'), icon: LayoutDashboard },
-    { href: '/mugishaimekevin/users', label: t('nav.admin.users'), icon: Users },
-    { href: '/mugishaimekevin/articles', label: t('nav.admin.news'), icon: List },
-    { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts'), icon: DollarSign },
-    { href: '/categories', label: t('nav.admin.categories'), icon: Settings },
-    { href: '/mugishaimekevin/settings', label: t('nav.admin.settings'), icon: Settings },
+    { href: '/mugishaimekevin/dashboard', label: t('nav.admin.dashboard') },
+    { href: '/mugishaimekevin/users', label: t('nav.admin.users') },
+    { href: '/mugishaimekevin/articles', label: t('nav.admin.news') },
+    { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts') },
+    { href: '/categories', label: t('nav.admin.categories') },
+    { href: '/mugishaimekevin/settings', label: t('nav.admin.settings') },
   ]
 
   const getCurrentNavLinks = () => {
@@ -72,14 +70,13 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
       key={link.href}
       to={link.href}
       className={({ isActive }) =>
-        `flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
+        `shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold underline-offset-4 transition ${
           isActive
-            ? 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-400'
-            : 'text-gray-700 hover:bg-gray-100 hover:text-brand-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-brand-400'
+            ? 'bg-brand-600 text-white shadow-sm decoration-2 hover:underline dark:bg-blue-600'
+            : 'text-gray-800 decoration-2 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400'
         }`
       }
     >
-      <link.icon className="h-4 w-4" aria-hidden="true" />
       {link.label}
     </NavLink>
   ))
@@ -88,26 +85,6 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     event.preventDefault()
     const query = searchValue.trim()
     if (query) navigate(`/search?search=${encodeURIComponent(query)}`)
-  }
-
-  const handleWrite = async () => {
-    if (!token) {
-      navigate('/login', { state: { from: '/writer/articles/new' } })
-      return
-    }
-    if (canWrite) {
-      navigate('/writer/articles/new')
-      return
-    }
-    setIsApplying(true)
-    try {
-      await becomeWriter()
-      navigate('/writer/articles/new')
-    } catch (err: any) {
-      toast.error(err.message || t('writer.becomeFailed'))
-    } finally {
-      setIsApplying(false)
-    }
   }
 
   useEffect(() => {
@@ -119,6 +96,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
 
   return (
     <header
+      translate="no"
       className={`fixed top-0 right-0 z-50 border-b bg-white transition-shadow dark:bg-gray-900 ${
         isScrolled ? 'border-gray-200 shadow-md dark:border-gray-700' : 'border-gray-200 dark:border-gray-700'
       } ${variant === 'public' ? 'left-0' : sidebarCollapsed ? 'left-16' : 'left-16 md:left-64'}`}
@@ -146,17 +124,6 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             )}
 
             <LanguageSelector className="hidden sm:block" buttonClassName="border-gray-200 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" />
-
-            {variant === 'public' && (
-              <button
-                onClick={handleWrite}
-                disabled={isApplying}
-                className="hidden items-center gap-1.5 rounded-full bg-[#062b52] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#041f3a] disabled:opacity-60 md:inline-flex dark:bg-blue-600 dark:hover:bg-blue-500"
-              >
-                <PenTool className="h-4 w-4" aria-hidden="true" />
-                {isApplying ? t('writer.becomeBusy') : t('nav.write')}
-              </button>
-            )}
 
             {variant === 'public' && <NotificationsBell />}
 
@@ -212,13 +179,14 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                           </Link>
                         )}
                         {!canWrite && variant === 'public' && (
-                          <button
-                            onClick={() => { setIsProfileOpen(false); void handleWrite() }}
-                            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          <Link
+                            to="/writer/dashboard"
+                            onClick={() => setIsProfileOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                           >
-                            <PenTool className="h-4 w-4" />
-                            {isApplying ? t('writer.becomeBusy') : t('writer.becomeCta')}
-                          </button>
+                            <LayoutDashboard className="h-4 w-4" />
+                            {t('writer.becomeCta')}
+                          </Link>
                         )}
                         <Link
                           to={variant === 'public' && user?._id ? `/user/${user._id}#settings` : '/writer/profile#settings'}
@@ -281,29 +249,24 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             <div className="space-y-2">
               <nav className="grid gap-1" aria-label="Site sections">
                 {currentNavLinks.map((link) => (
-                  <Link
+                  <NavLink
                     key={link.href}
                     to={link.href}
                     onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    className={({ isActive }) =>
+                      `rounded-lg px-3 py-2 text-sm font-bold underline-offset-4 transition ${
+                        isActive
+                          ? 'bg-brand-600 text-white shadow-sm decoration-2 hover:underline dark:bg-blue-600'
+                          : 'text-gray-800 decoration-2 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400'
+                      }`
+                    }
                   >
-                    <link.icon className="h-4 w-4" aria-hidden="true" />
                     {link.label}
-                  </Link>
+                  </NavLink>
                 ))}
                 {variant === 'public' && <LiveButton className="mt-1 self-start" />}
               </nav>
               <LanguageSelector className="w-full [&>button]:w-full" />
-              {variant === 'public' && (
-                <button
-                  onClick={() => { setIsMenuOpen(false); void handleWrite() }}
-                  disabled={isApplying}
-                  className="flex w-full items-center gap-3 rounded-lg bg-[#062b52] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  <PenTool className="h-4 w-4" aria-hidden="true" />
-                  {isApplying ? t('writer.becomeBusy') : canWrite ? t('nav.write') : t('writer.becomeCta')}
-                </button>
-              )}
               {token ? (
                 <button
                   onClick={() => { setIsMenuOpen(false); logout() }}

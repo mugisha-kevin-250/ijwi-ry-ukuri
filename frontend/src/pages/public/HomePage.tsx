@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
@@ -25,42 +25,24 @@ import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
 import { useArticleLike, useAuthorFollow } from '../../utils/engagementStore'
 import { shareArticle } from '../../utils/shareArticle'
+import { categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 
 /**
- * The newsroom holds the same section twice under two languages ("Business" and
- * "Ubucuruzi"), so a topic is matched against the label the reader is looking at
- * first, then the names the section is known by. A topic with no category is left
- * out rather than sending the reader to the generic list.
+ * The topic strip names each section in the reader's language and links to the
+ * canonical copy of it, because the newsroom stores the same section twice
+ * ("Sports" and "Amasport"). A section with no category is left out rather than
+ * sending the reader to the generic list.
  */
 const topics = [
-  { key: 'category.rwanda', names: ['rwanda'] },
-  { key: 'category.politics', names: ['politics', 'politik'] },
-  { key: 'category.business', names: ['ubucuruzi', 'business'] },
-  { key: 'category.economy', names: ['imirire', 'economy'] },
-  { key: 'category.technology', names: ['technology', 'teknolojia'] },
-  { key: 'category.sports', names: ['sports', 'amasport'] },
-  { key: 'category.entertainment', names: ['entertainment', 'amuseke', 'ibisindi'] },
-  { key: 'category.health', names: ['health', 'ubuzima'] },
+  { key: 'category.rwanda', group: 'rwanda' },
+  { key: 'category.politics', group: 'politik' },
+  { key: 'category.business', group: 'business' },
+  { key: 'category.sports', group: 'sports' },
+  { key: 'category.entertainment', group: 'entertainment' },
+  { key: 'category.technology', group: 'technology' },
+  { key: 'category.health', group: 'health' },
+  { key: 'category.other', group: 'ibindi' },
 ]
-
-function normalizeTopic(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '')
-}
-
-function findTopicCategory(categories: Category[], names: string[]): Category | undefined {
-  for (const wanted of names.map(normalizeTopic)) {
-    if (!wanted) continue
-    const match = categories.find(
-      (item) => normalizeTopic(item.slug) === wanted || normalizeTopic(item.name) === wanted,
-    )
-    if (match) return match
-  }
-  return undefined
-}
 
 function articleCategory(article: Article) {
   return typeof article.category === 'object' ? article.category : null
@@ -126,7 +108,14 @@ function StoryCard({ article }: { article: Article }) {
         <ArticleImage article={article} className="aspect-[16/10] w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
       </Link>
       <div className="p-4">
-        {category && <Link to={`/category/${category.slug}`} className="text-[10px] font-bold uppercase tracking-wider text-blue-700 hover:text-blue-900">{category.name}</Link>}
+        {category && (
+          <Link
+            to={`/category/${category.slug}`}
+            className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 transition hover:bg-blue-100 hover:text-blue-900"
+          >
+            {categoryLabel(category, t)}
+          </Link>
+        )}
         <Link to={`/article/${article.slug}`}>
           <h3 className="mt-1 line-clamp-2 text-sm font-bold leading-snug text-slate-900 group-hover:text-blue-800">{article.title}</h3>
         </Link>
@@ -196,7 +185,9 @@ function CompactStory({ article, index }: { article: Article; index?: number }) 
       <ArticleImage article={article} className="h-[62px] w-[82px] shrink-0 rounded-md object-cover" />
       <span className="min-w-0">
         <span className="line-clamp-2 block text-xs font-bold leading-snug text-slate-800">{article.title}</span>
-        <span className="mt-1 block text-[10px] text-slate-400">{article.readingTime || 3} {t('articles.minRead')}</span>
+        <span className="mt-1 block truncate text-[10px] text-slate-400">
+          {articleCategory(article) ? `${categoryLabel(articleCategory(article), t)} · ` : ''}{article.readingTime || 3} {t('articles.minRead')}
+        </span>
       </span>
     </Link>
   )
@@ -216,6 +207,7 @@ export default function HomePage() {
   const [newsletterMessage, setNewsletterMessage] = useState('')
 
   const search = searchParams.get('search') || ''
+  const resolvedTopics = useMemo(() => resolveCategories(categories), [categories])
 
   const loadNews = async () => {
     setLoading(true)
@@ -313,12 +305,11 @@ export default function HomePage() {
       <nav className="bg-[var(--color-brand)] text-white" aria-label={t('nav.articles')}>
         <div className="mx-auto flex max-w-7xl items-center gap-6 overflow-x-auto px-4 py-2.5 text-xs font-semibold sm:px-6 lg:px-8">
           {topics.map((topic) => {
-            const label = t(topic.key)
-            const category = findTopicCategory(categories, [label, ...topic.names])
-            if (!category) return null
-            return <Link key={topic.key} to={`/category/${category.slug}`} className="shrink-0 transition hover:text-[var(--color-brand-light)]">{label}</Link>
+            const found = resolvedTopics.find((item) => item.visual.slug === topic.group)
+            if (!found) return null
+            return <Link key={topic.key} to={`/category/${found.category.slug}`} className="shrink-0 transition hover:text-[var(--color-brand-light)]">{t(topic.key)}</Link>
           })}
-          <Link to="/categories" className="shrink-0 text-[var(--color-brand-light)]">{t('category.other')} +</Link>
+          <Link to="/categories" className="shrink-0 text-[var(--color-brand-light)]">{t('nav.categories')} +</Link>
         </div>
       </nav>
 
@@ -382,10 +373,10 @@ export default function HomePage() {
           <div>
             <SectionHeading title={t('home.topics')} href="/categories" />
             <div className="grid grid-cols-2 gap-2">
-              {categories.slice(0, 8).map((category) => (
+              {resolvedTopics.slice(0, 8).map(({ category }) => (
                 <Link key={category._id} to={`/category/${category.slug}`} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold transition hover:border-blue-300 hover:text-blue-800">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><Bookmark className="h-4 w-4" /></span>
-                  <span className="truncate">{category.name}</span>
+                  <span className="truncate">{categoryLabel(category, t)}</span>
                 </Link>
               ))}
               {!categories.length && !loading && <p className="col-span-2 text-sm text-slate-500">{t('home.emptyCategories')}</p>}

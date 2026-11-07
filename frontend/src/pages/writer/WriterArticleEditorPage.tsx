@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { writerAPI, publicAPI } from '../../services/api'
 import { uploadImage } from '../../services/apiClient'
 import MediaImage from '../../components/common/MediaImage'
 import { useI18n } from '../../context/I18nContext'
+import type { Category } from '../../types'
+import { canonicalCategoryId, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 
 export default function WriterArticleEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { t } = useI18n()
-  const [categories, setCategories] = useState<any[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [form, setForm] = useState({
     title: '',
     summary: '',
@@ -50,6 +52,19 @@ export default function WriterArticleEditorPage() {
       }).catch(()=>{})
     }
   }, [id])
+
+  // The database keeps some sections twice, once in English and once in
+  // Kinyarwanda. Writers pick the canonical copy so a story never lands in a
+  // duplicate, and an old story opened for editing is moved on save.
+  const sections = useMemo(() => resolveCategories(categories), [categories])
+
+  useEffect(() => {
+    if (!categories.length || !form.category) return
+    setForm((f: any) => {
+      const canonical = canonicalCategoryId(categories, f.category)
+      return canonical === f.category ? f : { ...f, category: canonical }
+    })
+  }, [categories, form.category])
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -133,7 +148,7 @@ export default function WriterArticleEditorPage() {
         <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder={t('writer.content')} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" rows={12} required />
         <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" required>
           <option value="">{t('writer.category')}</option>
-          {categories.map((c:any) => <option key={c._id} value={c._id}>{c.name}</option>)}
+          {sections.map(({ category }) => <option key={category._id} value={category._id}>{categoryLabel(category, t)}</option>)}
         </select>
         <input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder={t('writer.tags')} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
         <div>

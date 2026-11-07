@@ -377,3 +377,28 @@ body {
 .dark .bg-slate-500 {
   background-color: var(--color-border) !important;
 }
+/* The page declares Kinyarwanda as its source language so translators start
+   from the real one. Google's own widget stays out of sight, and the frame it
+   pushes above the page never shows. */
+#google_translate_element {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+#google_translate_element .goog-te-combo {
+  visibility: hidden;
+}
+
+.goog-te-banner-frame,
+.goog-te-gadget-simple,
+.goog-logo-link,
+body > .skiptranslate {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}

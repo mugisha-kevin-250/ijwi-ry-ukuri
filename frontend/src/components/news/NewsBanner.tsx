@@ -4,12 +4,13 @@ import { ChevronLeft, ChevronRight, Clock3, Eye } from 'lucide-react'
 import type { Article, Category } from '../../types'
 import { useI18n } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
+import { categoryGroupSlug, categoryLabel } from '../../data/categoryVisuals'
 import MediaImage from '../common/MediaImage'
 
 const AUTO_ADVANCE_MS = 10000
 const MAX_SLIDES = 6
 
-type SlideCategory = { name: string; href: string; key: string }
+type SlideCategory = { label: string; href: string; key: string }
 type Slide = { article: Article; category: SlideCategory | null }
 
 function safeNumber(value: unknown, fallback = 0): number {
@@ -26,14 +27,18 @@ function articleTimestamp(article: Article): number {
 }
 
 /** article.category is either a populated object or a bare id/name string. */
-function slideCategory(article: Article, categories: Category[]): SlideCategory | null {
+function slideCategory(
+  article: Article,
+  categories: Category[],
+  t: (key: string) => string,
+): SlideCategory | null {
   const populated = typeof article.category === 'object' && article.category !== null ? article.category : null
   if (populated) {
-    return { name: populated.name, href: `/category/${populated.slug}`, key: populated.slug || populated.name }
+    return { label: categoryLabel(populated, t), href: `/category/${populated.slug}`, key: categoryGroupSlug(populated) }
   }
   if (typeof article.category === 'string' && article.category) {
     const match = categories.find((item) => item._id === article.category || item.name === article.category)
-    if (match) return { name: match.name, href: `/category/${match.slug}`, key: match.slug || match.name }
+    if (match) return { label: categoryLabel(match, t), href: `/category/${match.slug}`, key: categoryGroupSlug(match) }
   }
   return null
 }
@@ -84,7 +89,7 @@ interface NewsBannerProps {
 }
 
 export default function NewsBanner({ articles, categories = [] }: NewsBannerProps) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [index, setIndex] = useState(0)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
@@ -107,7 +112,7 @@ export default function NewsBanner({ articles, categories = [] }: NewsBannerProp
       for (const article of pool) {
         if (picked.length === MAX_SLIDES) break
         if (takenIds.has(article._id)) continue
-        const category = slideCategory(article, categories)
+        const category = slideCategory(article, categories, t)
         const key = category ? category.key : 'other'
         if (diversifyByTopic && takenCategories.has(key)) continue
         takenIds.add(article._id)
@@ -116,7 +121,7 @@ export default function NewsBanner({ articles, categories = [] }: NewsBannerProp
       }
     }
     return picked
-  }, [articles, categories])
+  }, [articles, categories, lang])
 
   const count = slides.length
 
@@ -196,7 +201,7 @@ export default function NewsBanner({ articles, categories = [] }: NewsBannerProp
             const readingTime = safeNumber(article.readingTime, 3) || 3
             const views = safeNumber(article.views, 0)
             const timestamp = articleTimestamp(article)
-            const otherName = slide.category ? slide.category.name : t('category.other')
+            const otherName = slide.category ? slide.category.label : t('category.other')
             const otherHref = slide.category ? slide.category.href : '/categories'
 
             return (

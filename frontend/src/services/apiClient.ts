@@ -1,5 +1,6 @@
 import axios, { type AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
 import type { ApiResponse } from '../types'
+import { normalizeImage } from '../utils/imageNormalizer'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
@@ -48,7 +49,10 @@ export function resolveMediaUrl(value?: string | null): string {
 export async function uploadImage(file: File): Promise<string> {
   const token = localStorage.getItem('token')
   const formData = new FormData()
-  formData.append('image', file)
+  // A 4K render happens first so the picture stays sharp on big screens without
+  // blowing past the backend's 5 MB limit; a failed render just uploads as is.
+  const prepared = await normalizeImage(file).catch(() => file)
+  formData.append('image', prepared)
   const response = await fetch(`${API_BASE_URL}/upload/image`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,

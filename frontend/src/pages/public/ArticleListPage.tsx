@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { Article, Category } from '../../types'
 import { publicAPI } from '../../services/api'
@@ -6,6 +6,7 @@ import { Loading, LoadingGrid } from '../../components/common/Loading'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
+import { categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 import { useArticleLike, useAuthorFollow } from '../../utils/engagementStore'
 import { useI18n } from '../../context/I18nContext'
 import { Eye, Heart, Share2, UserPlus, BookOpen, Clock3 } from 'lucide-react'
@@ -71,7 +72,14 @@ function StoryCard({ article }: { article: Article }) {
         />
       </Link>
       <div className="p-4">
-        {category && <Link to={`/category/${category.slug}`} className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-brand-text)] hover:text-[var(--color-brand-hover)]">{category.name}</Link>}
+        {category && (
+          <Link
+            to={`/category/${category.slug}`}
+            className="inline-flex items-center rounded-full bg-[var(--color-brand-light)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-brand-text)] transition hover:text-[var(--color-brand-hover)]"
+          >
+            {categoryLabel(category, t)}
+          </Link>
+        )}
         <Link to={`/article/${article.slug}`}>
           <h3 className="mt-1 line-clamp-2 text-sm font-bold leading-snug text-[var(--color-text)] group-hover:text-[var(--color-brand-text)]">{article.title}</h3>
         </Link>
@@ -148,6 +156,9 @@ export default function ArticleListPage() {
   const search = searchParams.get('search') || ''
   const category = searchParams.get('category') || ''
   const sort = searchParams.get('sort') || 'latest'
+  // One chip per section, even though the database keeps the same section under
+  // two spellings ("Sports" and "Amasport").
+  const sections = useMemo(() => resolveCategories(categories), [categories])
 
   useEffect(() => {
     const fetchArticles = async () => {
@@ -279,22 +290,22 @@ export default function ArticleListPage() {
             ))}
           </div>
 
-          {categories.length > 0 && (
+          {sections.length > 0 && (
             <div
               className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:max-w-[60%] lg:flex-1 lg:justify-end"
               role="group"
               aria-label={t('articles.categories')}
             >
               <ChipButton label={t('articles.allCategories')} active={!category} onClick={() => handleCategoryChange('')} />
-              {(showAllCategories ? categories : categories.slice(0, 4)).map((cat) => (
+              {(showAllCategories ? sections : sections.slice(0, 4)).map(({ category: section }) => (
                 <ChipButton
-                  key={cat._id}
-                  label={cat.name}
-                  active={category === cat.slug}
-                  onClick={() => handleCategoryChange(cat.slug)}
+                  key={section._id}
+                  label={categoryLabel(section, t)}
+                  active={category === section.slug}
+                  onClick={() => handleCategoryChange(section.slug)}
                 />
               ))}
-              {categories.length > 4 && (
+              {sections.length > 4 && (
                 <button
                   onClick={() => setShowAllCategories((current) => !current)}
                   className="shrink-0 whitespace-nowrap px-2 py-1.5 text-xs font-semibold text-[var(--color-brand-text)] transition-colors hover:underline sm:text-sm"

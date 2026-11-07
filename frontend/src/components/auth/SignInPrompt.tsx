@@ -30,6 +30,7 @@ export default function SignInPrompt() {
 
   return (
     <div
+      translate="no"
       className="fixed inset-0 z-[70] flex items-center justify-center bg-blue-950/70 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"

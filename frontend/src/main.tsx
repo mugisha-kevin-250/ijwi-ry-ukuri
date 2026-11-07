@@ -22,14 +22,23 @@ declare global {
   }
 }
 
+// The stories are written in Kinyarwanda, so that is the language Google has to
+// translate from; declaring English made it re-translate our own Kinyarwanda
+// labels into machine Kinyarwanda. The widget itself stays off-screen because
+// the language menu is what switches it.
+let translatorStarted = false
 window.googleTranslateElementInit = () => {
+  if (translatorStarted || !window.google || !window.google.translate || !window.google.translate.TranslateElement) return
+  translatorStarted = true
   new window.google.translate.TranslateElement({
-    pageLanguage: 'en',
-    includedLanguages: 'en,rw,fr,sw,es,pt',
-    layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
-    autoDisplay: false
+    pageLanguage: 'rw',
+    includedLanguages: 'rw,en,fr,sw',
+    layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE
   }, 'google_translate_element')
 }
+// element.js can finish loading before this module runs, and then its callback
+// found nothing to call, so start the translator here as well.
+window.googleTranslateElementInit()
 
 ReactDOM.createRoot(document.getElementById('app')!).render(
   <React.StrictMode>
@@ -47,6 +56,7 @@ ReactDOM.createRoot(document.getElementById('app')!).render(
             closeOnClick
             pauseOnHover
             theme="light"
+            className="notranslate"
           />
         </AuthProvider>
       </I18nProvider>

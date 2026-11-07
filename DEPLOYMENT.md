@@ -84,6 +84,41 @@ of a deploy that builds but logs `MongoDB unavailable; retrying in 15 seconds` f
 If Render renames the service (name taken), update `frontend/.env.production`, then
 `npm run build` and `npx firebase-tools deploy --only hosting`.
 
+## Keys to paste before the next deploy
+
+Two values are missing from the Render dashboard and the frontend build. Nothing else
+breaks without them — each feature switches itself off — but the app cannot deliver the
+feature until the key is in.
+
+| Paste into | Variable | Where the value comes from | Without it |
+| --- | --- | --- | --- |
+| Render env | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `.env.render`, generated with `npx web-push generate-vapid-keys` | `GET /api/push/status` -> `enabled: false`, the alerts prompt stays hidden, `/api/push/broadcast` answers 503. |
+| Render env | `GOOGLE_CLIENT_ID` | Google Cloud -> APIs & Services -> Credentials -> OAuth 2.0 Client ID (Web application). Add **Authorized JavaScript origins**: `https://ijwi-ry--ukuri.web.app` and `http://localhost:5173`. | `POST /api/auth/google` -> 503. |
+| `frontend/.env.production` (then rebuild) | `VITE_GOOGLE_CLIENT_ID` | the same Client ID, the public half | the "Continue with Google" button is not rendered at all. |
+
+## Uploaded images live in the database
+
+No key is needed. `POST /api/upload/image` hands the bytes to
+`backend/src/services/uploadStore.js`, which writes an `uploads` document in Atlas and
+mirrors the file onto the local disk as a cache. `/uploads/<name>` is served by
+`express.static` first and by `GET /uploads/:filename` (the Atlas copy) when the disk has
+been wiped, so an image a writer uploaded today is still there after the next redeploy.
+
+`UPLOAD_STORE_LIMIT_MB` (default 400) caps the collection: Atlas M0 gives the whole
+cluster 512MB, and a full cluster breaks every query, not just images. Uploads past the
+cap answer 507 with "The image store is full".
+
+Serving bytes from the database counts against Atlas' monthly egress, so the response
+carries `Cache-Control: public, max-age=31536000, immutable` and the disk copy is kept
+whenever it exists: a file is read from Atlas once per deploy per reader at most. If that
+ever becomes the binding limit, the escape hatch is the `starter` plan plus the commented
+`disks:` block in `render.yaml`.
+
+Verify by uploading an image and reloading the page — the URL must come back
+`200 image/jpeg` from `https://studentnews-backend.onrender.com/uploads/<name>`. Google
+sign-in needs `npm run build` in `frontend/` afterwards, because Vite inlines the client
+ID at build time.
+
 ## Verifying a deploy
 - `GET https://studentnews-backend.onrender.com/api/health` -> `{"success":true,...}`.
 - Render logs must show `MongoDB connected: ac-...mongodb.net`, **not** `127.0.0.1`.
@@ -127,10 +162,12 @@ reverted on restart.
   Admin -> Settings (it also rotates the JWT), and treat `eeettt123` as public.
 
 ## Notes
-- Free plan limits: instance sleeps when idle (first request pays a ~30-60s cold
-  start), no persistent disk, so **images uploaded through the app are deleted on every
-  redeploy**. Database rows that reference them survive, which is why `backend/uploads`
-  is committed — boot re-seeds `UPLOAD_DIR` from it and never overwrites newer files.
+- Free plan limits: the instance sleeps when idle (first request pays a ~30-60s cold
+  start) and has no persistent disk, so anything written at runtime disappears on the
+  next redeploy. That is why uploaded images are stored in Atlas (see "Uploaded images
+  live in the database") and the disk is only a cache. Rows that reference a file deleted
+  before this change still point at nothing, which is why `backend/uploads` is committed —
+  boot re-seeds `UPLOAD_DIR` from it and never overwrites newer files.
 - The QA test article `Qa Test Inkuru Y'igagerageza` is still in Atlas — delete it from
   Admin -> News if you do not want it live.
 - Category artwork in `frontend/public/images/` ships in the build. `backend/uploads/`

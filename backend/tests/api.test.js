@@ -99,14 +99,25 @@ test('article approval and publish', async () => {
 });
 
 test('view tracking and duplicate prevention', async () => {
-  const first = await request(app)
+  // Opening a story sends a zero-duration ping, and that already credits the read.
+  const open = await request(app)
+    .post(`/api/articles/${articleId}/view`)
+    .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-abc', readingDurationMs: 0 });
+  assert.equal(open.status, 200);
+  assert.equal(open.body.data.result.countView, true);
+  assert.equal(open.body.data.result.uniqueView, true);
+  assert.equal(open.body.data.result.isValid, false);
+  assert.equal(open.body.data.views, 1);
+  assert.equal(open.body.data.validViews, 0);
+
+  // The dwell report upgrades that same read instead of counting it twice.
+  const finish = await request(app)
     .post(`/api/articles/${articleId}/view`)
     .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-abc', readingDurationMs: 60000 });
-  assert.equal(first.status, 200);
-  assert.equal(first.body.data.result.countView, true);
-  assert.equal(first.body.data.result.uniqueView, true);
-  assert.equal(first.body.data.views, 1);
-  assert.equal(first.body.data.validViews, 1);
+  assert.equal(finish.body.data.result.countView, false);
+  assert.equal(finish.body.data.result.upgraded, true);
+  assert.equal(finish.body.data.views, 1);
+  assert.equal(finish.body.data.validViews, 1);
 
   const second = await request(app)
     .post(`/api/articles/${articleId}/view`)
@@ -114,14 +125,16 @@ test('view tracking and duplicate prevention', async () => {
   assert.equal(second.status, 200);
   assert.equal(second.body.data.result.duplicateBlocked, true);
   assert.equal(second.body.data.views, 1);
+  assert.equal(second.body.data.validViews, 1);
 
   const bounce = await request(app)
     .post(`/api/articles/${articleId}/view`)
     .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-xyz', readingDurationMs: 800 });
-  assert.equal(bounce.body.data.result.countView, false);
-  assert.equal(bounce.body.data.views, 1);
+  assert.equal(bounce.body.data.result.countView, true);
+  assert.equal(bounce.body.data.result.isValid, false);
+  assert.equal(bounce.body.data.views, 2);
 
-  // Past the duplicate window the same reader counts again, but not as a new reader.
+  // Still inside the duplicate window the same reader does not count again.
   const repeatReader = await request(app)
     .post(`/api/articles/${articleId}/view`)
     .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-abc', readingDurationMs: 60000 });
@@ -132,7 +145,7 @@ test('view tracking and duplicate prevention', async () => {
     .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)').send({ anonymousSessionId: 'session-new', readingDurationMs: 20000 });
   assert.equal(newReader.body.data.result.uniqueView, true);
   assert.equal(newReader.body.data.result.isValid, true);
-  assert.equal(newReader.body.data.views, 2);
+  assert.equal(newReader.body.data.views, 3);
   assert.equal(newReader.body.data.validViews, 2);
 });
 
@@ -205,6 +218,31 @@ test('writer stats and payout approval', async () => {
     .get('/api/admin/payouts')
     .set('Authorization', `Bearer ${editorToken}`);
   assert.equal(payoutsResponse.status, 200);
+});
+
+test('uploaded images survive an emptied disk', async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const env = require('../src/config/env');
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
+  const upload = await request(app)
+    .post('/api/upload/image')
+    .set('Authorization', `Bearer ${token}`)
+    .attach('image', png, 'pixel.png');
+
+  assert.equal(upload.status, 200);
+  const url = upload.body.data.url;
+  assert.match(url, /^\/uploads\/[\w.-]+\.png$/);
+
+  // Render's free plan deletes everything on UPLOAD_DIR between deploys, so the
+  // database copy is what readers actually get served.
+  fs.rmSync(path.join(env.UPLOAD_DIR, path.basename(url)), { force: true });
+
+  const served = await request(app).get(url);
+  assert.equal(served.status, 200);
+  assert.equal(served.headers['content-type'], 'image/png');
+  assert.deepEqual(served.body, png);
 });
 
 function jwtTokenFor(userId, role) {

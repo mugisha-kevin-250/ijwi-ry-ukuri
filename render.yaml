@@ -112,6 +112,24 @@ services:
       - key: SEED_UPLOADS_DIR
         value: /opt/render/project/src/backend/uploads
 
+      # --- uploaded images ---
+      # The free Render plan wipes the source tree on every deploy, so uploads are
+      # stored as documents in the Atlas `uploads` collection and served back from
+      # there (backend/src/services/uploadStore.js). No secret is needed.
+      # Atlas M0 caps at 512MB for the whole cluster, so this ceiling stops a
+      # media-heavy day from filling it and breaking the database.
+      - key: UPLOAD_STORE_LIMIT_MB
+        value: "400"
+
+      # --- google sign-in ---
+      # Google Cloud console -> APIs & services -> Credentials -> OAuth client ID
+      # (Web application). Authorized origins must include the Firebase Hosting
+      # domain. The frontend reads the same value from VITE_GOOGLE_CLIENT_ID, so a
+      # mismatch means the backend rejects every token.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+        value: REPLACE_WITH_GOOGLE_CLIENT_ID.apps.googleusercontent.com
+
       # --- web push (VAPID) ---
       # Paste both values from the gitignored `.env.render`. Without them the API
       # still serves everything except push: /api/push/status reports

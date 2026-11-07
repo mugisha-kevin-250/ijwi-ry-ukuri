@@ -16,6 +16,7 @@ const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const pushRoutes = require('./routes/pushRoutes');
+const uploadStore = require('./services/uploadStore');
 
 const env = require('./config/env');
 
@@ -76,6 +77,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/uploads', express.static(env.UPLOAD_DIR));
+// Render's disk is wiped on redeploy, so anything the cache lost is read back
+// from the database copy.
+app.get('/uploads/:filename', uploadStore.serve);
 
 app.use(notFoundHandler);
 app.use(globalErrorHandler);

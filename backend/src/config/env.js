@@ -14,6 +14,13 @@ module.exports = {
   // Media already referenced by the database is copied onto an empty UPLOAD_DIR at boot.
   SEED_UPLOADS_DIR: process.env.SEED_UPLOADS_DIR || path.join(__dirname, '../../uploads'),
   PUBLIC_URL: process.env.PUBLIC_URL || '',
+  // Uploaded images are stored in MongoDB, which survives a redeploy; the disk
+  // copy below is only a cache. This caps the collection so the free 512MB
+  // cluster cannot be filled silently and take the whole database down.
+  UPLOAD_STORE_LIMIT_MB: Number(process.env.UPLOAD_STORE_LIMIT_MB || 400),
+  // Google Identity Services client id. Must match the frontend's
+  // VITE_GOOGLE_CLIENT_ID, since it is the token audience we verify.
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
   // Web Push (VAPID). The private key stays in the gitignored env files.
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',

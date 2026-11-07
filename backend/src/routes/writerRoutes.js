@@ -5,7 +5,6 @@ const Category = require('../models/Category');
 const User = require('../models/User');
 const WriterProfile = require('../models/WriterProfile');
 const ArticleView = require('../models/ArticleView');
-const Like = require('../models/Like');
 const Bookmark = require('../models/Bookmark');
 const Follow = require('../models/Follow');
 const WriterEarning = require('../models/WriterEarning');
@@ -75,8 +74,7 @@ router.post('/articles', protect, async (req, res, next) => {
       author: req.user._id,
       category: categoryDoc._id,
       tags,
-      status: 'draft',
-      readingTime: Math.max(1, Math.ceil(content.length / 400))
+      status: 'draft'
     });
 
     return successResponse(res, 201, 'Article created', { article });
@@ -259,36 +257,6 @@ router.get('/me/following', protect, async (req, res, next) => {
   try {
     const follows = await Follow.find({ follower: req.user._id }).populate('writer');
     return successResponse(res, 200, 'Following list', { follows });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post('/articles/:id/like', protect, async (req, res, next) => {
-  try {
-    const article = await Article.findById(req.params.id);
-    if (!article) return errorResponse(res, 404, 'Article not found');
-    const existing = await Like.findOne({ article: article._id, user: req.user._id });
-    if (existing) return errorResponse(res, 400, 'Already liked this article');
-    await Like.create({ article: article._id, user: req.user._id });
-    article.likes = Number(article.likes || 0) + 1;
-    await article.save();
-    return successResponse(res, 200, 'Article liked', { article });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.delete('/articles/:id/like', protect, async (req, res, next) => {
-  try {
-    const article = await Article.findById(req.params.id);
-    if (!article) return errorResponse(res, 404, 'Article not found');
-    const existing = await Like.findOne({ article: article._id, user: req.user._id });
-    if (!existing) return errorResponse(res, 400, 'Like not found');
-    await existing.deleteOne();
-    article.likes = Math.max(0, Number(article.likes || 0) - 1);
-    await article.save();
-    return successResponse(res, 200, 'Like removed');
   } catch (error) {
     next(error);
   }

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { estimateReadingTime } = require('../utils/readingTime');
 
 const articleSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
@@ -31,5 +32,13 @@ articleSchema.index({ status: 1, publishedAt: -1 });
 articleSchema.index({ title: 'text', summary: 'text', content: 'text', tags: 'text' });
 articleSchema.index({ author: 1, createdAt: -1 });
 articleSchema.index({ validViews: -1 });
+
+// Every write path saves through the document, so deriving the estimate here
+// keeps it truthful when a writer edits the story instead of only at creation.
+articleSchema.pre('save', function setReadingTime() {
+  if (this.isModified('content') || !this.readingTime) {
+    this.readingTime = estimateReadingTime(this.content);
+  }
+});
 
 module.exports = mongoose.model('Article', articleSchema);

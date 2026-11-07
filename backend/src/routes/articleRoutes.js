@@ -67,17 +67,27 @@ router.delete('/comments/:id', protect, async (req, res, next) => {
   }
 });
 
+// `likes` is a denormalised cache, so it is always rewritten from the Like rows
+// themselves: two taps that arrive together would otherwise both increment from
+// the same stale read and leave the counter above the number of readers who
+// actually liked the story.
+async function likeCountFor(articleId) {
+  const likes = await Like.countDocuments({ article: articleId });
+  await Article.updateOne({ _id: articleId }, { $set: { likes } });
+  return likes;
+}
+
 router.post('/:id/like', protect, async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
-    const existing = await Like.findOne({ article: article._id, user: req.user._id });
-    if (!existing) {
-      await Like.create({ article: article._id, user: req.user._id });
-      article.likes = Number(article.likes || 0) + 1;
-      await article.save();
-    }
-    return successResponse(res, 200, 'Liked', { liked: true, likes: Number(article.likes || 0) });
+    // Upsert with $setOnInsert: liking twice is a no-op, never a second like.
+    await Like.findOneAndUpdate(
+      { article: article._id, user: req.user._id },
+      { $setOnInsert: { article: article._id, user: req.user._id } },
+      { upsert: true }
+    );
+    return successResponse(res, 200, 'Liked', { liked: true, likes: await likeCountFor(article._id) });
   } catch (error) {
     next(error);
   }
@@ -87,13 +97,8 @@ router.delete('/:id/like', protect, async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
-    const existing = await Like.findOne({ article: article._id, user: req.user._id });
-    if (existing) {
-      await existing.deleteOne();
-      article.likes = Math.max(0, Number(article.likes || 0) - 1);
-      await article.save();
-    }
-    return successResponse(res, 200, 'Like removed', { liked: false, likes: Number(article.likes || 0) });
+    await Like.deleteMany({ article: article._id, user: req.user._id });
+    return successResponse(res, 200, 'Like removed', { liked: false, likes: await likeCountFor(article._id) });
   } catch (error) {
     next(error);
   }

@@ -71,6 +71,19 @@ test('article creation', async () => {
   articleSlug = response.body.data.article.slug;
 });
 
+test('reading time is the words in the story, not its character count', async () => {
+  const longContent = `<p>${Array.from({ length: 421 }, () => 'word').join(' ')}</p>`;
+
+  const response = await request(app)
+    .put(`/api/writers/articles/${articleId}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ content: longContent });
+
+  assert.equal(response.status, 200);
+  // 421 words at 200 words a minute, markup excluded.
+  assert.equal(response.body.data.article.readingTime, 3);
+});
+
 test('writer publishes their own article', async () => {
   const response = await request(app)
     .post(`/api/writers/articles/${articleId}/publish`)
@@ -161,6 +174,15 @@ test('likes are idempotent and report the live count', async () => {
     .set('Authorization', `Bearer ${token}`);
   assert.equal(repeat.status, 200);
   assert.equal(repeat.body.data.likes, 1);
+
+  // A reader tapping several times lands overlapping requests; that must still
+  // leave one like, not one per tap.
+  const burst = await Promise.all(
+    Array.from({ length: 4 }, () =>
+      request(app).post(`/api/articles/${articleId}/like`).set('Authorization', `Bearer ${token}`))
+  );
+  assert.ok(burst.every((response) => response.status === 200));
+  assert.equal(Math.max(...burst.map((response) => response.body.data.likes)), 1);
 
   const unlike = await request(app)
     .delete(`/api/articles/${articleId}/like`)

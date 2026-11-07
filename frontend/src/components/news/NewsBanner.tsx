@@ -64,8 +64,12 @@ function usePageVisible(): boolean {
 }
 
 function SlideImage({ article, className = '', eager = false }: { article: Article; className?: string; eager?: boolean }) {
-  if (article.featuredImage) {
-    return <MediaImage className={className} src={article.featuredImage} alt="" loading={eager ? 'eager' : 'lazy'} />
+  const [failed, setFailed] = useState(false)
+  // Some stories still point at uploads made before the images moved into the
+  // database, and those files are gone for good. A missing banner image reads as
+  // a broken page, so it degrades to the branded panel instead.
+  if (article.featuredImage && !failed) {
+    return <MediaImage className={className} src={article.featuredImage} alt="" loading={eager ? 'eager' : 'lazy'} onError={() => setFailed(true)} />
   }
   return (
     <div className={cn(className, 'flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-700 to-cyan-500')} aria-hidden="true">

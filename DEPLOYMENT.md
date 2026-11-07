@@ -147,11 +147,17 @@ ID at build time.
 ## Releasing a frontend change
 ```
 cd frontend
+# 1. bump VERSION in public/sw.js (see the comment there) — skipped, returning
+#    readers keep the previous bundle from the service worker cache forever.
 npm run build                              # tsc -b && vite build -> dist/
 npx firebase-tools deploy --only hosting   # uses .firebaserc (ijwi-ry--ukuri)
 ```
 Vite inlines `VITE_*` at **build** time: editing `.env.production` without rebuilding
 redeploys the old API URL.
+
+To confirm the swap actually reached a device: the served `index.html` and the running
+page must reference the same `assets/index-*.js` hash (`curl -s https://ijwi-ry--ukuri.web.app/`
+vs the browser's Network tab). A mismatch means the old service worker is still in charge.
 
 ## Admin account
 `bootstrapAdmin()` in `backend/src/utils/seedUsers.js` promotes/creates the ADMIN once,

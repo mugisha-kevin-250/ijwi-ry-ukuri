@@ -1,8 +1,13 @@
 /* Service worker for the Ijwi ry'ukuri PWA.
  * Cached data is limited to public news reads, so a signed-in user's private
  * responses are never stored on a shared device.
+ *
+ * VERSION has to change with every frontend release. The service worker only
+ * reinstalls when these bytes differ, and the reinstall is what throws away the
+ * cached shell — bump it here (and only here) or returning readers keep serving
+ * the previous bundle forever.
  */
-const VERSION = 'ijwi-v3'
+const VERSION = 'ijwi-v4'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const PAGE_CACHE = `${VERSION}-pages`

@@ -111,7 +111,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             <span className="hidden sm:block">Ijwi ry<span className="text-blue-600 dark:text-cyan-300">'ukuri</span></span>
           </Link>
 
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex">
             {currentNavLinks.map((link) => (
               <NavLink
                 key={link.href}
@@ -233,7 +233,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                 )}
               </div>
             ) : (
-              <div className="hidden sm:flex sm:items-center sm:gap-3">
+              <div className="hidden md:flex md:items-center md:gap-3">
                 <Link
                   to="/login"
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
@@ -251,7 +251,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
 
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="sm:hidden p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="md:hidden p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-expanded={isMenuOpen}
               aria-controls="mobile-menu"
               aria-label="Toggle menu"
@@ -262,8 +262,21 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
         </div>
 
         {isMenuOpen && (
-          <div id="mobile-menu" className="sm:hidden py-4 border-t border-gray-200 dark:border-gray-700">
+          <div id="mobile-menu" className="md:hidden py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="space-y-2">
+              <nav className="grid gap-1" aria-label="Site sections">
+                {currentNavLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    to={link.href}
+                    onClick={() => setIsMenuOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <link.icon className="h-4 w-4" aria-hidden="true" />
+                    {link.label}
+                  </Link>
+                ))}
+              </nav>
               <LanguageSelector className="w-full [&>button]:w-full" />
               {variant === 'public' && (
                 <button

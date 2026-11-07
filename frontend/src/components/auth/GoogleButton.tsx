@@ -87,6 +87,9 @@ export default function GoogleButton({ flow, onSuccess, onError }: GoogleButtonP
           size: 'large',
           shape: 'pill',
           text: flow === 'signup' ? 'signup_with' : 'signin_with',
+          // Without this Google labels the button in the browser's own language,
+          // which lands as French for most of our readers.
+          locale: 'en',
           width: 288,
         })
       })

@@ -6,7 +6,7 @@ import { useI18n } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
 import MediaImage from '../common/MediaImage'
 
-const AUTO_ADVANCE_MS = 6000
+const AUTO_ADVANCE_MS = 10000
 const MAX_SLIDES = 6
 
 type SlideCategory = { name: string; href: string; key: string }

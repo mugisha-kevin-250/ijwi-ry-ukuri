@@ -23,6 +23,7 @@ import MediaImage from '../../components/common/MediaImage'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
 import { useArticleLike, useAuthorFollow } from '../../utils/engagementStore'
+import { shareArticle } from '../../utils/shareArticle'
 
 const topics = [
   { name: 'Rwanda', key: 'category.rwanda' },
@@ -79,22 +80,12 @@ function StoryCard({ article }: { article: Article }) {
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const url = `${window.location.origin}/article/${article.slug}`
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: article.title,
-          text: article.summary,
-          url,
-        })
-      } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          await navigator.clipboard.writeText(url)
-        }
-      }
-    } else {
-      await navigator.clipboard.writeText(url)
-    }
+    await shareArticle({
+      url: `${window.location.origin}/article/${article.slug}`,
+      title: article.title,
+      text: article.summary,
+      copiedLabel: t('articles.linkCopied'),
+    })
   }
 
   const handleFollow = (e: React.MouseEvent) => {
@@ -290,11 +281,6 @@ export default function HomePage() {
   const sideStories = trending.filter((article) => article._id !== featured?._id).slice(0, 4)
   const latestGrid = latest.filter((article) => article._id !== featured?._id).slice(0, 6)
   const popularStories = popular.length ? popular : trending
-  // The banner leads with whatever is trending and fills the rest from the newest
-  // reads, so it always has several slides to rotate through.
-  const bannerStories = [...trending, ...latest].filter(
-    (article, position, all) => article && all.findIndex((item) => item && item._id === article._id) === position,
-  )
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
@@ -344,8 +330,8 @@ export default function HomePage() {
 <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(280px,0.9fr)]">
           <div>
             <SectionHeading title={t('home.top')} />
-            {loading ? <div className="aspect-[16/8] animate-pulse rounded-xl bg-slate-200" /> : bannerStories.length ? (
-              <NewsBanner articles={bannerStories} categories={categories} />
+            {loading ? <div className="aspect-[16/8] animate-pulse rounded-xl bg-slate-200" /> : latest.length ? (
+              <NewsBanner articles={latest} categories={categories} />
             ) : <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-sm text-slate-500">{t('home.emptyTop')}</div>}
           </div>
 
@@ -429,14 +415,6 @@ export default function HomePage() {
           <Link to="/articles" className="inline-flex items-center gap-1 font-bold text-blue-700 hover:text-blue-900">{t('home.browse')}<ArrowRight className="h-4 w-4" /></Link>
         </div>
       </main>
-
-      <footer className="bg-[#062b52] text-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-15">
-          <div><Link to="/" className="text-lg font-black tracking-tight">Ijwi ry<span className="text-cyan-300">'ukuri</span></Link><p className="mt-1 text-xs text-blue-200">{t('home.mission')}</p></div>
-          <div className="flex flex-wrap gap-4 text-xs text-blue-100"><Link to="/about" className="hover:text-white">{t('footer.about')}</Link><Link to="/articles" className="hover:text-white">{t('footer.news')}</Link><Link to="/categories" className="hover:text-white">{t('footer.categories')}</Link><Link to="/register" className="hover:text-white">{t('footer.write')}</Link></div>
-          <p className="text-xs text-blue-200">© {new Date().getFullYear()} Ijwi ry'ukuri</p>
-        </div>
-      </footer>
     </div>
   )
 }

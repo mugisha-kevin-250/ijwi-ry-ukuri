@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ArrowLeft, Calendar, Eye, Heart, MessageSquare, Bookmark, Share2, Tag, Loader2, UserPlus } from 'lucide-react'
@@ -16,6 +16,7 @@ import { useSeo } from '../../utils/useSeo'
 import { requestSignIn } from '../../utils/signInPrompt'
 import { useArticleViewTracking } from '../../utils/viewTracking'
 import { useArticleBookmark, useArticleLike, useAuthorFollow, useVisiblePoll } from '../../utils/engagementStore'
+import { shareArticle } from '../../utils/shareArticle'
 
 export default function ArticleDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -96,27 +97,45 @@ export default function ArticleDetailPage() {
 
   useVisiblePoll(refreshArticle)
 
+  // The estimate is only worth showing if it moves: count the story down as the
+  // reader scrolls instead of repeating the number the story opened with.
+  const contentRef = useRef<HTMLDivElement | null>(null)
+  const [minutesLeft, setMinutesLeft] = useState<number | null>(null)
+
+  useEffect(() => {
+    const readingTime = Number(article?.readingTime || 0)
+    if (!readingTime) return
+
+    const update = () => {
+      const element = contentRef.current
+      if (!element) return
+      const scrollable = element.offsetHeight - window.innerHeight
+      const scrolled = Math.min(Math.max(-element.getBoundingClientRect().top, 0), Math.max(scrollable, 0))
+      const progress = scrollable > 0 ? scrolled / scrollable : 0
+      setMinutesLeft(Math.max(1, Math.ceil(readingTime * (1 - progress))))
+    }
+
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [article?.readingTime, article?._id])
+
   const handleLike = () => void toggleLike()
 
   const handleBookmark = () => void toggleBookmark()
 
   const handleShare = async () => {
     if (!article) return
-    const url = window.location.href
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: article.title,
-          text: article.summary,
-          url,
-        })
-      } catch (error) {
-        console.error('Failed to share:', error)
-      }
-    } else {
-      await navigator.clipboard.writeText(url)
-      alert(t('articles.linkCopied'))
-    }
+    await shareArticle({
+      url: window.location.href,
+      title: article.title,
+      text: article.summary,
+      copiedLabel: t('articles.linkCopied'),
+    })
   }
 
   const handleFollow = () => void toggleFollow()
@@ -146,6 +165,7 @@ export default function ArticleDetailPage() {
 
   const author = typeof article.author === 'object' ? article.author : null
   const category = typeof article.category === 'object' ? article.category : null
+  const readingTime = Number(article.readingTime || 1)
 
   const formatDate = (dateStr: string | undefined) => {
     if (!dateStr) return t('articles.unknownDate')
@@ -227,6 +247,7 @@ export default function ArticleDetailPage() {
           {article.summary}
         </div>
         <div
+          ref={contentRef}
           className="article-content"
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
@@ -284,7 +305,9 @@ export default function ArticleDetailPage() {
           </button>
         </div>
         <div className="text-base text-gray-500 dark:text-gray-400">
-          {article.readingTime} {t('articles.minRead')}
+          {minutesLeft === null || minutesLeft >= readingTime
+            ? `${readingTime} ${t('articles.minRead')}`
+            : `${minutesLeft} ${t('articles.minutesLeft')}`}
         </div>
       </div>
 

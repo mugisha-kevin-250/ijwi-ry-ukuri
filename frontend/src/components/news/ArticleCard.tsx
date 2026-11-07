@@ -5,6 +5,7 @@ import type { Article } from '../../types'
 import { cn } from '../../utils/cn'
 import { useI18n } from '../../context/I18nContext'
 import { useArticleBookmark, useAuthorFollow } from '../../utils/engagementStore'
+import { shareArticle } from '../../utils/shareArticle'
 import Avatar from '../common/Avatar'
 import MediaImage from '../common/MediaImage'
 
@@ -34,23 +35,12 @@ export default function ArticleCard({
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const url = `${window.location.origin}/article/${article.slug}`
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: article.title,
-          text: article.summary,
-          url,
-        })
-      } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          // Fallback to clipboard
-          await navigator.clipboard.writeText(url)
-        }
-      }
-    } else {
-      await navigator.clipboard.writeText(url)
-    }
+    await shareArticle({
+      url: `${window.location.origin}/article/${article.slug}`,
+      title: article.title,
+      text: article.summary,
+      copiedLabel: t('articles.linkCopied'),
+    })
   }
 
   const handleFollow = (e: React.MouseEvent) => {

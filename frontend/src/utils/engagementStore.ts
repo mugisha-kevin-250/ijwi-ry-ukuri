@@ -79,6 +79,9 @@ export function useArticleLike(article?: { _id?: string; likes?: number; liked?:
       return
     }
     const key = `like:${id}`
+    // Ignore taps that land while this story's request is still in flight: two
+    // likes for one reader is always wrong, however fast they click.
+    if (pending.has(key)) return
     const before = { ...current }
     const next: LikeState = { liked: !current.liked, likes: Math.max(0, current.likes + (current.liked ? -1 : 1)) }
     pending.add(key)
@@ -121,6 +124,7 @@ export function useAuthorFollow(writerId?: string | null, serverFollowing?: bool
       return
     }
     const key = `follow:${writerId}`
+    if (pending.has(key)) return
     const next = !following
     pending.add(key)
     publish({ kind: 'follow', id: writerId, state: next })
@@ -158,6 +162,7 @@ export function useArticleBookmark(article?: { _id?: string; bookmarked?: boolea
       return
     }
     const key = `bookmark:${id}`
+    if (pending.has(key)) return
     const next = !bookmarked
     pending.add(key)
     publish({ kind: 'bookmark', id, state: next })

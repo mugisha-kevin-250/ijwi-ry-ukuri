@@ -248,7 +248,7 @@ export default function ArticleDetailPage() {
         </div>
         <div
           ref={contentRef}
-          className="article-content"
+          className="prose-content"
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
       </div>
@@ -269,7 +269,7 @@ export default function ArticleDetailPage() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-4 pt-6 border-t border-gray-200 dark:border-gray-800">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <button
             onClick={handleLike}
             className={cn(

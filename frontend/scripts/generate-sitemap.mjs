@@ -1,7 +1,7 @@
 // Writes the sitemap set into public/ from the live API, one file per kind of
 // content, plus a sitemap index at public/sitemap.xml:
 //   sitemap.xml              index  -> lists every file below
-//   sitemap-pages.xml        static pages (home, all articles, categories, search)
+//   sitemap-pages.xml        static pages (home, all articles, categories, live, search)
 //   sitemap-articles.xml     one URL per published story
 //   sitemap-categories.xml   one URL per category feed
 //   sitemap-writers.xml      one URL per author profile page
@@ -102,6 +102,7 @@ async function main() {
       urlEntry(`${SITE_URL}/`, today, '1.0', 'daily'),
       urlEntry(`${SITE_URL}/articles`, today, '0.9', 'hourly'),
       urlEntry(`${SITE_URL}/categories`, today, '0.7', 'daily'),
+      urlEntry(`${SITE_URL}/live`, today, '0.8', 'hourly'),
       urlEntry(`${SITE_URL}/search`, null, '0.4', 'monthly'),
     ]),
   })
@@ -160,7 +161,7 @@ ${written
   console.log(`sitemap index:     ${indexUrl}`)
   for (const { url } of written) console.log(`  -> ${url}`)
   console.log(
-    `${articles.length} articles, ${categories.length} categories, ${authors.size} writers, 4 static pages`
+    `${articles.length} articles, ${categories.length} categories, ${authors.size} writers, 5 static pages`
   )
 }
 

@@ -106,8 +106,31 @@ export interface Notification {
   type: string
   message: string
   isRead: boolean
-  relatedEntity?: string
+  relatedEntity?: string | Article
   relatedModel?: string
+  createdAt: string
+}
+
+export interface Live {
+  _id: string
+  title: string
+  description?: string
+  host: string | User
+  status: 'active' | 'ended'
+  startedAt: string
+  endedAt?: string | null
+  views: number
+  viewers: number
+  peakViewers: number
+  sharePath?: string
+}
+
+export interface LiveComment {
+  _id: string
+  live: string
+  user: string
+  name: string
+  text: string
   createdAt: string
 }
 

@@ -10,6 +10,7 @@ import ArticleListPage from '../pages/public/ArticleListPage'
 import CategoriesPage from '../pages/public/CategoriesPage'
 import CategoryPage from '../pages/public/CategoryPage'
 import HomePage from '../pages/public/HomePage'
+import LivePage from '../pages/public/LivePage'
 import SearchPage from '../pages/public/SearchPage'
 import UserProfilePage from '../pages/public/UserProfilePage'
 import WriterDashboardPage from '../pages/writer/WriterDashboardPage'
@@ -76,6 +77,8 @@ export const router = createBrowserRouter([
       { path: 'articles', element: <ArticleListPage /> },
       { path: 'article/:slug', element: <ArticleDetailPage /> },
       { path: 'categories', element: <CategoriesPage /> },
+      { path: 'live', element: <LivePage /> },
+      { path: 'live/:id', element: <LivePage /> },
       { path: 'category/:slug', element: <CategoryPage /> },
       { path: 'search', element: <SearchPage /> },
       { path: 'user/:id', element: <UserProfilePage /> },

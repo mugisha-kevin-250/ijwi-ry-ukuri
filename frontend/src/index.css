@@ -179,6 +179,21 @@ body {
   @apply rounded-lg my-4 max-w-full h-auto;
 }
 
+/* Writers paste embeds and media markup straight from the editor, and a fixed
+   pixel width on any of it pushes the whole story sideways on a phone. */
+.prose-content video {
+  @apply my-4 block w-full max-w-full;
+  height: auto;
+}
+
+.prose-content iframe,
+.prose-content embed,
+.prose-content object {
+  @apply my-4 w-full max-w-full;
+  aspect-ratio: 16 / 9;
+  height: auto;
+}
+
 .prose-content table {
   @apply w-full my-4 border-collapse;
 }

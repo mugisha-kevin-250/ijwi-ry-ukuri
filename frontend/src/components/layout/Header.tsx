@@ -6,6 +6,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../common/Avatar'
 import LanguageSelector from './LanguageSelector'
+import LiveButton from './LiveButton'
+import NotificationsBell from './NotificationsBell'
 
 interface HeaderProps {
   variant?: 'public' | 'writer' | 'editor' | 'admin'
@@ -131,6 +133,8 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+            {variant === 'public' && <LiveButton />}
+
             {variant === 'public' && (
               <form onSubmit={handleSearch} className="relative hidden lg:block">
                 <label htmlFor="site-search" className="sr-only">{t('search.placeholder')}</label>
@@ -151,6 +155,8 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                 {isApplying ? t('writer.becomeBusy') : t('nav.write')}
               </button>
             )}
+
+            {variant === 'public' && <NotificationsBell />}
 
             {token ? (
               <div className="relative">

@@ -39,6 +39,7 @@ export default function Footer() {
     { label: t('home.trending'), href: '/articles?sort=trending' },
     { label: t('home.popular'), href: '/articles?sort=popular' },
     { label: t('footer.categories'), href: '/categories' },
+    { label: t('nav.live'), href: '/live' },
     { label: t('footer.search'), href: '/search' },
   ]
 

@@ -11,6 +11,8 @@ const API_ORIGIN = (() => {
   }
 })()
 
+export { API_ORIGIN, API_BASE_URL }
+
 // Uploaded media is stored as a backend-relative path (/uploads/x.jpg). Once the
 // site is served from Firebase that path would resolve to the wrong origin, so
 // responses are absolutised on the way in and stripped back on the way out.

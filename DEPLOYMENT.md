@@ -18,6 +18,10 @@
 - Web Push: backend `web-push` with VAPID (`backend/src/routes/pushRoutes.js`),
   subscriptions in the `pushsubscriptions` Atlas collection, automatic alerts when a
   story is first published, plus a manual broadcast in Admin -> Settings.
+- In-app inbox: `backend/src/services/notificationService.js` writes one `new_story`
+  `Notification` per ADMIN and per follower the first time a story goes public, and the
+  header bell polls `GET /api/notifications` (which also returns `unread`). This is the
+  half that works without VAPID keys — push to installed devices still needs them.
 - Search: `frontend/public/robots.txt`, a generated `frontend/public/sitemap.xml`
   (every article and category as its own URL), per-route canonical/OG/Twitter tags and
   `NewsArticle` JSON-LD (`frontend/src/utils/useSeo.ts`), and the Search Console
@@ -143,6 +147,22 @@ ID at build time.
    usually mean the article list was empty when crawled.
 4. After each publishing session, `npm run build` regenerates the sitemap from the live
    API and the deploy pushes it.
+
+## Live video (admin -> everyone)
+`POST /api/live` starts a broadcast (ADMIN only, one at a time) and `/live` on the frontend
+carries it. The video itself is **peer-to-peer WebRTC**: the broadcaster holds one
+`RTCPeerConnection` per viewer and only SDP/ICE, chat and the audience count travel through
+socket.io (`backend/src/sockets/liveSocket.js`, attached to the same HTTP server as the API),
+so Render never relays media.
+
+- Socket CORS reuses `CLIENT_URL`; the Firebase origin must stay in that list or every
+  viewer is rejected at handshake.
+- `ICE_SERVERS` is STUN-only. A viewer on a symmetric-NAT mobile network can fail to connect
+  until a TURN credential is added to `frontend/src/utils/liveMedia.ts`.
+- The free Render plan sleeps when idle, so the first joiner after a quiet period pays the
+  cold start and the video may need a second attempt.
+- `/live` is in the sitemap and the header carries a red **Live** button that blinks while a
+  broadcast is active (`LiveButton` polls `/api/live/current` every 20s).
 
 ## Releasing a frontend change
 ```

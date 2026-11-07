@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient'
-import type { AdminDashboardStats, Article, AuthResponse, Category, Comment, DashboardStats, User } from '../types'
+import type { AdminDashboardStats, Article, AuthResponse, Category, Comment, DashboardStats, Live, LiveComment, User } from '../types'
 
 interface ArticleQuery {
   page?: number
@@ -253,8 +253,7 @@ export const adminAPI = {
     apiClient.delete(`/admin/articles/${id}`),
 }
 
-export const pushAPI = {
-  getStatus: () =>
+export const pushAPI = {  getStatus: () =>
     apiClient.get<{ enabled: boolean }>('/push/status'),
 
   getSubscribers: () =>
@@ -262,4 +261,24 @@ export const pushAPI = {
 
   broadcast: (payload: { title: string; body: string; url?: string }) =>
     apiClient.post<{ sent: number; failed: number; expired: number; total: number }>('/push/broadcast', payload),
+}
+
+export const liveAPI = {
+  getCurrent: () =>
+    apiClient.get<{ live: Live | null }>('/live/current'),
+
+  get: (id: string) =>
+    apiClient.get<{ live: Live }>(`/live/${id}`),
+
+  list: () =>
+    apiClient.get<{ lives: Live[] }>('/live', { params: { limit: 10 } }),
+
+  start: (payload: { title: string; description?: string }) =>
+    apiClient.post<{ live: Live }>('/live', payload),
+
+  end: (id: string) =>
+    apiClient.post<{ live: Live }>(`/live/${id}/end`),
+
+  getComments: (id: string) =>
+    apiClient.get<{ comments: LiveComment[] }>(`/live/${id}/comments`),
 }

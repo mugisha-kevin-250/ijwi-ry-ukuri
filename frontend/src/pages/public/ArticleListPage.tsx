@@ -11,6 +11,24 @@ import { useI18n } from '../../context/I18nContext'
 import { Eye, Heart, Share2, UserPlus, BookOpen, Clock3 } from 'lucide-react'
 import MediaImage from '../../components/common/MediaImage'
 import { PLACEHOLDER_IMAGE } from '../../services/apiClient'
+import { shareArticle } from '../../utils/shareArticle'
+
+function ChipButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm',
+        active
+          ? 'bg-[var(--color-brand)] text-white shadow-sm'
+          : 'bg-[var(--color-brand-light)] text-[var(--color-brand-text)] hover:bg-[var(--color-brand-hover)]',
+      )}
+    >
+      {label}
+    </button>
+  )
+}
 
 function StoryCard({ article }: { article: Article }) {
   const { t } = useI18n()
@@ -28,22 +46,12 @@ function StoryCard({ article }: { article: Article }) {
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const url = `${window.location.origin}/article/${article.slug}`
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: article.title,
-          text: article.summary,
-          url,
-        })
-      } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          await navigator.clipboard.writeText(url)
-        }
-      }
-    } else {
-      await navigator.clipboard.writeText(url)
-    }
+    await shareArticle({
+      url: `${window.location.origin}/article/${article.slug}`,
+      title: article.title,
+      text: article.summary,
+      copiedLabel: t('articles.linkCopied'),
+    })
   }
 
   const handleFollow = (e: React.MouseEvent) => {
@@ -225,138 +233,95 @@ export default function ArticleListPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
-      <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-[var(--color-text)]">{t('articles.title')}</h1>
-          <p className="text-[var(--color-text-muted)] mt-1">
-            {total} {t('articles.found')}
-          </p>
+      <section className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-sm dark:bg-[var(--color-surface,#0b1220)] sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold tracking-tight text-[var(--color-text)] sm:text-3xl">{t('articles.title')}</h1>
+            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+              {total} {t('articles.found')}
+            </p>
+          </div>
+          <form onSubmit={handleSearch} className="relative w-full sm:w-72">
+            <input
+              type="search"
+              name="search"
+              defaultValue={search}
+              placeholder={t('articles.search')}
+              className="input-field pl-10"
+              aria-label={t('articles.search')}
+            />
+            <svg className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </form>
         </div>
-        <form onSubmit={handleSearch} className="relative w-full sm:w-72">
-          <input
-            type="search"
-            name="search"
-            defaultValue={search}
-            placeholder={t('articles.search')}
-            className="input-field pl-10"
-            aria-label={t('articles.search')}
-          />
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </form>
-      </div>
 
-      <div className="flex flex-wrap gap-2">
-        {['latest', 'trending', 'popular'].map((sortOption) => (
-          <button
-            key={sortOption}
-            onClick={() => handleSortChange(sortOption)}
-            className={cn(
-              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-              sort === sortOption
-                ? 'bg-[var(--color-brand)] text-white'
-                : 'bg-[var(--color-brand-light)] dark:bg-[var(--color-brand-light)] text-[var(--color-brand-text)] hover:bg-[var(--color-brand-hover)]'
-            )}
+        <div className="mt-4 flex flex-col gap-3 border-t border-[var(--color-border)] pt-4 lg:flex-row lg:items-center lg:justify-between">
+          <div
+            className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-brand-light)] p-1"
+            role="group"
+            aria-label={t('articles.sortBy')}
           >
-            {t(`articles.${sortOption}`)}
-          </button>
-        ))}
-      </div>
-
-      {totalPages > 1 && (
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-        />
-      )}
-
-      {categories.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => handleCategoryChange('')}
-            className={cn(
-              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-              !category
-                ? 'bg-[var(--color-brand)] text-white'
-                : 'bg-[var(--color-brand-light)] dark:bg-[var(--color-brand-light)] text-[var(--color-brand-text)] hover:bg-[var(--color-brand-hover)]'
-            )}
-          >
-            {t('articles.allCategories')}
-          </button>
-          {showAllCategories ? (
-            <>
-              {categories.map((cat) => (
-                <button
-                  key={cat._id}
-                  onClick={() => handleCategoryChange(cat.slug)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                    category === cat.slug
-                      ? 'bg-[var(--color-brand)] text-white'
-                      : 'bg-[var(--color-brand-light)] dark:bg-[var(--color-brand-light)] text-[var(--color-brand-text)] hover:bg-[var(--color-brand-hover)]'
-                  )}
-                >
-                  {cat.name}
-                </button>
-              ))}
+            {['latest', 'trending', 'popular'].map((sortOption) => (
               <button
-                onClick={() => setShowAllCategories(false)}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--color-brand-text)] hover:bg-[var(--color-brand-light)] transition-colors"
+                key={sortOption}
+                onClick={() => handleSortChange(sortOption)}
+                aria-pressed={sort === sortOption}
+                className={cn(
+                  'whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm',
+                  sort === sortOption
+                    ? 'bg-[var(--color-brand)] text-white shadow-sm'
+                    : 'text-[var(--color-brand-text)] hover:bg-white/70',
+                )}
               >
-                {t('articles.showLess')}
+                {t(`articles.${sortOption}`)}
               </button>
-            </>
-          ) : (
-            <>
-              {categories.slice(0, 4).map((cat) => (
-                <button
+            ))}
+          </div>
+
+          {categories.length > 0 && (
+            <div
+              className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:max-w-[60%] lg:flex-1 lg:justify-end"
+              role="group"
+              aria-label={t('articles.categories')}
+            >
+              <ChipButton label={t('articles.allCategories')} active={!category} onClick={() => handleCategoryChange('')} />
+              {(showAllCategories ? categories : categories.slice(0, 4)).map((cat) => (
+                <ChipButton
                   key={cat._id}
+                  label={cat.name}
+                  active={category === cat.slug}
                   onClick={() => handleCategoryChange(cat.slug)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                    category === cat.slug
-                      ? 'bg-[var(--color-brand)] text-white'
-                      : 'bg-[var(--color-brand-light)] dark:bg-[var(--color-brand-light)] text-[var(--color-brand-text)] hover:bg-[var(--color-brand-hover)]'
-                  )}
-                >
-                  {cat.name}
-                </button>
+                />
               ))}
               {categories.length > 4 && (
                 <button
-                  onClick={() => setShowAllCategories(true)}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--color-brand-text)] hover:bg-[var(--color-brand-light)] transition-colors"
+                  onClick={() => setShowAllCategories((current) => !current)}
+                  className="shrink-0 whitespace-nowrap px-2 py-1.5 text-xs font-semibold text-[var(--color-brand-text)] transition-colors hover:underline sm:text-sm"
                 >
-                  {t('articles.exploreMore')}
+                  {showAllCategories ? t('articles.showLess') : t('articles.exploreMore')}
                 </button>
               )}
-            </>
+            </div>
           )}
         </div>
-      )}
+      </section>
 
-      {totalPages > 1 && (
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-        />
-      )}
-
-      <div className={cn('grid gap-6', {
-        'grid-cols-1': true,
-        'sm:grid-cols-2': true,
-        'lg:grid-cols-3': true,
-        'xl:grid-cols-4': true,
-      })}>
+      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {articles.map((article) => (
           <StoryCard key={article._id} article={article} />
         ))}
       </div>
-    </div>
+
+      {totalPages > 1 && (
+        <div className="mt-8">
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </div>
+      )}
     </div>
   )
 }

@@ -111,7 +111,7 @@ export default function GoogleButton({ flow, onSuccess, onError }: GoogleButtonP
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">or</span>
         <span className="h-px flex-1 bg-slate-200" />
       </div>
-      <div ref={containerRef} className="flex min-h-[44px] justify-center" />
+      <div ref={containerRef} className="notranslate flex min-h-[44px] justify-center" translate="no" />
     </div>
   )
 }

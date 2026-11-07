@@ -67,6 +67,23 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
   const currentNavLinks = getCurrentNavLinks()
   const canWrite = user?.role === 'WRITER' || user?.role === 'ADMIN'
 
+  const navLinkItems = currentNavLinks.map((link) => (
+    <NavLink
+      key={link.href}
+      to={link.href}
+      className={({ isActive }) =>
+        `flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
+          isActive
+            ? 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-400'
+            : 'text-gray-700 hover:bg-gray-100 hover:text-brand-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-brand-400'
+        }`
+      }
+    >
+      <link.icon className="h-4 w-4" aria-hidden="true" />
+      {link.label}
+    </NavLink>
+  ))
+
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const query = searchValue.trim()
@@ -107,34 +124,19 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
       } ${variant === 'public' ? 'left-0' : sidebarCollapsed ? 'left-16' : 'left-16 md:left-64'}`}
     >
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
-        <div className="flex h-16 items-center gap-4">
+        <div className="flex h-16 items-center justify-between gap-4">
           <Link to="/" className="flex shrink-0 items-center gap-2 text-xl font-extrabold tracking-tight text-[#062b52] dark:text-blue-300" aria-label="Ijwi ry'ukuri Home">
             <img src="/logo.png" alt="Ijwi ry'ukuri logo" className="h-8 w-8" onError={(e) => { e.currentTarget.src = '/favicon.svg'; }} />
             <span className="hidden sm:block">Ijwi ry<span className="text-blue-600 dark:text-cyan-300">'ukuri</span></span>
           </Link>
 
-          <div className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex">
-            {currentNavLinks.map((link) => (
-              <NavLink
-                key={link.href}
-                to={link.href}
-                className={({ isActive }) =>
-                  `flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-400'
-                      : 'text-gray-700 hover:bg-gray-100 hover:text-brand-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-brand-400'
-                  }`
-                }
-              >
-                <link.icon className="h-4 w-4" aria-hidden="true" />
-                {link.label}
-              </NavLink>
-            ))}
-          </div>
+          {variant !== 'public' && (
+            <div className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex">
+              {navLinkItems}
+            </div>
+          )}
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-3">
-            {variant === 'public' && <LiveButton />}
-
             {variant === 'public' && (
               <form onSubmit={handleSearch} className="relative hidden lg:block">
                 <label htmlFor="site-search" className="sr-only">{t('search.placeholder')}</label>
@@ -172,7 +174,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                     className="h-8 w-8 bg-brand-100 dark:bg-brand-900"
                     textClassName="text-sm font-medium text-brand-600 dark:text-brand-400"
                   />
-                  <span className="hidden sm:block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="hidden lg:block text-sm font-medium text-gray-700 dark:text-gray-300">
                     {user?.fullName || user?.username}
                   </span>
                 </button>
@@ -267,6 +269,13 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
           </div>
         </div>
 
+        {variant === 'public' && (
+          <div className="hidden items-center gap-1 pb-2 md:flex">
+            {navLinkItems}
+            <LiveButton className="ml-1" />
+          </div>
+        )}
+
         {isMenuOpen && (
           <div id="mobile-menu" className="md:hidden py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="space-y-2">
@@ -282,6 +291,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                     {link.label}
                   </Link>
                 ))}
+                {variant === 'public' && <LiveButton className="mt-1 self-start" />}
               </nav>
               <LanguageSelector className="w-full [&>button]:w-full" />
               {variant === 'public' && (

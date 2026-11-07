@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { Socket } from 'socket.io-client'
 import { toast } from 'react-toastify'
-import { Eye, MessageCircle, Radio, Send, Share2, Square, Users, Video, VideoOff } from 'lucide-react'
+import { Eye, MessageCircle, Radio, Send, Share2, Square, Users, Video, VideoOff, Volume2, VolumeX } from 'lucide-react'
 import type { Live, LiveComment } from '../../types'
 import { liveAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
@@ -11,7 +11,6 @@ import { connectLiveSocket } from '../../utils/liveSocket'
 import { openCamera, startBroadcaster, startViewer, stopTracks } from '../../utils/liveMedia'
 import { shareArticle } from '../../utils/shareArticle'
 import { requestSignIn } from '../../utils/signInPrompt'
-import { cn } from '../../utils/cn'
 import { Loading } from '../../components/common/Loading'
 import { useSeo } from '../../utils/useSeo'
 import MediaImage from '../../components/common/MediaImage'
@@ -39,6 +38,9 @@ export default function LivePage() {
   const [draft, setDraft] = useState('')
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [isStarting, setIsStarting] = useState(false)
+  const [remoteReady, setRemoteReady] = useState(false)
+  const [audioOn, setAudioOn] = useState(false)
+  const [isWaitingTooLong, setIsWaitingTooLong] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
 
@@ -46,6 +48,9 @@ export default function LivePage() {
   const previewRef = useRef<HTMLVideoElement | null>(null)
   const socketRef = useRef<Socket | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const remoteStreamRef = useRef<MediaStream | null>(null)
+  const rejoinRef = useRef<(() => void) | null>(null)
+  const autoRetryRef = useRef(0)
   const stopPeersRef = useRef<(() => void) | null>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
 
@@ -112,7 +117,14 @@ export default function LivePage() {
     socket.on('live:ended', onEnded)
 
     const attachStream = (stream: MediaStream) => {
-      if (videoRef.current) videoRef.current.srcObject = stream
+      remoteStreamRef.current = stream
+      setRemoteReady(false)
+      const video = videoRef.current
+      if (!video) return
+      video.srcObject = stream
+      // Chrome and Safari refuse to start a stream that carries audio unless the
+      // element is muted, so play() has to be retried after the unmute tap too.
+      void video.play().catch(() => setRemoteReady(false))
     }
 
     const connect = async () => {
@@ -137,11 +149,24 @@ export default function LivePage() {
         return
       }
 
-      socket.emit('live:watch', { liveId }, (ack: { comments?: LiveComment[]; error?: string } | undefined) => {
-        if (ack?.error || !ack?.comments) return
-        setComments(ack.comments)
+      // Re-asking for the call makes the server hand this socket to the broadcaster
+      // again, which is the only way a viewer gets a fresh offer.
+      const watch = () => {
+        socket.emit('live:watch', { liveId }, (ack: { comments?: LiveComment[]; error?: string } | undefined) => {
+          if (ack?.error || !ack?.comments) return
+          setComments(ack.comments)
+        })
+      }
+      rejoinRef.current = watch
+      watch()
+      stopPeersRef.current = startViewer(socket, attachStream, () => {
+        setRemoteReady(false)
+        // A connection that keeps dying must not keep adding a view each time;
+        // after two automatic attempts the viewer has to tap the retry button.
+        if (autoRetryRef.current >= 2) return
+        autoRetryRef.current += 1
+        watch()
       })
-      stopPeersRef.current = startViewer(socket, attachStream)
     }
 
     const onConnect = () => { void connect() }
@@ -157,14 +182,45 @@ export default function LivePage() {
       stopPeersRef.current = null
       stopTracks(streamRef.current)
       streamRef.current = null
+      remoteStreamRef.current = null
+      rejoinRef.current = null
+      autoRetryRef.current = 0
       socket.close()
       socketRef.current = null
     }
   }, [liveId, hostingAs, token, load])
 
   useEffect(() => {
+    const video = videoRef.current
+    if (!video || !remoteStreamRef.current || video.srcObject === remoteStreamRef.current) return
+    video.srcObject = remoteStreamRef.current
+    void video.play().catch(() => {})
+  })
+
+  // A black player with no message is what made a stalled call look like a broken
+  // feature, so say so after a reasonable grace period.
+  useEffect(() => {
+    if (isHostBroadcaster || !isLive || remoteReady) {
+      setIsWaitingTooLong(false)
+      return undefined
+    }
+    const timer = window.setTimeout(() => setIsWaitingTooLong(true), 9000)
+    return () => window.clearTimeout(timer)
+  }, [isHostBroadcaster, isLive, remoteReady])
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'nearest' })
   }, [comments])
+
+  const toggleAudio = () => {
+    const video = videoRef.current
+    const next = !audioOn
+    if (video) {
+      video.muted = !next
+      if (next) void video.play().catch(() => {})
+    }
+    setAudioOn(next)
+  }
 
   const handleShare = async () => {
     const url = `${window.location.origin}${id ? `/live/${id}` : '/live'}`
@@ -234,14 +290,18 @@ export default function LivePage() {
         <div className="relative overflow-hidden rounded-xl bg-black">
           {isLive ? (
             <>
-              <video
-                ref={videoRef}
-                className={cn('aspect-video w-full bg-black', isHostBroadcaster && 'hidden')}
-                autoPlay
-                playsInline
-              />
-              {isHostBroadcaster && (
+              {isHostBroadcaster ? (
                 <video ref={previewRef} className="aspect-video w-full -scale-x-100 bg-black" autoPlay playsInline muted />
+              ) : (
+                <video
+                  ref={videoRef}
+                  className="aspect-video w-full bg-black"
+                  autoPlay
+                  playsInline
+                  muted={!audioOn}
+                  onPlaying={() => setRemoteReady(true)}
+                  onStalled={() => setRemoteReady(false)}
+                />
               )}
               {cameraError && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/85 px-6 text-center">
@@ -249,6 +309,38 @@ export default function LivePage() {
                   <p className="text-sm font-semibold text-white">{cameraError}</p>
                   <p className="text-xs text-slate-300">{t('live.cameraHint')}</p>
                 </div>
+              )}
+              {!isHostBroadcaster && !cameraError && !remoteReady && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 px-6 text-center">
+                  <Radio className="h-7 w-7 animate-pulse text-red-400" aria-hidden="true" />
+                  <p className="text-sm font-semibold text-white">
+                    {isWaitingTooLong ? t('live.stalled') : t('live.connecting')}
+                  </p>
+                  {isWaitingTooLong && (
+                    <>
+                      <p className="text-xs text-slate-300">{t('live.stalledHint')}</p>
+                      <button
+                        type="button"
+                        onClick={() => rejoinRef.current?.()}
+                        className="rounded-full bg-white px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-red-600 transition hover:bg-red-50"
+                      >
+                        {t('live.retry')}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              {!isHostBroadcaster && remoteReady && (
+                <button
+                  type="button"
+                  onClick={toggleAudio}
+                  className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white transition hover:bg-black/80"
+                >
+                  {audioOn
+                    ? <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    : <VolumeX className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {audioOn ? t('live.mute') : t('live.unmute')}
+                </button>
               )}
               <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">

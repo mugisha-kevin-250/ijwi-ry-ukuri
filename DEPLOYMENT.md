@@ -157,12 +157,20 @@ so Render never relays media.
 
 - Socket CORS reuses `CLIENT_URL`; the Firebase origin must stay in that list or every
   viewer is rejected at handshake.
-- `ICE_SERVERS` is STUN-only. A viewer on a symmetric-NAT mobile network can fail to connect
-  until a TURN credential is added to `frontend/src/utils/liveMedia.ts`.
+- `ICE_SERVERS` is STUN-only (in `frontend/src/utils/liveSocket.ts`). A viewer on a
+  symmetric-NAT mobile network can fail to connect until a TURN credential is added there.
+  When that happens the viewer now sees "No video is arriving" with a retry button instead
+  of a silent black box.
+- The viewer's `<video>` starts **muted** and carries an "Unmute sound" button: a stream with
+  an audio track is not allowed to autoplay unmuted without a user gesture, so an unmuted
+  element simply never starts painting frames (this was the black screen viewers reported).
+  The broadcaster's own preview is muted for the same reason.
 - The free Render plan sleeps when idle, so the first joiner after a quiet period pays the
   cold start and the video may need a second attempt.
-- `/live` is in the sitemap and the header carries a red **Live** button that blinks while a
-  broadcast is active (`LiveButton` polls `/api/live/current` every 20s).
+- `/live` is in the sitemap. On the public site the nav links and the red **Live** button have
+  their own row under the logo/actions row (`Header`), because they were being clipped inside a
+  scrollable strip; that row is 44px tall, which is why `PublicLayout` uses `md:pt-[108px]`.
+  `LiveButton` polls `/api/live/current` every 20s and blinks only while a broadcast is active.
 
 ## Releasing a frontend change
 ```

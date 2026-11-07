@@ -2,6 +2,7 @@ const app = require('./app');
 const { connectDatabase } = require('./config/database');
 const { seedDefaults } = require('./utils/seedDefaults');
 const { seedUploads } = require('./utils/seedUploads');
+const attachLiveSocket = require('./sockets/liveSocket');
 const env = require('./config/env');
 
 async function connectDatabaseWithRetry() {
@@ -20,6 +21,10 @@ function listenForRequests(port) {
   const server = app.listen(port, () => {
     console.log(`Server running on port ${port}`);
   });
+
+  // Live broadcasts signal over websockets on this same server, so Render only
+  // ever runs one process that has to hold both the API and the audience.
+  attachLiveSocket(server);
 
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE' && env.NODE_ENV === 'development' && Number(port) < 65535) {

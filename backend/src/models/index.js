@@ -14,5 +14,7 @@ module.exports = {
   WriterEarning: require('./WriterEarning'),
   Payout: require('./Payout'),
   PushSubscription: require('./PushSubscription'),
-  PlatformSetting: require('./PlatformSetting')
+  PlatformSetting: require('./PlatformSetting'),
+  Live: require('./Live'),
+  LiveComment: require('./LiveComment')
 };

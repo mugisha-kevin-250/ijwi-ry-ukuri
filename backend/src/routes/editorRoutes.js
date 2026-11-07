@@ -2,7 +2,7 @@ const express = require('express');
 const Article = require('../models/Article');
 const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
-const pushService = require('../utils/pushService');
+const notificationService = require('../services/notificationService');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 
 const router = express.Router();
@@ -62,7 +62,7 @@ router.put('/articles/:id/publish', async (req, res, next) => {
     article.status = 'published';
     article.publishedAt = new Date();
     await article.save();
-    if (firstPublish) pushService.notifyArticlePublished(article);
+    if (firstPublish) await notificationService.announceArticlePublished(article);
     return successResponse(res, 200, 'Article published', { article });
   } catch (error) {
     next(error);

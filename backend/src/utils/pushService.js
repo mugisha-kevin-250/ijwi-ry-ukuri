@@ -116,4 +116,4 @@ function publishNotification(article) {
   });
 }
 
-module.exports = { sendToAll, notifyArticlePublished: publishNotification, configured };
+module.exports = { sendToAll, notifyArticlePublished: publishNotification, followersOf, configured };

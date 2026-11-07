@@ -7,8 +7,13 @@ const router = express.Router();
 
 router.get('/', protect, async (req, res, next) => {
   try {
-    const notifications = await Notification.find({ user: req.user._id }).sort({ createdAt: -1 });
-    return successResponse(res, 200, 'Notifications', { notifications });
+    const [notifications, unread] = await Promise.all([
+      // The story slug lives on the referenced document, so the inbox can link
+      // straight to it instead of guessing from an id.
+      Notification.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(50).populate('relatedEntity'),
+      Notification.countDocuments({ user: req.user._id, isRead: false }),
+    ]);
+    return successResponse(res, 200, 'Notifications', { notifications, unread });
   } catch (error) {
     next(error);
   }

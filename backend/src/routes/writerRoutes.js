@@ -10,7 +10,7 @@ const Follow = require('../models/Follow');
 const WriterEarning = require('../models/WriterEarning');
 const Payout = require('../models/Payout');
 const { protect, authorize } = require('../middleware/auth');
-const pushService = require('../utils/pushService');
+const notificationService = require('../services/notificationService');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const generateSlug = require('../utils/generateSlug');
 const { getWeekBounds } = require('../services/rewardService');
@@ -106,12 +106,16 @@ router.put('/articles/:id', protect, async (req, res, next) => {
   try {
     const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
     if (!article) return errorResponse(res, 404, 'Article not found');
+    const wasPublished = article.status === 'published';
     Object.assign(article, req.body);
     if (req.body.title) {
       article.slug = `${generateSlug(req.body.title)}-${Date.now()}`;
     }
     article.updatedAt = new Date();
     await article.save();
+    if (!wasPublished && article.status === 'published') {
+      await notificationService.announceArticlePublished(article);
+    }
     return successResponse(res, 200, 'Article updated', { article });
   } catch (error) {
     next(error);
@@ -139,7 +143,7 @@ router.post('/articles/:id/publish', protect, async (req, res, next) => {
       article.publishedAt = new Date();
     }
     await article.save();
-    if (firstPublish) pushService.notifyArticlePublished(article);
+    if (firstPublish) await notificationService.announceArticlePublished(article);
     return successResponse(res, 200, 'Article published', { article });
   } catch (error) {
     next(error);

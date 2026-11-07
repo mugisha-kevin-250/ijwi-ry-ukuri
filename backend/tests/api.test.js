@@ -272,3 +272,61 @@ function jwtTokenFor(userId, role) {
   const env = require('../src/config/env');
   return jwt.sign({ id: userId, role }, env.JWT_SECRET, { expiresIn: '7d' });
 }
+
+test('a published story lands in the admin inbox', async () => {
+  const Notification = require('../src/models/Notification');
+  const categories = await request(app).get('/api/categories');
+  const categoryId = categories.body.data.categories[0]._id;
+
+  const created = await request(app)
+    .post('/api/writers/articles')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'Inbox Story', summary: 'Something the admin has not seen yet', content: 'Body text of the inbox story.', category: categoryId });
+  const newId = created.body.data.article._id;
+
+  const before = await Notification.countDocuments({ type: 'new_story' });
+  await request(app).post(`/api/writers/articles/${newId}/publish`).set('Authorization', `Bearer ${token}`);
+
+  const rows = await Notification.find({ type: 'new_story' }).lean();
+  assert.ok(rows.length > before, 'publishing should create inbox entries');
+
+  const admin = await mongoose.connection.collection('users').findOne({ email: 'admin@example.com' });
+  const author = await mongoose.connection.collection('users').findOne({ email: 'alice@example.com' });
+  assert.ok(rows.some((row) => String(row.user) === String(admin._id)), 'the admin is told');
+  assert.ok(!rows.some((row) => String(row.user) === String(author._id)), 'nobody tells the author their own story');
+
+  const list = await request(app).get('/api/notifications').set('Authorization', `Bearer ${editorToken}`);
+  assert.equal(list.status, 200);
+  assert.ok(list.body.data.unread > 0);
+  assert.ok(list.body.data.notifications[0].relatedEntity.slug);
+});
+
+test('live broadcast is admin only, one at a time, and open to all viewers', async () => {
+  const denied = await request(app).post('/api/live').set('Authorization', `Bearer ${token}`).send({ title: 'Reader tries' });
+  assert.equal(denied.status, 403);
+
+  const started = await request(app).post('/api/live').set('Authorization', `Bearer ${editorToken}`).send({ title: 'Newsroom live', description: 'Ask us anything' });
+  assert.equal(started.status, 201);
+  const firstId = started.body.data.live._id;
+  assert.equal(started.body.data.live.sharePath, `/live/${firstId}`);
+
+  const current = await request(app).get('/api/live/current');
+  assert.equal(current.body.data.live._id, firstId);
+
+  const second = await request(app).post('/api/live').set('Authorization', `Bearer ${editorToken}`).send({ title: 'Second live' });
+  const secondId = second.body.data.live._id;
+
+  const afterCurrent = await request(app).get('/api/live/current');
+  assert.equal(afterCurrent.body.data.live._id, secondId);
+  const firstAgain = await request(app).get(`/api/live/${firstId}`);
+  assert.equal(firstAgain.body.data.live.status, 'ended');
+
+  const comments = await request(app).get(`/api/live/${secondId}/comments`);
+  assert.equal(comments.status, 200);
+  assert.deepEqual(comments.body.data.comments, []);
+
+  const ended = await request(app).post(`/api/live/${secondId}/end`).set('Authorization', `Bearer ${editorToken}`);
+  assert.equal(ended.status, 200);
+  const nothing = await request(app).get('/api/live/current');
+  assert.equal(nothing.body.data.live, null);
+});

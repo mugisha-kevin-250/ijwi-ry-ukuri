@@ -19,22 +19,48 @@ import type { Article, Category } from '../../types'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import NewsBanner from '../../components/news/NewsBanner'
+import NewsAlertsCard from '../../components/pwa/NewsAlertsCard'
 import MediaImage from '../../components/common/MediaImage'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
 import { useArticleLike, useAuthorFollow } from '../../utils/engagementStore'
 import { shareArticle } from '../../utils/shareArticle'
 
+/**
+ * The newsroom holds the same section twice under two languages ("Business" and
+ * "Ubucuruzi"), so a topic is matched against the label the reader is looking at
+ * first, then the names the section is known by. A topic with no category is left
+ * out rather than sending the reader to the generic list.
+ */
 const topics = [
-  { name: 'Rwanda', key: 'category.rwanda' },
-  { name: 'Politics', key: 'category.politics' },
-  { name: 'Business', key: 'category.business' },
-  { name: 'Economy', key: 'category.economy' },
-  { name: 'Technology', key: 'category.technology' },
-  { name: 'Sports', key: 'category.sports' },
-  { name: 'Entertainment', key: 'category.entertainment' },
-  { name: 'Health', key: 'category.health' },
+  { key: 'category.rwanda', names: ['rwanda'] },
+  { key: 'category.politics', names: ['politics', 'politik'] },
+  { key: 'category.business', names: ['ubucuruzi', 'business'] },
+  { key: 'category.economy', names: ['imirire', 'economy'] },
+  { key: 'category.technology', names: ['technology', 'teknolojia'] },
+  { key: 'category.sports', names: ['sports', 'amasport'] },
+  { key: 'category.entertainment', names: ['entertainment', 'amuseke', 'ibisindi'] },
+  { key: 'category.health', names: ['health', 'ubuzima'] },
 ]
+
+function normalizeTopic(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '')
+}
+
+function findTopicCategory(categories: Category[], names: string[]): Category | undefined {
+  for (const wanted of names.map(normalizeTopic)) {
+    if (!wanted) continue
+    const match = categories.find(
+      (item) => normalizeTopic(item.slug) === wanted || normalizeTopic(item.name) === wanted,
+    )
+    if (match) return match
+  }
+  return undefined
+}
 
 function articleCategory(article: Article) {
   return typeof article.category === 'object' ? article.category : null
@@ -287,8 +313,10 @@ export default function HomePage() {
       <nav className="bg-[var(--color-brand)] text-white" aria-label={t('nav.articles')}>
         <div className="mx-auto flex max-w-7xl items-center gap-6 overflow-x-auto px-4 py-2.5 text-xs font-semibold sm:px-6 lg:px-8">
           {topics.map((topic) => {
-            const category = categories.find((item) => item.name.toLowerCase() === topic.name.toLowerCase())
-            return <Link key={topic.key} to={category ? `/category/${category.slug}` : '/categories'} className="shrink-0 transition hover:text-[var(--color-brand-light)]">{t(topic.key)}</Link>
+            const label = t(topic.key)
+            const category = findTopicCategory(categories, [label, ...topic.names])
+            if (!category) return null
+            return <Link key={topic.key} to={`/category/${category.slug}`} className="shrink-0 transition hover:text-[var(--color-brand-light)]">{label}</Link>
           })}
           <Link to="/categories" className="shrink-0 text-[var(--color-brand-light)]">{t('category.other')} +</Link>
         </div>
@@ -409,6 +437,8 @@ export default function HomePage() {
             </div>
           </aside>
         </section>
+
+        <NewsAlertsCard />
 
         <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm shadow-sm">
           <span className="inline-flex items-center gap-2 font-semibold text-slate-700"><TrendingUp className="h-4 w-4 text-blue-700" />{t('home.follow')}</span>

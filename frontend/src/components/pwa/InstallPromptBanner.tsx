@@ -34,7 +34,9 @@ export default function InstallPromptBanner() {
   const promptRef = useRef<BeforeInstallPromptEvent | null>(null)
 
   useEffect(() => {
-    if (isStandalone() || recentlyDismissed()) return
+    // Installed app windows cannot install again, but they are the best place
+    // for alerts - the OS delivers them even when the app is closed.
+    if (recentlyDismissed()) return
 
     // A browser that can install gives us a real prompt; iOS Safari needs the
     // manual Add to Home Screen route; everyone else can still turn on updates.

@@ -8,6 +8,7 @@ import { useTheme, type ThemeMode } from '../../context/ThemeContext'
 import LanguageSelector from '../../components/layout/LanguageSelector'
 import { uploadImage } from '../../services/apiClient'
 import Avatar from '../../components/common/Avatar'
+import NewsAlertsCard from '../../components/pwa/NewsAlertsCard'
 import { toast } from 'react-toastify'
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string; icon: typeof Sun }[] = [
@@ -204,6 +205,12 @@ export default function UserProfilePage() {
           ))}
         </div>
       </div>
+
+      {isOwnProfile && (
+        <div className="mt-6">
+          <NewsAlertsCard />
+        </div>
+      )}
 
       {isOwnProfile && (
         <div id="settings" className="mt-6 rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[var(--color-bg)] p-6 shadow-sm">

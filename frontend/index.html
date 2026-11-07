@@ -43,6 +43,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- The sign-in button is Google's own iframe, so its domains are warmed up
+         while the page boots instead of when the reader finally opens the form. -->
+    <link rel="preconnect" href="https://accounts.google.com" crossorigin>
+    <link rel="preconnect" href="https://accounts.gstatic.com" crossorigin>
+    <script async src="https://accounts.google.com/gsi/client?hl=en"></script>
     <script>
       window.googleTranslateConfig = {
         defaultLanguage: 'en',

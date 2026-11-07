@@ -15,6 +15,16 @@
   `frontend/public/icons/` + `favicon-*.png`), `frontend/public/site.webmanifest`,
   and `frontend/public/sw.js` (offline shell/pages/public API reads; signed-in routes
   are never cached). `InstallPromptBanner` shows the blue/white install + alerts prompt.
+- Turning alerts on is not limited to that prompt: `NewsAlertsCard`
+  (`frontend/src/components/pwa/NewsAlertsCard.tsx`) is a permanent switch on the home
+  page and on a reader's own profile, so alerts can be enabled inside the installed app
+  (standalone windows included - the banner used to skip them) or re-enabled after the
+  prompt was dismissed. Push is delivered by the operating system, so it still arrives
+  while the phone sleeps or the browser is closed; the app itself never has to be open.
+- Google sign-in: `frontend/index.html` loads `accounts.google.com/gsi/client?hl=en`
+  while the page is still parsing, so `GoogleButton` finds the SDK already there instead
+  of fetching it when the form opens. `hl=en` is what keeps the button label English -
+  `locale: 'en'` alone is overridden by the reader's Google account language.
 - Web Push: backend `web-push` with VAPID (`backend/src/routes/pushRoutes.js`),
   subscriptions in the `pushsubscriptions` Atlas collection, automatic alerts when a
   story is first published, plus a manual broadcast in Admin -> Settings.
@@ -74,7 +84,8 @@ Env vars: see the gitignored `.env.render`. Two things the free plan forces:
 
 **Push notifications need one more paste**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
 and `VAPID_SUBJECT` (values in `.env.render`). Everything else works without them —
-`GET /api/push/status` reports `enabled: false`, the app hides the alerts prompt, and
+`GET /api/push/status` reports `enabled: false`, every alerts switch shows "not
+switched on yet" instead of a button that would fail, and
 `POST /api/push/broadcast` answers 503 instead of crashing.
 
 To move uploads onto a real disk: upgrade to `starter`, uncomment the `disks:` block
@@ -96,7 +107,7 @@ feature until the key is in.
 
 | Paste into | Variable | Where the value comes from | Without it |
 | --- | --- | --- | --- |
-| Render env | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `.env.render`, generated with `npx web-push generate-vapid-keys` | `GET /api/push/status` -> `enabled: false`, the alerts prompt stays hidden, `/api/push/broadcast` answers 503. |
+| Render env | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `.env.render`, generated with `npx web-push generate-vapid-keys` | `GET /api/push/status` -> `enabled: false`, the alerts switches fall back to a "not switched on yet" note, `/api/push/broadcast` answers 503. |
 | Render env | `GOOGLE_CLIENT_ID` | `423361172120-8m17rtkmh91qc5b3r9o3qc3s5c2tvh9f.apps.googleusercontent.com` — Google Cloud -> Google Auth Platform -> Credentials -> OAuth client ID (Web application). Its **Authorized JavaScript origins** are `https://ijwi-ry--ukuri.web.app` and `http://localhost:5173`. The *client secret* is not used by this flow; never paste it anywhere. | `POST /api/auth/google` -> 503 "Google sign-in is not configured on this server". |
 | `frontend/.env.production` (then rebuild) | `VITE_GOOGLE_CLIENT_ID` | the same Client ID, the public half — already set and deployed | the "Continue with Google" button is not rendered at all. |
 

@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 
 const CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? ''
-const GIS_SRC = 'https://accounts.google.com/gsi/client'
+// hl=en keeps Google's own labels in English; the app's language changes with
+// it, but the sign-in button must stay readable for every reader.
+const GIS_SRC = 'https://accounts.google.com/gsi/client?hl=en'
 
 interface GoogleIdApi {
   initialize: (options: Record<string, unknown>) => void
@@ -48,6 +50,7 @@ interface GoogleButtonProps {
 export default function GoogleButton({ flow, onSuccess, onError }: GoogleButtonProps) {
   const { signInWithGoogle } = useAuth()
   const containerRef = useRef<HTMLDivElement>(null)
+  const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading')
   // Google keeps the callback it was initialized with, so the handlers are read
   // through a ref instead of closing over the first render's versions.
   const handlers = useRef({ onSuccess, onError, signInWithGoogle })
@@ -92,9 +95,12 @@ export default function GoogleButton({ flow, onSuccess, onError }: GoogleButtonP
           locale: 'en',
           width: 288,
         })
+        setState('ready')
       })
       .catch((error: unknown) => {
-        if (!stopped) onError(error instanceof Error ? error.message : 'Google sign-in failed.')
+        if (stopped) return
+        setState('failed')
+        onError(error instanceof Error ? error.message : 'Google sign-in failed.')
       })
 
     return () => {
@@ -111,7 +117,16 @@ export default function GoogleButton({ flow, onSuccess, onError }: GoogleButtonP
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">or</span>
         <span className="h-px flex-1 bg-slate-200" />
       </div>
-      <div ref={containerRef} className="notranslate flex min-h-[44px] justify-center" translate="no" />
+      <div className="relative min-h-[44px]">
+        <div ref={containerRef} className="notranslate flex justify-center" translate="no" />
+        {state === 'loading' && (
+          <div
+            className="absolute inset-0 animate-pulse rounded-lg bg-slate-100"
+            role="status"
+            aria-label="Google sign-in"
+          />
+        )}
+      </div>
     </div>
   )
 }

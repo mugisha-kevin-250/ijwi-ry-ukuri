@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { writerAPI, publicAPI } from '../../services/api'
-import { apiClient } from '../../services/apiClient'
+import { uploadImage } from '../../services/apiClient'
+import MediaImage from '../../components/common/MediaImage'
 import { useI18n } from '../../context/I18nContext'
 
 export default function WriterArticleEditorPage() {
@@ -56,21 +57,9 @@ export default function WriterArticleEditorPage() {
     setImageFileName(file.name)
     setUploading(true)
     setError('')
-    const formData = new FormData()
-    formData.append('image', file)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`${apiClient.baseURL}/upload/image`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        throw new Error(json.message || 'Upload failed')
-      }
-      const url = json.data?.url
-      if (url) setForm((f: any) => ({ ...f, featuredImage: url }))
+      const url = await uploadImage(file)
+      setForm((f: any) => ({ ...f, featuredImage: url }))
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Failed to upload image')
@@ -164,7 +153,7 @@ export default function WriterArticleEditorPage() {
           {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
           {form.featuredImage && (
             <div className="mt-3 relative">
-              <img src={form.featuredImage} alt="" className="h-48 w-full rounded-lg object-cover border border-slate-200" />
+              <MediaImage src={form.featuredImage} alt="" className="h-48 w-full rounded-lg object-cover border border-slate-200" />
               <span className="absolute top-2 right-2 rounded-full bg-emerald-500 text-white text-xs px-2 py-1">Image ready</span>
             </div>
           )}

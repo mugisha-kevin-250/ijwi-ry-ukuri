@@ -66,8 +66,18 @@ export async function enablePushNotifications(): Promise<PushSubscription> {
   return subscription
 }
 
-export async function disablePushNotifications(): Promise<void> {
+// A device that subscribed while signed out has no user attached, so it would
+// miss the stories its owner follows. Re-posting the same endpoint on sign-in
+// links it to the account.
+export async function syncPushSubscription(): Promise<void> {
+  if (!pushSupported()) return
   const registration = await getServiceWorkerRegistration()
+  const subscription = await registration?.pushManager.getSubscription()
+  if (!subscription) return
+  await apiClient.post('/push/subscribe', { subscription: subscription.toJSON() }).catch(() => undefined)
+}
+
+export async function disablePushNotifications(): Promise<void> {  const registration = await getServiceWorkerRegistration()
   const subscription = await registration?.pushManager.getSubscription()
   if (!subscription) return
 

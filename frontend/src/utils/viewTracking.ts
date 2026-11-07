@@ -30,11 +30,14 @@ function postView(articleId: string, readingDurationMs: number) {
   }).catch(() => undefined)
 }
 
-// Counts the time the reader actually spends on the article, then reports it once when
-// they leave (route change, tab hidden or tab closed).
+// Counts the time the reader actually spends on the article. Opening the story
+// sends a zero-duration ping so the view registers immediately, and the report
+// sent on leave only upgrades that same read with the real dwell time.
 export function useArticleViewTracking(articleId?: string) {
   useEffect(() => {
     if (!articleId) return undefined
+
+    void postView(articleId, 0)
 
     let visibleMs = 0
     let visibleSince = document.visibilityState === 'visible' ? Date.now() : 0

@@ -27,6 +27,38 @@ function absolutizeUploads(node: unknown): unknown {
   return node
 }
 
+// Bundled fallback so a missing or deleted file degrades to a branded box
+// instead of the browser's broken-image icon.
+export const PLACEHOLDER_IMAGE = '/placeholder-article.svg'
+
+// Every media field the API returns is either a backend-relative /uploads path
+// or an absolute URL, and localStorage keeps whatever was saved before the
+// interceptor existed. Display sites call this so all three forms render.
+export function resolveMediaUrl(value?: string | null): string {
+  if (!value) return ''
+  if (/^(https?:|data:|blob:)/i.test(value)) return value
+  if (value.startsWith('/uploads/') && API_ORIGIN) return `${API_ORIGIN}${value}`
+  return value
+}
+
+// Uploads go through fetch rather than axios: the browser has to set the
+// multipart boundary itself, which a JSON default header would clobber.
+export async function uploadImage(file: File): Promise<string> {
+  const token = localStorage.getItem('token')
+  const formData = new FormData()
+  formData.append('image', file)
+  const response = await fetch(`${API_BASE_URL}/upload/image`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  })
+  const json = await response.json().catch(() => null)
+  if (!response.ok || !json?.data?.url) {
+    throw new Error(json?.message || 'Upload failed')
+  }
+  return json.data.url as string
+}
+
 function relativizeUploads(node: unknown): unknown {
   if (typeof node === 'string') {
     return API_ORIGIN && node.startsWith(`${API_ORIGIN}/uploads/`) ? node.slice(API_ORIGIN.length) : node

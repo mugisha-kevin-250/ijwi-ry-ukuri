@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Plus, FileText, Eye, Heart, MessageSquare, Trash2, Edit2, Loader2 } from 'lucide-react'
 import { writerAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
+import MediaImage from '../../components/common/MediaImage'
 
 export default function WriterArticlesPage() {
   const { t } = useI18n()
@@ -79,7 +80,7 @@ export default function WriterArticlesPage() {
             {articles.map((article: any) => (
               <div key={article._id} className="flex items-center gap-4 px-4 py-3">
                 {article.featuredImage ? (
-                  <img src={article.featuredImage} alt="" className="h-14 w-20 rounded object-cover" />
+                  <MediaImage src={article.featuredImage} alt="" className="h-14 w-20 rounded object-cover" />
                 ) : (
                   <div className="h-14 w-20 rounded bg-[var(--color-brand-light)] flex items-center justify-center">
                     <FileText className="h-6 w-6 text-[var(--color-brand-text)]" />

@@ -4,6 +4,7 @@ import { Menu, X, User, LogOut, LayoutDashboard, PenTool, Settings, Users, Dolla
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
+import Avatar from '../common/Avatar'
 import LanguageSelector from './LanguageSelector'
 
 interface HeaderProps {
@@ -159,15 +160,12 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                   aria-expanded={isProfileOpen}
                   aria-haspopup="true"
                 >
-                  <div className="h-8 w-8 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
-                    {user?.avatar ? (
-                      <img src={user.avatar} alt="" className="h-8 w-8 rounded-full" />
-                    ) : (
-                      <span className="text-sm font-medium text-brand-600 dark:text-brand-400">
-                        {user?.fullName?.[0] || user?.username?.[0] || 'U'}
-                      </span>
-                    )}
-                  </div>
+                  <Avatar
+                    src={user?.avatar}
+                    name={user?.fullName || user?.username}
+                    className="h-8 w-8 bg-brand-100 dark:bg-brand-900"
+                    textClassName="text-sm font-medium text-brand-600 dark:text-brand-400"
+                  />
                   <span className="hidden sm:block text-sm font-medium text-gray-700 dark:text-gray-300">
                     {user?.fullName || user?.username}
                   </span>

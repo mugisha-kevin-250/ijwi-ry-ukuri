@@ -5,6 +5,8 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true, select: false },
+  // Google `sub` claim, set when the account signed in with Google at least once.
+  googleId: { type: String, default: null, index: true },
   role: {
     type: String,
     enum: ['READER', 'WRITER', 'EDITOR', 'ADMIN'],

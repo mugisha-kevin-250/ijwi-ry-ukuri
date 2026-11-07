@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { User, Eye, MapPin, Globe, PenTool } from 'lucide-react'
 import type { WriterProfile } from '../../types'
 import { cn } from '../../utils/cn'
+import Avatar from '../common/Avatar'
 
 interface WriterCardProps {
   writer: WriterProfile
@@ -20,15 +21,12 @@ export default function WriterCard({
         to={`/user/${writer._id}`}
         className={cn('flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors', className)}
       >
-        <div className="h-12 w-12 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center flex-shrink-0">
-          {writer.profileImage ? (
-            <img src={writer.profileImage} alt="" className="h-12 w-12 rounded-full object-cover" />
-          ) : (
-            <span className="text-lg font-bold text-brand-600 dark:text-brand-400">
-              {writer.fullName[0]}
-            </span>
-          )}
-        </div>
+        <Avatar
+          src={writer.profileImage}
+          name={writer.fullName}
+          className="h-12 w-12 flex-shrink-0 bg-brand-100 dark:bg-brand-900"
+          textClassName="text-lg font-bold text-brand-600 dark:text-brand-400"
+        />
         <div className="flex-1 min-w-0">
           <p className="font-medium text-gray-900 dark:text-white truncate">{writer.fullName}</p>
           <p className="text-sm text-gray-500 dark:text-gray-400 truncate">@{writer.username}</p>
@@ -44,15 +42,12 @@ export default function WriterCard({
     return (
       <div className={cn('space-y-6', className)}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-          <div className="h-24 w-24 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center flex-shrink-0">
-            {writer.profileImage ? (
-              <img src={writer.profileImage} alt="" className="h-24 w-24 rounded-full object-cover" />
-            ) : (
-              <span className="text-3xl font-bold text-brand-600 dark:text-brand-400">
-                {writer.fullName[0]}
-              </span>
-            )}
-          </div>
+          <Avatar
+            src={writer.profileImage}
+            name={writer.fullName}
+            className="h-24 w-24 flex-shrink-0 bg-brand-100 dark:bg-brand-900"
+            textClassName="text-3xl font-bold text-brand-600 dark:text-brand-400"
+          />
           <div className="flex-1 text-center sm:text-left">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{writer.fullName}</h2>
             <p className="text-gray-500 dark:text-gray-400">@{writer.username}</p>
@@ -107,15 +102,12 @@ export default function WriterCard({
     <div className={cn('p-6 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-md transition-all', className)}>
       <Link to={`/user/${writer._id}`} className="block">
         <div className="flex items-start gap-4">
-          <div className="h-16 w-16 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center flex-shrink-0">
-            {writer.profileImage ? (
-              <img src={writer.profileImage} alt="" className="h-16 w-16 rounded-full object-cover" />
-            ) : (
-              <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">
-                {writer.fullName[0]}
-              </span>
-            )}
-          </div>
+          <Avatar
+            src={writer.profileImage}
+            name={writer.fullName}
+            className="h-16 w-16 flex-shrink-0 bg-brand-100 dark:bg-brand-900"
+            textClassName="text-2xl font-bold text-brand-600 dark:text-brand-400"
+          />
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-gray-900 dark:text-white truncate">{writer.fullName}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 truncate">@{writer.username}</p>

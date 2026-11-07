@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { authAPI, writerAPI } from '../services/api'
+import { syncPushSubscription } from '../pwa/pushNotifications'
 import type { User, AuthResponse } from '../types'
 
 interface AuthContextType {
@@ -9,6 +10,7 @@ interface AuthContextType {
   adminLogin: (username: string, password: string) => Promise<void>
   updateCredentials: (data: { currentPassword: string; username?: string; email?: string; fullName?: string; password?: string }) => Promise<void>
   register: (data: any) => Promise<void>
+  signInWithGoogle: (credential: string) => Promise<void>
   logout: () => void
   updateProfile: (updates: Partial<User>) => void
   refreshUser: () => Promise<User | null>
@@ -54,6 +56,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     initAuth()
   }, [])
+
+  useEffect(() => {
+    if (token) void syncPushSubscription()
+  }, [token])
 
   const login = async (email: string, password: string) => {
     try {
@@ -118,6 +124,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  const signInWithGoogle = async (credential: string) => {
+    try {
+      setError(null)
+      const response = await authAPI.googleSignIn({ credential })
+      applySession(response.data.data as AuthResponse)
+    } catch (err: any) {
+      const message = err.response?.data?.message || 'Google sign-in failed'
+      setError(message)
+      throw new Error(message)
+    }
+  }
+
   const logout = () => {
     setUser(null)
     setToken(null)
@@ -175,6 +193,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     adminLogin,
     updateCredentials,
     register,
+    signInWithGoogle,
     logout,
     updateProfile,
     refreshUser,

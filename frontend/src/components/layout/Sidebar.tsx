@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
+import Avatar from '../common/Avatar'
 
 interface SidebarProps {
   variant: 'writer' | 'editor' | 'admin'
@@ -97,15 +98,12 @@ const navigation = {
         {!isCollapsed && (
           <div className="mt-6 hidden border-t border-white/10 pt-6 md:block">
             <div className="flex items-center gap-3 px-3">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600">
-                {user?.avatar ? (
-                  <img src={user.avatar} alt="" className="h-8 w-8 rounded-full" />
-                ) : (
-                  <span className="text-sm font-medium text-white">
-                    {user?.fullName?.[0] || user?.username?.[0] || 'U'}
-                  </span>
-                )}
-              </div>
+              <Avatar
+                src={user?.avatar}
+                name={user?.fullName || user?.username}
+                className="h-8 w-8 flex-shrink-0 bg-blue-600"
+                textClassName="text-sm font-medium text-white"
+              />
               <div className="flex-1 min-w-0">
                 <p className="truncate text-sm font-medium text-white">
                   {user?.fullName || user?.username}

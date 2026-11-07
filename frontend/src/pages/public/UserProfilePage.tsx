@@ -6,7 +6,9 @@ import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import { useTheme, type ThemeMode } from '../../context/ThemeContext'
 import LanguageSelector from '../../components/layout/LanguageSelector'
-import { apiClient } from '../../services/apiClient'
+import { uploadImage } from '../../services/apiClient'
+import Avatar from '../../components/common/Avatar'
+import { toast } from 'react-toastify'
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string; icon: typeof Sun }[] = [
   { value: 'light', labelKey: 'settings.themeLight', icon: Sun },
@@ -49,28 +51,23 @@ export default function UserProfilePage() {
   }, [profileId])
 
   const handleSave = async () => {
+    let avatar = editData.avatar
     try {
-      // Upload avatar if changed
       if (editData.avatarFile) {
-        const formData = new FormData()
-        formData.append('image', editData.avatarFile)
-        const res = await fetch(`${apiClient.baseURL}/upload/image`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-          body: formData
-        })
-        const json = await res.json()
-        if (json.data?.url) {
-          editData.avatar = json.data.url
-        }
+        avatar = await uploadImage(editData.avatarFile)
       }
-      await userAPI.updateMe(editData)
+      await userAPI.updateMe({
+        fullName: editData.fullName,
+        bio: editData.bio,
+        username: editData.username,
+        avatar,
+      })
       // Sync with AuthContext
       updateProfile({
         fullName: editData.fullName,
         bio: editData.bio,
         username: editData.username,
-        avatar: editData.avatar
+        avatar
       })
       setEditing(false)
       // Reload data
@@ -78,6 +75,7 @@ export default function UserProfilePage() {
       setData(res.data.data)
     } catch (e) {
       console.error('Failed to update profile:', e)
+      toast.error(e instanceof Error ? e.message : 'Failed to update profile')
     }
   }
 
@@ -104,15 +102,12 @@ export default function UserProfilePage() {
       <div className="mb-6 rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[var(--color-bg)] p-6 shadow-sm">
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           <div className="relative">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--color-brand-light)] text-2xl font-bold text-[var(--color-brand-text)]">
-              {editing && editData.avatar ? (
-                <img src={editData.avatar} alt="" className="h-20 w-20 rounded-full object-cover" />
-              ) : profileUser.avatar ? (
-                <img src={profileUser.avatar} alt="" className="h-20 w-20 rounded-full object-cover" />
-              ) : (
-                <span className="text-2xl font-bold text-[var(--color-brand-text)]">{profileUser.fullName?.[0]}</span>
-              )}
-            </div>
+            <Avatar
+              src={editing ? editData.avatar : profileUser.avatar}
+              name={profileUser.fullName}
+              className="h-20 w-20 bg-[var(--color-brand-light)]"
+              textClassName="text-2xl font-bold text-[var(--color-brand-text)]"
+            />
             {editing && (
               <label className="absolute bottom-0 right-0 cursor-pointer">
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => {

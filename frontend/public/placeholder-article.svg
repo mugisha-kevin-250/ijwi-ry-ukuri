@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Ijwi ry'ukuri">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#062b52"/>
+      <stop offset="1" stop-color="#1b5f9e"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" fill="url(#g)"/>
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2">
+    <circle cx="540" cy="70" r="90"/>
+    <circle cx="90" cy="340" r="70"/>
+  </g>
+  <g transform="translate(320 200)" text-anchor="middle">
+    <path d="M-26 -46 h52 a8 8 0 0 1 8 8 v60 a8 8 0 0 1 -8 8 h-52 a8 8 0 0 1 -8 -8 v-60 a8 8 0 0 1 8 -8 z" fill="#ffffff" fill-opacity="0.14" stroke="#ffffff" stroke-opacity="0.6" stroke-width="3"/>
+    <g stroke="#ffffff" stroke-opacity="0.75" stroke-width="4" stroke-linecap="round">
+      <line x1="-14" y1="-28" x2="26" y2="-28"/>
+      <line x1="-14" y1="-12" x2="26" y2="-12"/>
+      <line x1="-14" y1="4" x2="12" y2="4"/>
+    </g>
+    <text y="72" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="30" font-weight="700" fill="#ffffff" fill-opacity="0.92">Ijwi ry'ukuri</text>
+  </g>
+</svg>

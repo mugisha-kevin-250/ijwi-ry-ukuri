@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ArrowLeft, Calendar, Eye, Heart, MessageSquare, Bookmark, Share2, Tag, Loader2, UserPlus } from 'lucide-react'
@@ -9,10 +9,13 @@ import { useI18n } from '../../context/I18nContext'
 import ArticleList from '../../components/news/ArticleList'
 import { LoadingCard, LoadingGrid } from '../../components/common/Loading'
 import EmptyState from '../../components/common/EmptyState'
+import Avatar from '../../components/common/Avatar'
+import MediaImage from '../../components/common/MediaImage'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
 import { requestSignIn } from '../../utils/signInPrompt'
 import { useArticleViewTracking } from '../../utils/viewTracking'
+import { useArticleBookmark, useArticleLike, useAuthorFollow, useVisiblePoll } from '../../utils/engagementStore'
 
 export default function ArticleDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -22,10 +25,10 @@ export default function ArticleDetailPage() {
   const [article, setArticle] = useState<Article | null>(null)
   const [relatedArticles, setRelatedArticles] = useState<Article[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isLiked, setIsLiked] = useState(false)
-  const [isBookmarked, setIsBookmarked] = useState(false)
-  const [isFollowing, setIsFollowing] = useState(false)
-  const [likeCount, setLikeCount] = useState(0)
+  const { liked, likes, toggle: toggleLike } = useArticleLike(article)
+  const { bookmarked, toggle: toggleBookmark } = useArticleBookmark(article)
+  const followAuthorId = article && typeof article.author === 'object' ? article.author._id : null
+  const { following, toggle: toggleFollow } = useAuthorFollow(followAuthorId, article?.followingAuthor)
 
   useSeo({
     title: article?.title,
@@ -64,10 +67,6 @@ export default function ArticleDetailPage() {
           return
         }
         setArticle(articleData)
-        setLikeCount(articleData.likes || 0)
-        setIsLiked(Boolean(articleData.liked))
-        setIsBookmarked(Boolean(articleData.bookmarked))
-        setIsFollowing(Boolean(articleData.followingAuthor))
         setRelatedArticles(relatedRes.data.data?.articles?.filter((a: Article) => a._id !== articleData._id).slice(0, 3) || [])
       } catch (error) {
         console.error('Failed to fetch article:', error)
@@ -81,42 +80,25 @@ export default function ArticleDetailPage() {
 
   useArticleViewTracking(article?._id)
 
-  const handleLike = async () => {
-    if (!user) {
-      requestSignIn()
-      return
-    }
-    if (!article) return
-    const next = !isLiked
-    setIsLiked(next)
-    setLikeCount((prev) => Math.max(0, prev + (next ? 1 : -1)))
+  // Keeps an open story current: another reader's like or a fresh view count
+  // arrives without a manual reload.
+  const refreshArticle = useCallback(async () => {
+    if (!slug) return
     try {
-      const response = next ? await articleAPI.likeArticle(article._id) : await articleAPI.unlikeArticle(article._id)
-      const likes = (response.data.data as any)?.likes
-      if (typeof likes === 'number') setLikeCount(likes)
-    } catch (error) {
-      setIsLiked(!next)
-      setLikeCount((prev) => Math.max(0, prev + (next ? -1 : 1)))
-      console.error('Failed to like article:', error)
+      const response = await publicAPI.getArticleBySlug(slug)
+      const payload = response.data.data as any
+      const fresh = (payload?.article ?? payload) as Article | null
+      if (fresh) setArticle(fresh)
+    } catch {
+      // Leave what is on screen if the API is briefly unavailable.
     }
-  }
+  }, [slug])
 
-  const handleBookmark = async () => {
-    if (!user) {
-      requestSignIn()
-      return
-    }
-    if (!article) return
-    const next = !isBookmarked
-    setIsBookmarked(next)
-    try {
-      if (next) await articleAPI.bookmarkArticle(article._id)
-      else await articleAPI.unbookmarkArticle(article._id)
-    } catch (error) {
-      setIsBookmarked(!next)
-      console.error('Failed to bookmark article:', error)
-    }
-  }
+  useVisiblePoll(refreshArticle)
+
+  const handleLike = () => void toggleLike()
+
+  const handleBookmark = () => void toggleBookmark()
 
   const handleShare = async () => {
     if (!article) return
@@ -137,24 +119,7 @@ export default function ArticleDetailPage() {
     }
   }
 
-  const handleFollow = async () => {
-    if (!article) return
-    if (!user) {
-      requestSignIn()
-      return
-    }
-    const author = typeof article.author === 'object' ? article.author : null
-    if (!author) return
-    const next = !isFollowing
-    setIsFollowing(next)
-    try {
-      if (next) await articleAPI.followWriter(author._id)
-      else await articleAPI.unfollowWriter(author._id)
-    } catch (error) {
-      setIsFollowing(!next)
-      console.error('Failed to follow/unfollow author:', error)
-    }
-  }
+  const handleFollow = () => void toggleFollow()
 
   if (isLoading) {
     return (
@@ -223,15 +188,12 @@ export default function ArticleDetailPage() {
               to={`/user/${author._id}`}
               className="flex items-center gap-2 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
             >
-              {author.avatar ? (
-                <img src={author.avatar} alt="" className="h-8 w-8 rounded-full" />
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
-                  <span className="text-sm font-medium text-brand-600 dark:text-brand-400">
-                    {author.fullName[0]}
-                  </span>
-                </div>
-              )}
+              <Avatar
+                src={author.avatar}
+                name={author.fullName}
+                className="h-8 w-8 bg-brand-100 dark:bg-brand-900"
+                textClassName="text-sm font-medium text-brand-600 dark:text-brand-400"
+              />
               <span className="font-medium text-gray-900 dark:text-white">{author.fullName}</span>
             </Link>
           )}
@@ -252,7 +214,7 @@ export default function ArticleDetailPage() {
 
       {article.featuredImage && (
         <div className="relative aspect-video rounded-xl overflow-hidden">
-          <img
+          <MediaImage
             src={article.featuredImage}
             alt={article.title}
             className="h-full w-full object-cover"
@@ -291,26 +253,26 @@ export default function ArticleDetailPage() {
             onClick={handleLike}
             className={cn(
               'inline-flex items-center gap-2 px-5 py-3 rounded-lg text-base font-medium transition-colors',
-              isLiked
+              liked
                 ? 'bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
             )}
-            aria-pressed={isLiked}
+            aria-pressed={liked}
           >
-            <Heart className={cn('h-5 w-5', isLiked && 'fill-current')} aria-hidden="true" />
-            <span>{likeCount.toLocaleString()}</span>
+            <Heart className={cn('h-5 w-5', liked && 'fill-current')} aria-hidden="true" />
+            <span>{likes.toLocaleString()}</span>
           </button>
           <button
             onClick={handleBookmark}
             className={cn(
               'inline-flex items-center gap-2 px-5 py-3 rounded-lg text-base font-medium transition-colors',
-              isBookmarked
+              bookmarked
                 ? 'bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
             )}
-            aria-pressed={isBookmarked}
+            aria-pressed={bookmarked}
           >
-            <Bookmark className={cn('h-5 w-5', isBookmarked && 'fill-current')} aria-hidden="true" />
+            <Bookmark className={cn('h-5 w-5', bookmarked && 'fill-current')} aria-hidden="true" />
             <span>{t('articles.save')}</span>
           </button>
           <button
@@ -329,15 +291,12 @@ export default function ArticleDetailPage() {
       {author && (
         <div className="flex gap-4 p-6 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
           <Link to={`/user/${author._id}`} className="flex-shrink-0">
-            {author.avatar ? (
-              <img src={author.avatar} alt="" className="h-16 w-16 rounded-full" />
-            ) : (
-              <div className="h-16 w-16 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
-                <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">
-                  {author.fullName[0]}
-                </span>
-              </div>
-            )}
+            <Avatar
+              src={author.avatar}
+              name={author.fullName}
+              className="h-16 w-16 bg-brand-100 dark:bg-brand-900"
+              textClassName="text-2xl font-bold text-brand-600 dark:text-brand-400"
+            />
           </Link>
           <div className="flex-1">
             <Link to={`/user/${author._id}`} className="font-semibold text-gray-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
@@ -347,15 +306,16 @@ export default function ArticleDetailPage() {
             {author.bio && <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">{author.bio}</p>}
             <button
               onClick={handleFollow}
+              aria-pressed={following}
               className={cn(
                 'inline-flex items-center gap-2 px-4 py-2 mt-3 rounded-lg font-medium transition-colors',
-                isFollowing
-                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
+                following
+                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-brand-900 dark:text-brand-300'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
               )}
             >
               <UserPlus className="h-4 w-4" />
-              {isFollowing ? t('articles.following') : t('articles.follow')}
+              {following ? t('articles.following') : t('articles.follow')}
             </button>
           </div>
         </div>
@@ -470,15 +430,12 @@ function CommentItem({ comment }: { comment: Comment }) {
   const user = typeof comment.user === 'object' ? comment.user : null
   return (
     <div className="flex gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-      {user?.avatar ? (
-        <img src={user.avatar} alt="" className="h-10 w-10 rounded-full flex-shrink-0" />
-      ) : (
-        <div className="h-10 w-10 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center flex-shrink-0">
-          <span className="text-sm font-medium text-brand-600 dark:text-brand-400">
-            {user?.fullName?.[0] || 'U'}
-          </span>
-        </div>
-      )}
+      <Avatar
+        src={user?.avatar}
+        name={user?.fullName}
+        className="h-10 w-10 flex-shrink-0 bg-brand-100 dark:bg-brand-900"
+        textClassName="text-sm font-medium text-brand-600 dark:text-brand-400"
+      />
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <Link

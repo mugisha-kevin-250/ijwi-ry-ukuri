@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CalendarDays, ExternalLink, FileText, Heart, Loader2, Mail, Eye, BookOpen } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { User } from '../../types'
+import Avatar from '../../components/common/Avatar'
 
 interface UserStats {
   views?: number
@@ -28,10 +29,6 @@ function statusBadge(status: string): string {
     case 'rejected': return 'bg-red-50 text-red-700'
     default: return 'bg-slate-100 text-slate-600'
   }
-}
-
-function initials(name: string): string {
-  return name.split(' ').map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase()
 }
 
 export default function AdminUserDetailPage() {
@@ -117,11 +114,12 @@ export default function AdminUserDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-start gap-4">
-          {user.avatar ? (
-            <img src={user.avatar} alt="" className="h-16 w-16 rounded-full object-cover" />
-          ) : (
-            <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-lg font-extrabold text-white">{initials(user.fullName || user.username)}</span>
-          )}
+          <Avatar
+            src={user.avatar}
+            name={user.fullName || user.username}
+            className="h-16 w-16 bg-blue-600"
+            textClassName="text-lg font-extrabold text-white"
+          />
           <div>
             <h1 className="text-xl font-extrabold tracking-tight text-slate-900">{user.fullName}</h1>
             <p className="text-sm text-slate-500">@{user.username}</p>

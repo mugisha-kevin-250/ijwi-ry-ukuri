@@ -6,40 +6,23 @@ import { Loading, LoadingGrid } from '../../components/common/Loading'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
-import { requestSignIn } from '../../utils/signInPrompt'
-import { useAuth } from '../../context/AuthContext'
-import { articleAPI } from '../../services/api'
+import { useArticleLike, useAuthorFollow } from '../../utils/engagementStore'
 import { useI18n } from '../../context/I18nContext'
 import { Eye, Heart, Share2, UserPlus, BookOpen, Clock3 } from 'lucide-react'
+import MediaImage from '../../components/common/MediaImage'
+import { PLACEHOLDER_IMAGE } from '../../services/apiClient'
 
 function StoryCard({ article }: { article: Article }) {
   const { t } = useI18n()
   const category = typeof article.category === 'object' ? article.category : null
   const author = typeof article.author === 'object' ? article.author : null
-  const { user } = useAuth()
-  const [isFollowing, setIsFollowing] = useState(Boolean(article.followingAuthor))
-  const [isLiked, setIsLiked] = useState(Boolean(article.liked))
-  const [likeCount, setLikeCount] = useState(article.likes || 0)
+  const { liked, likes, toggle: toggleLike } = useArticleLike(article)
+  const { following, toggle: toggleFollow } = useAuthorFollow(author?._id, article.followingAuthor)
 
-  const handleLike = async (e: React.MouseEvent) => {
+  const handleLike = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!user) {
-      requestSignIn()
-      return
-    }
-    const next = !isLiked
-    setIsLiked(next)
-    setLikeCount((prev) => Math.max(0, prev + (next ? 1 : -1)))
-    try {
-      const response = next ? await articleAPI.likeArticle(article._id) : await articleAPI.unlikeArticle(article._id)
-      const likes = (response.data.data as any)?.likes
-      if (typeof likes === 'number') setLikeCount(likes)
-    } catch (error) {
-      setIsLiked(!next)
-      setLikeCount((prev) => Math.max(0, prev + (next ? -1 : 1)))
-      console.error('Failed to like article:', error)
-    }
+    void toggleLike()
   }
 
   const handleShare = async (e: React.MouseEvent) => {
@@ -63,31 +46,17 @@ function StoryCard({ article }: { article: Article }) {
     }
   }
 
-  const handleFollow = async (e: React.MouseEvent) => {
+  const handleFollow = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!user) {
-      requestSignIn()
-      return
-    }
-    const author = typeof article.author === 'object' ? article.author : null
-    if (!author) return
-    const next = !isFollowing
-    setIsFollowing(next)
-    try {
-      if (next) await articleAPI.followWriter(author._id)
-      else await articleAPI.unfollowWriter(author._id)
-    } catch (error) {
-      setIsFollowing(!next)
-      console.error('Failed to follow/unfollow author:', error)
-    }
+    void toggleFollow()
   }
 
   return (
     <article className="group overflow-hidden rounded-xl border border-[var(--color-border)] bg-white dark:bg-[var(--color-bg)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <Link to={`/article/${article.slug}`} className="block overflow-hidden">
-        <img
-          src={article.featuredImage || '/placeholder-article.jpg'}
+        <MediaImage
+          src={article.featuredImage || PLACEHOLDER_IMAGE}
           alt={article.title}
           className="aspect-[16/10] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
           loading="lazy"
@@ -116,29 +85,30 @@ function StoryCard({ article }: { article: Article }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleFollow}
+                aria-pressed={following}
                 className={cn(
                   'inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
-                  isFollowing
-                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
+                  following
+                    ? 'bg-[var(--color-brand-light)] text-[var(--color-brand-text)]'
                     : 'bg-[var(--color-brand)] text-white hover:bg-[var(--color-brand-hover)]'
                 )}
               >
                 <UserPlus className="h-3.5 w-3.5" />
-                {isFollowing ? t('articles.following') : t('articles.follow')}
+                {following ? t('articles.following') : t('articles.follow')}
               </button>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleLike}
-                aria-pressed={isLiked}
+                aria-pressed={liked}
                 className={cn(
                   'inline-flex items-center gap-1 text-sm transition-colors',
-                  isLiked ? 'text-red-500 font-semibold' : 'text-[var(--color-text-muted)] hover:text-red-500'
+                  liked ? 'text-[var(--color-brand-text)] font-semibold' : 'text-[var(--color-text-muted)] hover:text-[var(--color-brand-text)]'
                 )}
                 title={t('writer.likes')}
               >
-                <Heart className={cn('h-4 w-4', isLiked && 'fill-current')} />
-                <span>{likeCount.toLocaleString()}</span>
+                <Heart className={cn('h-4 w-4', liked && 'fill-current')} />
+                <span>{likes.toLocaleString()}</span>
               </button>
               <button
                 onClick={handleShare}

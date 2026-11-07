@@ -4,6 +4,7 @@ import { Search } from 'lucide-react'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import { useSeo } from '../../utils/useSeo'
+import Avatar from '../../components/common/Avatar'
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams()
@@ -66,9 +67,12 @@ return (
               <div className="grid gap-3 sm:grid-cols-2">
                 {(results.authors || []).map((author: any) => (
                   <Link key={author._id} to={`/user/${author._id}`} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700">
-                      {author.avatar ? <img src={author.avatar} alt="" className="h-10 w-10 rounded-full object-cover" /> : author.fullName?.[0]}
-                    </div>
+                    <Avatar
+                      src={author.avatar}
+                      name={author.fullName}
+                      className="h-10 w-10 bg-blue-100"
+                      textClassName="font-bold text-blue-700"
+                    />
                     <div>
                       <p className="text-sm font-bold">{author.fullName}</p>
                       <p className="text-xs text-slate-500">@{author.username}</p>

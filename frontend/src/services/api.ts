@@ -41,6 +41,9 @@ export const authAPI = {
   login: (data: { email: string; password: string }) =>
     apiClient.post<AuthResponse>('/auth/login', data),
 
+  googleSignIn: (data: { credential: string }) =>
+    apiClient.post<AuthResponse>('/auth/google', data),
+
   adminLogin: (data: { username: string; password: string }) =>
     apiClient.post<AuthResponse>('/auth/admin-login', data),
 

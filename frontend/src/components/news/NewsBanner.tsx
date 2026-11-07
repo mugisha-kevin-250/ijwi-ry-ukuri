@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Clock3, Eye } from 'lucide-react'
 import type { Article, Category } from '../../types'
 import { useI18n } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
+import MediaImage from '../common/MediaImage'
 
 const AUTO_ADVANCE_MS = 6000
 const MAX_SLIDES = 6
@@ -74,7 +75,7 @@ function usePageVisible(): boolean {
 
 function SlideImage({ article, className = '', eager = false }: { article: Article; className?: string; eager?: boolean }) {
   if (article.featuredImage) {
-    return <img className={className} src={article.featuredImage} alt="" loading={eager ? 'eager' : 'lazy'} />
+    return <MediaImage className={className} src={article.featuredImage} alt="" loading={eager ? 'eager' : 'lazy'} />
   }
   return (
     <div className={cn(className, 'flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-700 to-cyan-500')} aria-hidden="true">

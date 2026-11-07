@@ -28,6 +28,7 @@
  */
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const env = require('../config/env');
@@ -106,8 +107,84 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
-router.post('/admin-login', async (req, res, next) => {
+// Google hands the ID token to the button on the frontend; this verifies it with
+// Google and matches the account by its already-verified email address.
+async function verifyGoogleCredential(credential) {
+  const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+  if (!response.ok) return null;
+  const claims = await response.json().catch(() => null);
+  if (!claims || !claims.sub) return null;
+  if (!['https://accounts.google.com', 'accounts.google.com'].includes(claims.iss)) return null;
+  if (String(claims.email_verified) !== 'true' || !claims.email) return null;
+  if (claims.aud !== env.GOOGLE_CLIENT_ID) return null;
+  if (!Number(claims.exp) || Number(claims.exp) * 1000 < Date.now()) return null;
+  return claims;
+}
+
+async function uniqueUsername(base) {
+  const fallback = 'reader';
+  let candidate = (base || fallback).slice(0, 24) || fallback;
+  let attempt = 1;
+  while (await User.exists({ username: candidate })) {
+    candidate = `${(base || fallback).slice(0, 20)}${attempt}`;
+    attempt += 1;
+  }
+  return candidate;
+}
+
+router.post('/google', async (req, res, next) => {
   try {
+    if (!env.GOOGLE_CLIENT_ID) {
+      return errorResponse(res, 503, 'Google sign-in is not configured on this server');
+    }
+    const credential = String(req.body?.credential || '');
+    if (!credential) return errorResponse(res, 400, 'Google credential is required');
+
+    let claims;
+    try {
+      claims = await verifyGoogleCredential(credential);
+    } catch (error) {
+      console.warn('Google token check failed:', error.message);
+    }
+    // 400 rather than 401: the global interceptor treats 401 as an expired
+    // session and hard-redirects, which would throw away the form being filled.
+    if (!claims) return errorResponse(res, 400, 'Google sign-in could not be verified');
+
+    const email = String(claims.email).toLowerCase();
+    const user = await User.findOne({ email }).select('+password');
+
+    if (user) {
+      if (!user.isActive) return errorResponse(res, 403, 'This account has been deactivated');
+      user.googleId = claims.sub;
+      user.lastLoginAt = new Date();
+      await user.save();
+      const token = generateToken(user);
+      user.password = undefined;
+      return successResponse(res, 200, 'Signed in with Google', { user, token });
+    }
+
+    const base = String(claims.email).split('@')[0].replace(/[^a-z0-9._-]/gi, '').toLowerCase();
+    // Google owns the password for these accounts, so a random one is stored to
+    // satisfy the schema; sign-in always goes through Google.
+    const created = await User.create({
+      fullName: claims.name || base,
+      username: await uniqueUsername(base),
+      email,
+      password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10),
+      googleId: claims.sub,
+      avatar: claims.picture || undefined,
+      role: 'READER'
+    });
+
+    const token = generateToken(created);
+    created.password = undefined;
+    return successResponse(res, 201, 'Signed up with Google', { user: created, token });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/admin-login', async (req, res, next) => {  try {
     const { username, password } = req.body;
     if (!username || !password) {
       return errorResponse(res, 400, 'Username and password are required');

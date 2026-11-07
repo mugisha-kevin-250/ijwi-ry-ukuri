@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useCallback, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight, LockKeyhole, Mail, UserRound } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import GoogleButton from '../../components/auth/GoogleButton'
 
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const { login, register } = useAuth()
@@ -16,6 +17,14 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [submitting, setSubmitting] = useState(false)
   const isRegister = mode === 'register'
 
+  const goToHome = useCallback(() => {
+    const currentUser = JSON.parse(localStorage.getItem('user') || 'null') as { role?: string } | null
+    const roleHome = currentUser?.role === 'ADMIN' ? '/mugishaimekevin/dashboard' : currentUser?.role === 'WRITER' ? '/writer/dashboard' : '/'
+    // A visitor sent here by the sign-in prompt goes back to the story they were reading.
+    const publicFrom = from && !/^\/(login|register|mugishaimekevin|writer)/.test(from)
+    navigate(publicFrom ? from : roleHome, { replace: true })
+  }, [from, navigate])
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitting(true)
@@ -26,11 +35,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       } else {
         await login(email.trim(), password)
       }
-      const currentUser = JSON.parse(localStorage.getItem('user') || 'null') as { role?: string } | null
-      const roleHome = currentUser?.role === 'ADMIN' ? '/mugishaimekevin/dashboard' : currentUser?.role === 'WRITER' ? '/writer/dashboard' : '/'
-      // A visitor sent here by the sign-in prompt goes back to the story they were reading.
-      const publicFrom = from && !/^\/(login|register|mugishaimekevin|writer)/.test(from)
-      navigate(publicFrom ? from : roleHome, { replace: true })
+      goToHome()
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'We could not complete your request. Please try again.')
     } finally {
@@ -79,6 +84,9 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               {submitting ? 'Please wait…' : isRegister ? 'Create account' : 'Sign in'}{!submitting && <ArrowRight className="h-4 w-4" />}
             </button>
           </form>
+          <div className="mt-6">
+            <GoogleButton flow={isRegister ? 'signup' : 'signin'} onSuccess={goToHome} onError={setError} />
+          </div>
           <p className="mt-6 text-center text-sm text-slate-500">
             {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
             <Link to={isRegister ? '/login' : '/register'} className="font-bold text-blue-700 hover:text-blue-900">{isRegister ? 'Sign in' : 'Create one'}</Link>

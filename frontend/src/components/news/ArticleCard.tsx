@@ -1,13 +1,12 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { Calendar, Eye, Heart, Tag, UserPlus, Share2, Bookmark } from 'lucide-react'
 import type { Article } from '../../types'
 import { cn } from '../../utils/cn'
-import { requestSignIn } from '../../utils/signInPrompt'
-import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
-import { articleAPI } from '../../services/api'
+import { useArticleBookmark, useAuthorFollow } from '../../utils/engagementStore'
+import Avatar from '../common/Avatar'
+import MediaImage from '../common/MediaImage'
 
 interface ArticleCardProps {
   article: Article
@@ -28,10 +27,9 @@ export default function ArticleCard({
 }: ArticleCardProps) {
   const author = typeof article.author === 'object' ? article.author : null
   const category = typeof article.category === 'object' ? article.category : null
-  const { user } = useAuth()
   const { t } = useI18n()
-  const [isBookmarked, setIsBookmarked] = useState(Boolean(article.bookmarked))
-  const [isFollowing, setIsFollowing] = useState(Boolean(article.followingAuthor))
+  const { bookmarked, toggle: toggleBookmark } = useArticleBookmark(article)
+  const { following, toggle: toggleFollow } = useAuthorFollow(author?._id, article.followingAuthor)
 
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -55,41 +53,16 @@ export default function ArticleCard({
     }
   }
 
-  const handleFollow = async (e: React.MouseEvent) => {
+  const handleFollow = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!user) {
-      requestSignIn()
-      return
-    }
-    if (!author) return
-    const next = !isFollowing
-    setIsFollowing(next)
-    try {
-      if (next) await articleAPI.followWriter(author._id)
-      else await articleAPI.unfollowWriter(author._id)
-    } catch (error) {
-      setIsFollowing(!next)
-      console.error('Failed to follow author:', error)
-    }
+    void toggleFollow()
   }
 
-  const handleBookmark = async (e: React.MouseEvent) => {
+  const handleBookmark = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!user) {
-      requestSignIn()
-      return
-    }
-    const next = !isBookmarked
-    setIsBookmarked(next)
-    try {
-      if (next) await articleAPI.bookmarkArticle(article._id)
-      else await articleAPI.unbookmarkArticle(article._id)
-    } catch (error) {
-      setIsBookmarked(!next)
-      console.error('Failed to bookmark article:', error)
-    }
+    void toggleBookmark()
   }
 
   if (variant === 'compact') {
@@ -99,7 +72,7 @@ export default function ArticleCard({
         className={cn('flex gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors', className)}
       >
         {article.featuredImage && (
-          <img
+          <MediaImage
             src={article.featuredImage}
             alt=""
             className="h-20 w-20 rounded-lg object-cover flex-shrink-0"
@@ -135,7 +108,7 @@ export default function ArticleCard({
       <article className={cn('relative overflow-hidden rounded-xl bg-gray-50 dark:bg-gray-800', className)}>
         {article.featuredImage && (
           <Link to={`/article/${article.slug}`} className="block aspect-[16/9] overflow-hidden">
-            <img
+            <MediaImage
               src={article.featuredImage}
               alt=""
               className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
@@ -165,15 +138,12 @@ export default function ArticleCard({
                 to={`/user/${author._id}`}
                 className="flex items-center gap-1.5 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
               >
-                {author.avatar ? (
-                  <img src={author.avatar} alt="" className="h-5 w-5 rounded-full" />
-                ) : (
-                  <div className="h-5 w-5 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
-                    <span className="text-xs font-medium text-brand-600 dark:text-brand-400">
-                      {author.fullName[0]}
-                    </span>
-                  </div>
-                )}
+                <Avatar
+                  src={author.avatar}
+                  name={author.fullName}
+                  className="h-5 w-5 bg-brand-100 dark:bg-brand-900"
+                  textClassName="text-xs font-medium text-brand-600 dark:text-brand-400"
+                />
                 <span>{author.fullName}</span>
               </Link>
             )}
@@ -203,7 +173,7 @@ export default function ArticleCard({
     <article className={cn('flex flex-col h-full overflow-hidden', className)}>
       {article.featuredImage && (
         <Link to={`/article/${article.slug}`} className="block aspect-video overflow-hidden">
-          <img
+          <MediaImage
             src={article.featuredImage}
             alt=""
             className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
@@ -249,15 +219,12 @@ export default function ArticleCard({
               to={`/user/${author._id}`}
               className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
             >
-              {author.avatar ? (
-                <img src={author.avatar} alt="" className="h-6 w-6 rounded-full" />
-              ) : (
-                <div className="h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
-                  <span className="text-xs font-medium text-brand-600 dark:text-brand-400">
-                    {author.fullName[0]}
-                  </span>
-                </div>
-              )}
+              <Avatar
+                src={author.avatar}
+                name={author.fullName}
+                className="h-6 w-6 bg-brand-100 dark:bg-brand-900"
+                textClassName="text-xs font-medium text-brand-600 dark:text-brand-400"
+              />
               <span className="hidden sm:block truncate max-w-[120px]">{author.fullName}</span>
             </Link>
           )}
@@ -273,21 +240,21 @@ export default function ArticleCard({
                   onClick={handleBookmark}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                    isBookmarked
+                    bookmarked
                       ? 'text-[var(--color-brand-text)] bg-[var(--color-brand-light)]'
                       : 'text-gray-500 hover:text-[var(--color-brand-text)]'
                   )}
                   aria-label={t('articles.bookmark')}
                   title={t('articles.bookmark')}
                 >
-                  <Bookmark className={cn('h-5 w-5', isBookmarked && 'fill-current')} aria-hidden="true" />
+                  <Bookmark className={cn('h-5 w-5', bookmarked && 'fill-current')} aria-hidden="true" />
                 </button>
                 <button
                   onClick={handleFollow}
-                  aria-pressed={isFollowing}
+                  aria-pressed={following}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                    isFollowing ? 'text-green-600' : 'text-gray-500 hover:text-green-600'
+                    following ? 'text-[var(--color-brand-text)]' : 'text-gray-500 hover:text-[var(--color-brand-text)]'
                   )}
                   aria-label={t('articles.follow')}
                   title={t('articles.follow')}

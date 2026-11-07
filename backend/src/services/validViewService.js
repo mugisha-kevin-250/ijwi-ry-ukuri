@@ -48,16 +48,46 @@ async function calculateValidView({ articleId, userId, anonymousSessionId, ip, u
     ? await ArticleView.findOne({ articleId, $or: or }).sort({ viewedAt: -1 })
     : null;
 
-  const duplicateBlocked = Boolean(
+  // A read is opened by a zero-duration ping the moment the story is displayed,
+  // then closed by the dwell report. The second call must never count twice, so
+  // anything inside the duplicate window only gets to upgrade the open row.
+  const withinDuplicateWindow = Boolean(
     priorView && priorView.viewedAt >= new Date(now.getTime() - settings.duplicateViewInterval)
   );
-  const isSuspicious = isBot || readingDurationSeconds < settings.minimumReadingDuration;
+
+  if (withinDuplicateWindow) {
+    const enoughToBeValid = readingDurationSeconds >= settings.minimumReadingDuration;
+    if (priorView.isValid || !enoughToBeValid || isBot) {
+      return {
+        countView: false,
+        isValid: false,
+        uniqueView: false,
+        isSuspicious: priorView.isSuspicious,
+        duplicateBlocked: true,
+        readingDurationSeconds
+      };
+    }
+    priorView.readingDuration = Math.max(priorView.readingDuration || 0, readingDurationSeconds);
+    priorView.isValid = true;
+    priorView.isSuspicious = false;
+    await priorView.save();
+    return {
+      countView: false,
+      isValid: true,
+      uniqueView: false,
+      isSuspicious: false,
+      duplicateBlocked: true,
+      upgraded: true,
+      readingDurationSeconds
+    };
+  }
 
   // `views` is every distinct read, `validViews` only the ones that look like a
   // real human read, `uniqueViews` only a reader's first ever read.
-  const countView = !duplicateBlocked && !isBot && readingDurationSeconds >= 1;
-  const isValid = countView && !isSuspicious;
+  const countView = !isBot;
+  const isValid = countView && readingDurationSeconds >= settings.minimumReadingDuration;
   const uniqueView = countView && !priorView;
+  const isSuspicious = isBot || !isValid;
 
   await ArticleView.create({
     articleId,
@@ -76,7 +106,7 @@ async function calculateValidView({ articleId, userId, anonymousSessionId, ip, u
     isValid,
     uniqueView,
     isSuspicious,
-    duplicateBlocked,
+    duplicateBlocked: false,
     readingDurationSeconds
   };
 }

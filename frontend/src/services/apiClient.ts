@@ -1,6 +1,7 @@
-import axios, { type AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
+import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import type { ApiResponse } from '../types'
 import { normalizeImage } from '../utils/imageNormalizer'
+import { beginRequest, endRequest } from '../utils/apiActivity'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
@@ -78,6 +79,9 @@ function relativizeUploads(node: unknown): unknown {
   return node
 }
 
+type TrackedConfig = AxiosRequestConfig & { __routeProgressId?: number }
+const tracked = (config: AxiosRequestConfig | undefined): TrackedConfig => (config || {}) as TrackedConfig
+
 class ApiClient {
   private client: AxiosInstance
 
@@ -102,6 +106,8 @@ class ApiClient {
           config.headers.Authorization = `Bearer ${token}`
         }
         if (config.data && typeof config.data === 'object') relativizeUploads(config.data)
+        // Last, so nothing that can throw leaves a request counted forever.
+        tracked(config).__routeProgressId = beginRequest()
         return config
       },
       (error) => Promise.reject(error)
@@ -110,10 +116,12 @@ class ApiClient {
     // Response interceptor - handle errors
     this.client.interceptors.response.use(
       (response: AxiosResponse) => {
+        endRequest(tracked(response.config).__routeProgressId)
         if (response.data) absolutizeUploads(response.data)
         return response
       },
       (error: AxiosError) => {
+        endRequest(tracked(error.config).__routeProgressId)
         if (error.response?.status === 401) {
           // Token expired or invalid - logout
           localStorage.removeItem('token')

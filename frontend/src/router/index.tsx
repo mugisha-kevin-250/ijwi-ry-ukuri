@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../context/AuthContext'
+import RouteProgressBar from '../components/common/RouteProgressBar'
 import AdminLayout from '../layouts/AdminLayout'
 import PublicLayout from '../layouts/PublicLayout'
 import WriterLayout from '../layouts/WriterLayout'
@@ -72,6 +73,7 @@ function RequireAdmin({ children }: { children: ReactNode }) {
 function RootLayout() {
   return (
     <>
+      <RouteProgressBar />
       <Outlet />
       <ScrollRestoration />
     </>

@@ -7,7 +7,7 @@
  * cached shell — bump it here (and only here) or returning readers keep serving
  * the previous bundle forever.
  */
-const VERSION = 'ijwi-v13'
+const VERSION = 'ijwi-v14'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const PAGE_CACHE = `${VERSION}-pages`

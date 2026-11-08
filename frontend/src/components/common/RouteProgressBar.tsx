@@ -7,7 +7,10 @@ const TICK_MS = 150
 // everything has actually arrived.
 const CEILING = 92
 const QUIET_TICKS = 2
-const MAX_MS = 8000
+// Requests always settle (axios gives up at 30s), so this only exists to catch a
+// counted request that never reported back - a cold Render instance can take far
+// longer than a page should make a reader watch a full bar.
+const MAX_MS = 20000
 
 // Lazy images far below the fold never start loading, so waiting on every <img>
 // in the document would leave the bar stuck just short of finishing.

@@ -6,7 +6,7 @@ import { Loading, LoadingGrid } from '../../components/common/Loading'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
-import { categoryLabel, resolveCategories } from '../../data/categoryVisuals'
+import { categoryHref, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 import { useArticleLike, useAuthorFollow } from '../../utils/engagementStore'
 import { useI18n } from '../../context/I18nContext'
 import { Eye, Heart, Share2, UserPlus, BookOpen, Clock3 } from 'lucide-react'
@@ -74,7 +74,7 @@ function StoryCard({ article }: { article: Article }) {
       <div className="p-4">
         {category && (
           <Link
-            to={`/category/${category.slug}`}
+            to={categoryHref(category)}
             className="inline-flex items-center rounded-full bg-[var(--color-brand-light)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-brand-text)] transition hover:text-[var(--color-brand-hover)]"
           >
             {categoryLabel(category, t)}

@@ -6,7 +6,7 @@ import { cn } from '../../utils/cn'
 import { useI18n } from '../../context/I18nContext'
 import { useArticleBookmark, useAuthorFollow } from '../../utils/engagementStore'
 import { shareArticle } from '../../utils/shareArticle'
-import { categoryLabel } from '../../data/categoryVisuals'
+import { categoryHref, categoryLabel } from '../../data/categoryVisuals'
 import Avatar from '../common/Avatar'
 import MediaImage from '../common/MediaImage'
 
@@ -110,7 +110,7 @@ export default function ArticleCard({
         <div className="p-6">
           {showCategory && category && (
             <Link
-              to={`/category/${category.slug}`}
+              to={categoryHref(category)}
               className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300 mb-3"
             >
               <Tag className="h-3 w-3" aria-hidden="true" />
@@ -176,7 +176,7 @@ export default function ArticleCard({
         <div className="flex flex-wrap items-center gap-2 mb-2">
           {showCategory && category && (
             <Link
-              to={`/category/${category.slug}`}
+              to={categoryHref(category)}
               className="px-2 py-0.5 rounded text-xs font-medium bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300"
             >
               {categoryLabel(category, t)}

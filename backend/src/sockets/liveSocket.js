@@ -32,6 +32,11 @@ module.exports = function attachLiveSocket(httpServer) {
   // Which socket is holding the camera, per broadcast.
   const hosts = new Map();
 
+  // When the last picture of each broadcast left the server. Browsers on mobile
+  // networks can only receive the frame stream, so it has to be throttled here
+  // rather than trusted to the broadcaster's tab.
+  const lastFrameAt = new Map();
+
   // The room is the audience count; the database copy only exists so the number
   // survives a page refresh and shows up on the watch page for everyone.
   async function refreshStats(liveId) {
@@ -119,6 +124,20 @@ module.exports = function attachLiveSocket(httpServer) {
       io.to(target).emit('live:signal', { from: socket.id, data: payload.data });
     });
 
+    // No relay server means no direct route between the broadcaster's browser and
+    // a viewer on mobile data, so the camera is also pushed through here as a
+    // steady stream of small pictures. Soft and slow, but it is seen on every
+    // network, which a call that never connects is not.
+    socket.on('live:frame', (payload) => {
+      if (!liveId || hosts.get(liveId) !== socket.id) return;
+      const frame = typeof payload.frame === 'string' ? payload.frame : '';
+      if (!frame.startsWith('data:image/jpeg;base64,') || frame.length > 120000) return;
+      const now = Date.now();
+      if (now - (lastFrameAt.get(liveId) || 0) < 300) return;
+      lastFrameAt.set(liveId, now);
+      socket.to(ROOM(liveId)).volatile.emit('live:frame', { frame, at: now });
+    });
+
     socket.on('live:chat', async (payload, ack) => {
       const text = String((payload && payload.text) || '').trim();
       if (!liveId || !text || !user) return ack && ack({ error: 'not-allowed' });
@@ -137,6 +156,7 @@ module.exports = function attachLiveSocket(httpServer) {
       liveId = null;
       socket.leave(ROOM(leaving));
       if (hosts.get(leaving) === socket.id) hosts.delete(leaving);
+      if (!hosts.has(leaving)) lastFrameAt.delete(leaving);
       const hostSocketId = hosts.get(leaving);
       if (hostSocketId) socket.to(hostSocketId).emit('live:viewer-left', { peerId: socket.id });
       await refreshStats(leaving);
@@ -146,6 +166,7 @@ module.exports = function attachLiveSocket(httpServer) {
       if (!liveId) return;
       const left = liveId;
       if (hosts.get(left) === socket.id) hosts.delete(left);
+      if (!hosts.has(left)) lastFrameAt.delete(left);
       const hostSocketId = hosts.get(left);
       if (hostSocketId) io.to(hostSocketId).emit('live:viewer-left', { peerId: socket.id });
       await refreshStats(left);
@@ -158,6 +179,7 @@ module.exports = function attachLiveSocket(httpServer) {
       io.in(ROOM(id)).emit('live:ended', { liveId: id });
       io.socketsLeave(ROOM(id));
       hosts.delete(id);
+      lastFrameAt.delete(id);
     }
   };
 

@@ -226,6 +226,43 @@ export function startViewer(
   }
 }
 
+/**
+ * The picture for viewers the browser cannot reach directly. Every ~0.7s the
+ * camera frame is shrunk and sent as a JPEG through the signaling socket, which
+ * is a plain HTTPS connection and therefore survives any carrier NAT or firewall
+ * that kills a peer-to-peer call. Quality is deliberately low: the free API host
+ * forwards every byte twice, so a bigger picture would be a bigger outage.
+ */
+const RELAY_WIDTH = 480
+const RELAY_INTERVAL = 500
+const RELAY_QUALITY = 0.45
+
+export function startFrameRelay(socket: Socket, source: HTMLVideoElement | null): () => void {
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d', { alpha: false })
+  if (!source || !context) return () => {}
+
+  let stopped = false
+  const pump = () => {
+    if (stopped || socket.disconnected) return
+    const { videoWidth: width, videoHeight: height } = source
+    if (!width || !height || source.readyState < 2) return
+    const scale = Math.min(1, RELAY_WIDTH / width)
+    canvas.width = Math.round(width * scale)
+    canvas.height = Math.round(height * scale)
+    context.drawImage(source, 0, 0, canvas.width, canvas.height)
+    // volatile drops a frame the server cannot take immediately, so the live
+    // picture stays current instead of queueing up a minute of old camera.
+    socket.volatile.emit('live:frame', { frame: canvas.toDataURL('image/jpeg', RELAY_QUALITY) })
+  }
+
+  const timer = window.setInterval(pump, RELAY_INTERVAL)
+  return () => {
+    stopped = true
+    window.clearInterval(timer)
+  }
+}
+
 export async function openCamera(constraints: MediaStreamConstraints = { video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true }): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('This browser cannot open a camera.')

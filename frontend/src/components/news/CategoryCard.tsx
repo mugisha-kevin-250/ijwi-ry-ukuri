@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Tag } from 'lucide-react'
 import { cn } from '../../utils/cn'
+import { categoryHref } from '../../data/categoryVisuals'
 
 interface CategoryCardProps {
   category: {
@@ -17,7 +18,7 @@ interface CategoryCardProps {
 export default function CategoryCard({ category, label, image, className }: CategoryCardProps) {
   return (
     <Link
-      to={`/category/${category.slug}`}
+      to={categoryHref(category)}
       className={cn(
         'group flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white transition-all hover:border-brand-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-brand-700',
         className

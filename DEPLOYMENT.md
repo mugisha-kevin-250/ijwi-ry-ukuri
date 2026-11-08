@@ -163,15 +163,22 @@ ID at build time.
 `POST /api/live` starts a broadcast (ADMIN only, one at a time) and `/live` on the frontend
 carries it. The video itself is **peer-to-peer WebRTC**: the broadcaster holds one
 `RTCPeerConnection` per viewer and only SDP/ICE, chat and the audience count travel through
-socket.io (`backend/src/sockets/liveSocket.js`, attached to the same HTTP server as the API),
-so Render never relays media.
+socket.io (`backend/src/sockets/liveSocket.js`, attached to the same HTTP server as the API).
 
 - Socket CORS reuses `CLIENT_URL`; the Firebase origin must stay in that list or every
   viewer is rejected at handshake.
-- `ICE_SERVERS` is STUN-only (in `frontend/src/utils/liveSocket.ts`). A viewer on a
-  symmetric-NAT mobile network can fail to connect until a TURN credential is added there.
-  When that happens the viewer now sees "No video is arriving" with a retry button instead
-  of a silent black box.
+- `ICE_SERVERS` is STUN-only until `VITE_TURN_URLS`, `VITE_TURN_USERNAME` and
+  `VITE_TURN_CREDENTIAL` are set in `frontend/.env.production` and the frontend is rebuilt
+  (the free public relays are all shut down now). Without a relay a viewer on a
+  symmetric-NAT mobile network cannot be reached at all, so the broadcaster's tab also
+  pumps the camera through Render as a JPEG every ~0.5s (`startFrameRelay` in
+  `frontend/src/utils/liveMedia.ts`, relayed by `live:frame` to the room) and the viewer
+  paints the newest frame in an `<img>` until the direct call starts working. That fallback
+  is soft and slow, and it costs the free instance bandwidth: each frame is received once
+  and re-sent once per viewer, so a busy broadcast is capped by Render's egress, not by the
+  camera. A TURN relay is still the only path to real video for everyone.
+  When neither the call nor the frames arrive the viewer sees "No video is arriving" with a
+  retry button instead of a silent black box.
 - The viewer's `<video>` starts **muted** and carries an "Unmute sound" button: a stream with
   an audio track is not allowed to autoplay unmuted without a user gesture, so an unmuted
   element simply never starts painting frames (this was the black screen viewers reported).

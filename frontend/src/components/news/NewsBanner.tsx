@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Clock3, Eye } from 'lucide-react'
 import type { Article, Category } from '../../types'
 import { useI18n } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
-import { categoryGroupSlug, categoryLabel } from '../../data/categoryVisuals'
+import { categoryGroupSlug, categoryHref, categoryLabel } from '../../data/categoryVisuals'
 import MediaImage from '../common/MediaImage'
 
 const AUTO_ADVANCE_MS = 10000
@@ -34,11 +34,11 @@ function slideCategory(
 ): SlideCategory | null {
   const populated = typeof article.category === 'object' && article.category !== null ? article.category : null
   if (populated) {
-    return { label: categoryLabel(populated, t), href: `/category/${populated.slug}`, key: categoryGroupSlug(populated) }
+    return { label: categoryLabel(populated, t), href: categoryHref(populated), key: categoryGroupSlug(populated) }
   }
   if (typeof article.category === 'string' && article.category) {
     const match = categories.find((item) => item._id === article.category || item.name === article.category)
-    if (match) return { label: categoryLabel(match, t), href: `/category/${match.slug}`, key: categoryGroupSlug(match) }
+    if (match) return { label: categoryLabel(match, t), href: categoryHref(match), key: categoryGroupSlug(match) }
   }
   return null
 }

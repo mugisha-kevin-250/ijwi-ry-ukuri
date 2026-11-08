@@ -17,7 +17,7 @@ import { requestSignIn } from '../../utils/signInPrompt'
 import { useArticleViewTracking } from '../../utils/viewTracking'
 import { useArticleBookmark, useArticleLike, useAuthorFollow, useVisiblePoll } from '../../utils/engagementStore'
 import { shareArticle } from '../../utils/shareArticle'
-import { categoryGroupSlug, categoryLabel } from '../../data/categoryVisuals'
+import { categoryGroupSlug, categoryHref, categoryLabel } from '../../data/categoryVisuals'
 
 /** article.category arrives populated or as a bare id, depending on the route. */
 function storyCategory(article: Article | null) {
@@ -207,7 +207,7 @@ export default function ArticleDetailPage() {
       <header className="space-y-4">
         {category && (
           <Link
-            to={`/category/${category.slug}`}
+            to={categoryHref(category)}
             className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300"
           >
             <Tag className="h-3.5 w-3.5" aria-hidden="true" />

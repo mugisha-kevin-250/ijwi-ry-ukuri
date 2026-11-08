@@ -80,6 +80,14 @@ export function categoryGroupSlugs(category: { slug?: string; name?: string } | 
   return [...new Set([visual.slug, ...visual.aliases])]
 }
 
+/**
+ * Every reader link to a section goes to one address, so 'Sports' and 'Amasport'
+ * never split their readers and their search ranking in two.
+ */
+export function categoryHref(category: { slug?: string; name?: string } | null | undefined): string {
+  return `/category/${categoryGroupSlug(category)}`
+}
+
 export interface ResolvedCategory {
   category: Category
   visual: CategoryVisual

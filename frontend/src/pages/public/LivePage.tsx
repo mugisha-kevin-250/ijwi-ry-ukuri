@@ -8,7 +8,7 @@ import { liveAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import { connectLiveSocket, relayConfigured } from '../../utils/liveSocket'
-import { openCamera, startBroadcaster, startViewer, stopTracks } from '../../utils/liveMedia'
+import { openCamera, startBroadcaster, startFrameRelay, startViewer, stopTracks } from '../../utils/liveMedia'
 import { shareArticle } from '../../utils/shareArticle'
 import { requestSignIn } from '../../utils/signInPrompt'
 import { Loading } from '../../components/common/Loading'
@@ -44,6 +44,7 @@ export default function LivePage() {
   const [peerState, setPeerState] = useState<string>('new')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [relayFrame, setRelayFrame] = useState<{ frame: string; at: number } | null>(null)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const previewRef = useRef<HTMLVideoElement | null>(null)
@@ -109,13 +110,22 @@ export default function LivePage() {
     const onEnded = () => {
       stopTracks(streamRef.current)
       streamRef.current = null
+      setRelayFrame(null)
       setLive((current) => (current ? { ...current, status: 'ended' } : current))
       void load()
+    }
+
+    // Frames are the only picture some networks can deliver, so the newest one is
+    // kept and painted whenever the direct call is not showing anything.
+    const onFrame = (payload: { frame?: string; at?: number }) => {
+      if (typeof payload?.frame !== 'string' || !payload.frame.startsWith('data:image/jpeg;base64,')) return
+      setRelayFrame({ frame: payload.frame, at: Number(payload.at) || Date.now() })
     }
 
     socket.on('live:stats', onStats)
     socket.on('live:chat', onChat)
     socket.on('live:ended', onEnded)
+    socket.on('live:frame', onFrame)
 
     const attachStream = (stream: MediaStream) => {
       remoteStreamRef.current = stream
@@ -184,6 +194,8 @@ export default function LivePage() {
       socket.off('live:stats', onStats)
       socket.off('live:chat', onChat)
       socket.off('live:ended', onEnded)
+      socket.off('live:frame', onFrame)
+      setRelayFrame(null)
       stopPeersRef.current?.()
       stopPeersRef.current = null
       stopTracks(streamRef.current)
@@ -196,6 +208,24 @@ export default function LivePage() {
     }
   }, [liveId, hostingAs, token, load])
 
+  // A viewer on mobile data has no route into the broadcaster's browser, so when
+  // no relay server is configured the picture is pushed through our own API
+  // server instead. Only while there is an audience: each frame leaves the free
+  // host twice.
+  useEffect(() => {
+    const socket = socketRef.current
+    if (!hostingAs || relayConfigured || !stats.viewers || !socket) return undefined
+    return startFrameRelay(socket, previewRef.current)
+  }, [hostingAs, relayConfigured, stats.viewers, liveId])
+
+  useEffect(() => {
+    if (!relayFrame) return undefined
+    const timer = window.setTimeout(() => {
+      setRelayFrame((current) => (current && Date.now() - current.at > 4000 ? null : current))
+    }, 4000)
+    return () => window.clearTimeout(timer)
+  }, [relayFrame])
+
   useEffect(() => {
     const video = videoRef.current
     if (!video || !remoteStreamRef.current || video.srcObject === remoteStreamRef.current) return
@@ -206,13 +236,13 @@ export default function LivePage() {
   // A black player with no message is what made a stalled call look like a broken
   // feature, so say so after a reasonable grace period.
   useEffect(() => {
-    if (isHostBroadcaster || !isLive || remoteReady) {
+    if (isHostBroadcaster || !isLive || remoteReady || relayFrame) {
       setIsWaitingTooLong(false)
       return undefined
     }
     const timer = window.setTimeout(() => setIsWaitingTooLong(true), 9000)
     return () => window.clearTimeout(timer)
-  }, [isHostBroadcaster, isLive, remoteReady])
+  }, [isHostBroadcaster, isLive, remoteReady, relayFrame])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'nearest' })
@@ -309,6 +339,18 @@ export default function LivePage() {
                   onStalled={() => setRemoteReady(false)}
                 />
               )}
+              {!isHostBroadcaster && relayFrame && !remoteReady && (
+                <img
+                  src={relayFrame.frame}
+                  alt={t('live.stage')}
+                  className="absolute inset-0 h-full w-full bg-black object-contain"
+                />
+              )}
+              {!isHostBroadcaster && relayFrame && !remoteReady && (
+                <p className="absolute bottom-3 left-3 rounded-full bg-black/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
+                  {t('live.relayHint')}
+                </p>
+              )}
               {cameraError && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/85 px-6 text-center">
                   <VideoOff className="h-8 w-8 text-red-400" aria-hidden="true" />
@@ -316,7 +358,7 @@ export default function LivePage() {
                   <p className="text-xs text-slate-300">{t('live.cameraHint')}</p>
                 </div>
               )}
-              {!isHostBroadcaster && !cameraError && !remoteReady && (
+              {!isHostBroadcaster && !cameraError && !remoteReady && !relayFrame && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 px-6 text-center">
                   <Radio className="h-7 w-7 animate-pulse text-red-400" aria-hidden="true" />
                   <p className="text-sm font-semibold text-white">
@@ -438,6 +480,11 @@ export default function LivePage() {
             {!relayConfigured && (
               <p className="w-full rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                 {t('live.noRelay')}
+              </p>
+            )}
+            {!relayConfigured && stats.viewers > 0 && (
+              <p className="w-full rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                {t('live.relayOn')}
               </p>
             )}
             <button

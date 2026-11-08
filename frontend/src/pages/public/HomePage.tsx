@@ -25,7 +25,7 @@ import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
 import { useArticleLike, useAuthorFollow } from '../../utils/engagementStore'
 import { shareArticle } from '../../utils/shareArticle'
-import { categoryLabel, resolveCategories } from '../../data/categoryVisuals'
+import { categoryHref, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 
 /**
  * The topic strip names each section in the reader's language and links to the
@@ -110,7 +110,7 @@ function StoryCard({ article }: { article: Article }) {
       <div className="p-4">
         {category && (
           <Link
-            to={`/category/${category.slug}`}
+            to={categoryHref(category)}
             className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 transition hover:bg-blue-100 hover:text-blue-900"
           >
             {categoryLabel(category, t)}
@@ -307,7 +307,7 @@ export default function HomePage() {
           {topics.map((topic) => {
             const found = resolvedTopics.find((item) => item.visual.slug === topic.group)
             if (!found) return null
-            return <Link key={topic.key} to={`/category/${found.category.slug}`} className="shrink-0 transition hover:text-[var(--color-brand-light)]">{t(topic.key)}</Link>
+            return <Link key={topic.key} to={categoryHref(found.category)} className="shrink-0 transition hover:text-[var(--color-brand-light)]">{t(topic.key)}</Link>
           })}
           <Link to="/categories" className="shrink-0 text-[var(--color-brand-light)]">{t('nav.categories')} +</Link>
         </div>
@@ -374,7 +374,7 @@ export default function HomePage() {
             <SectionHeading title={t('home.topics')} href="/categories" />
             <div className="grid grid-cols-2 gap-2">
               {resolvedTopics.slice(0, 8).map(({ category }) => (
-                <Link key={category._id} to={`/category/${category.slug}`} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold transition hover:border-blue-300 hover:text-blue-800">
+                <Link key={category._id} to={categoryHref(category)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold transition hover:border-blue-300 hover:text-blue-800">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><Bookmark className="h-4 w-4" /></span>
                   <span className="truncate">{categoryLabel(category, t)}</span>
                 </Link>

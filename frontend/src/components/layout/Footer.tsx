@@ -4,7 +4,7 @@ import { ArrowUpRight, Mail, PenTool, Rss, Search, Users } from 'lucide-react'
 import type { Article, Category } from '../../types'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
-import { categoryLabel, resolveCategories } from '../../data/categoryVisuals'
+import { categoryHref, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 
 // The footer is part of the story feed, not a static list: which categories and
 // which headlines it offers changes as the newsroom publishes.
@@ -94,7 +94,7 @@ export default function Footer() {
           <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
             {(sections.length ? sections.slice(0, 8) : []).map(({ category }) => (
               <li key={category._id}>
-                <Link to={`/category/${category.slug}`} className="text-sm underline-offset-4 decoration-2 transition hover:text-white hover:underline">
+                <Link to={categoryHref(category)} className="text-sm underline-offset-4 decoration-2 transition hover:text-white hover:underline">
                   {categoryLabel(category, t)}
                 </Link>
               </li>

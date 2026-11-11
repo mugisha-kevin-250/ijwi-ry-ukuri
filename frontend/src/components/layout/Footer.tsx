@@ -5,6 +5,8 @@ import type { Article, Category } from '../../types'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import { categoryHref, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
+import { PUBLISHER_PAGES } from '../../components/layout/PublisherPage'
+import { contactEmail } from '../../utils/siteConfig'
 
 // The footer is part of the story feed, not a static list: which categories and
 // which headlines it offers changes as the newsroom publishes.
@@ -50,7 +52,6 @@ export default function Footer() {
     { label: t('footer.signIn'), href: '/login' },
     { label: t('footer.signUp'), href: '/register' },
     { label: t('home.writersDashboard'), href: '/writer/dashboard' },
-    { label: t('footer.about'), href: '/about' },
   ]
 
   return (
@@ -133,11 +134,28 @@ export default function Footer() {
               </li>
             ))}
           </ul>
+          <h2 className="mt-6 text-sm font-bold uppercase tracking-wider text-white">{t('footer.newsroom')}</h2>
+          <ul className="mt-3 space-y-2">
+            {PUBLISHER_PAGES.map((page) => (
+              <li key={page.href}>
+                <Link to={page.href} className="text-sm underline-offset-4 decoration-2 transition hover:text-white hover:underline">
+                  {t(page.key)}
+                </Link>
+              </li>
+            ))}
+          </ul>
           <div className="mt-6 space-y-2 text-sm">
-            <a href="mailto:inkuru@ijwi-ry--ukuri.web.app" className="inline-flex items-center gap-2 underline-offset-4 decoration-2 transition hover:text-white hover:underline">
-              <Mail className="h-4 w-4" aria-hidden="true" />
-              inkuru@ijwi-ry--ukuri.web.app
-            </a>
+            {contactEmail ? (
+              <a href={`mailto:${contactEmail}`} className="inline-flex items-center gap-2 underline-offset-4 decoration-2 transition hover:text-white hover:underline">
+                <Mail className="h-4 w-4" aria-hidden="true" />
+                {contactEmail}
+              </a>
+            ) : (
+              <Link to="/contact" className="inline-flex items-center gap-2 underline-offset-4 decoration-2 transition hover:text-white hover:underline">
+                <Mail className="h-4 w-4" aria-hidden="true" />
+                {t('footer.contact')}
+              </Link>
+            )}
             <Link to="/articles" className="inline-flex items-center gap-2 underline-offset-4 decoration-2 transition hover:text-white hover:underline">
               <Search className="h-4 w-4" aria-hidden="true" />
               {t('nav.search')}
@@ -155,6 +173,8 @@ export default function Footer() {
           <p>© {new Date().getFullYear()} Ijwi ry'ukuri. {t('footer.rights')}</p>
           <div className="flex flex-wrap gap-4">
             <Link to="/about" className="hover:text-white">{t('footer.about')}</Link>
+            <Link to="/privacy" className="hover:text-white">{t('publisher.privacy')}</Link>
+            <Link to="/terms" className="hover:text-white">{t('publisher.terms')}</Link>
             <Link to="/categories" className="hover:text-white">{t('footer.categories')}</Link>
             <Link to="/articles" className="hover:text-white">{t('footer.news')}</Link>
           </div>

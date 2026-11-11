@@ -15,6 +15,13 @@ import CategoryPage from '../pages/public/CategoryPage'
 import HomePage from '../pages/public/HomePage'
 import LivePage from '../pages/public/LivePage'
 import SearchPage from '../pages/public/SearchPage'
+import AboutPage from '../pages/public/AboutPage'
+import AdvertisingPage from '../pages/public/AdvertisingPage'
+import ContactPage from '../pages/public/ContactPage'
+import CorrectionsPage from '../pages/public/CorrectionsPage'
+import EditorialPolicyPage from '../pages/public/EditorialPolicyPage'
+import PrivacyPage from '../pages/public/PrivacyPage'
+import TermsPage from '../pages/public/TermsPage'
 import UserProfilePage from '../pages/public/UserProfilePage'
 import WriterDashboardPage from '../pages/writer/WriterDashboardPage'
 import WriterArticlesPage from '../pages/writer/WriterArticlesPage'
@@ -90,6 +97,13 @@ export const router = createBrowserRouter([
           { path: 'live/:id', element: <LivePage /> },
           { path: 'category/:slug', element: <CategoryPage /> },
           { path: 'search', element: <SearchPage /> },
+          { path: 'about', element: <AboutPage /> },
+          { path: 'contact', element: <ContactPage /> },
+          { path: 'editorial-policy', element: <EditorialPolicyPage /> },
+          { path: 'corrections', element: <CorrectionsPage /> },
+          { path: 'advertising', element: <AdvertisingPage /> },
+          { path: 'privacy', element: <PrivacyPage /> },
+          { path: 'terms', element: <TermsPage /> },
           { path: 'user/:id', element: <UserProfilePage /> },
         ],
       },

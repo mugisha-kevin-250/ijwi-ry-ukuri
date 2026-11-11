@@ -1,7 +1,9 @@
 // Writes the sitemap set into public/ from the live API, one file per kind of
 // content, plus a sitemap index at public/sitemap.xml:
 //   sitemap.xml              index  -> lists every file below
-//   sitemap-pages.xml        static pages (home, all articles, categories, live, search)
+//   sitemap-pages.xml        static pages (home, all articles, categories, live,
+//                            search, and the newsroom pages: about, contact,
+//                            editorial-policy, corrections, advertising, privacy, terms)
 //   sitemap-articles.xml     one URL per published story
 //   sitemap-categories.xml   one URL per category feed
 //   sitemap-writers.xml      one URL per author profile page
@@ -96,6 +98,17 @@ async function main() {
 
   const files = []
 
+  // The newsroom pages advertisers and readers look for before trusting a site.
+  const publisherPages = [
+    'about',
+    'contact',
+    'editorial-policy',
+    'corrections',
+    'advertising',
+    'privacy',
+    'terms',
+  ]
+
   files.push({
     name: 'sitemap-pages.xml',
     xml: urlset([
@@ -104,6 +117,7 @@ async function main() {
       urlEntry(`${SITE_URL}/categories`, today, '0.7', 'daily'),
       urlEntry(`${SITE_URL}/live`, today, '0.8', 'hourly'),
       urlEntry(`${SITE_URL}/search`, null, '0.4', 'monthly'),
+      ...publisherPages.map((slug) => urlEntry(`${SITE_URL}/${slug}`, today, '0.4', 'yearly')),
     ]),
   })
 
@@ -161,7 +175,7 @@ ${written
   console.log(`sitemap index:     ${indexUrl}`)
   for (const { url } of written) console.log(`  -> ${url}`)
   console.log(
-    `${articles.length} articles, ${categories.length} categories, ${authors.size} writers, 5 static pages`
+    `${articles.length} articles, ${categories.length} categories, ${authors.size} writers, ${5 + publisherPages.length} static pages`
   )
 }
 

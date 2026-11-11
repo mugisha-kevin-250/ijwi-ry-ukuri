@@ -14,3 +14,5 @@ Disallow: /login
 Disallow: /register
 
 Sitemap: https://ijwi-ry--ukuri.web.app/sitemap.xml
+# Google News reads its own sitemap and only the last two days of it.
+Sitemap: https://ijwi-ry--ukuri.web.app/sitemap-news.xml

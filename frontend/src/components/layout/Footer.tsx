@@ -177,6 +177,10 @@ export default function Footer() {
             <Link to="/terms" className="hover:text-white">{t('publisher.terms')}</Link>
             <Link to="/categories" className="hover:text-white">{t('footer.categories')}</Link>
             <Link to="/articles" className="hover:text-white">{t('footer.news')}</Link>
+            <a href="/feed.xml" className="inline-flex items-center gap-1.5 hover:text-white">
+              <Rss className="h-3.5 w-3.5" aria-hidden="true" />
+              RSS
+            </a>
           </div>
         </div>
       </div>

@@ -14,4 +14,7 @@
   <sitemap>
     <loc>https://ijwi-ry--ukuri.web.app/sitemap-writers.xml</loc>
   </sitemap>
+  <sitemap>
+    <loc>https://ijwi-ry--ukuri.web.app/sitemap-news.xml</loc>
+  </sitemap>
 </sitemapindex>

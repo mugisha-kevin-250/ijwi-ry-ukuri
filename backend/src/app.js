@@ -18,6 +18,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const pushRoutes = require('./routes/pushRoutes');
 const liveRoutes = require('./routes/liveRoutes');
 const uploadStore = require('./services/uploadStore');
+const clientIp = require('./utils/clientIp');
 
 const env = require('./config/env');
 
@@ -46,6 +47,59 @@ const limiter = rateLimit({
   message: { success: false, message: 'Too many requests, please try again later.' }
 });
 app.use('/api', limiter);
+
+// Reading the news is cheap; these three are not. Sign-in attempts can be
+// guessed at, uploads cost disk and processing, and every AI draft costs a paid
+// call with a 90 second timeout - so each gets its own much smaller ceiling and
+// is keyed on the reader's address rather than the shared proxy address.
+const byClientIp = { keyGenerator: (req) => clientIp(req) || req.ip };
+
+const tooMany = (text) => ({ success: false, message: text });
+
+const authLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 15 * 60 * 1000,
+  // Only failures count, so a whole office behind one address can still sign in.
+  max: 20,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('Too many attempts from this address, please try again in a few minutes.')
+});
+
+const uploadLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('Too many uploads, please try again later.')
+});
+
+const aiLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('The AI writer is limited to 10 stories an hour, please try again later.')
+});
+
+// Password reset asks the server to mail someone, so it is guarded like sign-in.
+for (const path of [
+  '/api/auth/login',
+  '/api/auth/admin-login',
+  '/api/auth/register',
+  '/api/auth/google',
+  '/api/auth/credentials',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password'
+]) {
+  app.use(path, authLimiter);
+}
+app.use('/api/upload', uploadLimiter);
+app.post('/api/admin/ai/generate', aiLimiter);
+app.post('/api/admin/ai/articles', aiLimiter);
 
 const swaggerOptions = {
   definition: {

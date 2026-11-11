@@ -9,6 +9,7 @@ const Bookmark = require('../models/Bookmark');
 const WriterProfile = require('../models/WriterProfile');
 const { protect, optionalAuth } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
+const { plainText, cleanText, safeMediaUrl } = require('../utils/textFields');
 
 const router = express.Router();
 
@@ -32,11 +33,15 @@ router.put('/me', protect, async (req, res, next) => {
   try {
     const { fullName, bio, avatar, country, language } = req.body;
     const user = await User.findById(req.user._id);
-    if (fullName) user.fullName = fullName;
-    if (bio !== undefined) user.bio = bio;
-    if (avatar !== undefined) user.avatar = avatar;
-    if (country !== undefined) user.country = country;
-    if (language !== undefined) user.language = language;
+    if (fullName) {
+      const name = plainText(fullName, { maxLength: 80 });
+      if (!name) return errorResponse(res, 400, 'Name has to say something');
+      user.fullName = name;
+    }
+    if (bio !== undefined) user.bio = cleanText(bio, { maxLength: 500 });
+    if (avatar !== undefined) user.avatar = safeMediaUrl(avatar);
+    if (country !== undefined) user.country = plainText(country, { maxLength: 60 });
+    if (language !== undefined) user.language = plainText(language, { maxLength: 8 }) || user.language;
     user.updatedAt = new Date();
     await user.save();
     return successResponse(res, 200, 'Profile updated', { user });

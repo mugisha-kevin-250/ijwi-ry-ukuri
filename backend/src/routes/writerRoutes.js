@@ -14,6 +14,7 @@ const notificationService = require('../services/notificationService');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const generateSlug = require('../utils/generateSlug');
 const { getWeekBounds } = require('../services/rewardService');
+const { plainText, cleanText, cleanTags, safeMediaUrl } = require('../utils/textFields');
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ router.post('/apply', protect, async (req, res, next) => {
       if (existing.status !== 'rejected') {
         return errorResponse(res, 400, 'Application already submitted');
       }
-      existing.reasonForWriting = reasonForWriting || existing.reasonForWriting;
+      existing.reasonForWriting = cleanText(reasonForWriting, { maxLength: 1000 }) || existing.reasonForWriting;
       existing.status = 'pending';
       await existing.save();
       req.user.writerStatus = 'pending';
@@ -36,13 +37,13 @@ router.post('/apply', protect, async (req, res, next) => {
 
     const profile = await WriterProfile.create({
       user: req.user._id,
-      fullName: fullName || req.user.fullName,
-      username: username || req.user.username,
-      bio,
-      profileImage,
-      country,
-      language,
-      reasonForWriting,
+      fullName: plainText(fullName, { maxLength: 80 }) || req.user.fullName,
+      username: plainText(username, { maxLength: 30 }) || req.user.username,
+      bio: cleanText(bio, { maxLength: 500 }),
+      profileImage: safeMediaUrl(profileImage),
+      country: plainText(country, { maxLength: 60 }),
+      language: plainText(language, { maxLength: 8 }),
+      reasonForWriting: cleanText(reasonForWriting, { maxLength: 1000 }),
       status: 'pending'
     });
 
@@ -80,20 +81,29 @@ router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async 
       return errorResponse(res, 400, 'Title, summary, content and category are required');
     }
 
+    // Cleaning happens after the presence check so an all-markup title is
+    // refused as missing rather than stored as an empty headline.
+    const story = {
+      title: plainText(title, { maxLength: 200 }),
+      summary: cleanText(summary, { maxLength: 600 }),
+      content: cleanText(content, { maxLength: 60000 }),
+      featuredImage: safeMediaUrl(featuredImage),
+      tags: cleanTags(tags)
+    };
+    if (!story.title || !story.summary || !story.content) {
+      return errorResponse(res, 400, 'Title, summary and content have to say something');
+    }
+
     const categoryDoc = await Category.findById(category);
     if (!categoryDoc) {
       return errorResponse(res, 404, 'Category not found');
     }
 
     const article = await Article.create({
-      title,
-      slug: `${generateSlug(title)}-${Date.now()}`,
-      summary,
-      content,
-      featuredImage,
+      ...story,
+      slug: `${generateSlug(story.title)}-${Date.now()}`,
       author: req.user._id,
       category: categoryDoc._id,
-      tags,
       status: 'draft'
     });
 
@@ -128,16 +138,40 @@ router.get('/articles/:id', protect, async (req, res, next) => {
 // body of this request.
 const WRITER_EDITABLE_FIELDS = ['title', 'summary', 'content', 'category', 'featuredImage', 'tags', 'language'];
 
+// Each editable field is cleaned the way readers will see it: a headline has to
+// stay one plain line, the body keeps its paragraphs, an image stays a link.
+const STORY_CLEANERS = {
+  title: (value) => plainText(value, { maxLength: 200 }),
+  summary: (value) => cleanText(value, { maxLength: 600 }),
+  content: (value) => cleanText(value, { maxLength: 60000 }),
+  featuredImage: (value) => safeMediaUrl(value),
+  tags: (value) => cleanTags(value),
+  language: (value) => plainText(value, { maxLength: 8 })
+};
+
+// Fields that a story cannot be shown without, so an edit that empties one of
+// them is refused instead of silently blanking the headline in every card.
+const REQUIRED_STORY_FIELDS = ['title', 'summary', 'content'];
+
 router.put('/articles/:id', protect, async (req, res, next) => {
   try {
     const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
     if (!article) return errorResponse(res, 404, 'Article not found');
     const wasPublished = article.status === 'published';
+
+    const changes = {};
     for (const field of WRITER_EDITABLE_FIELDS) {
-      if (req.body[field] !== undefined) article[field] = req.body[field];
+      if (req.body[field] === undefined) continue;
+      const cleaned = STORY_CLEANERS[field] ? STORY_CLEANERS[field](req.body[field]) : req.body[field];
+      if (!cleaned && REQUIRED_STORY_FIELDS.includes(field)) {
+        return errorResponse(res, 400, `The ${field} has to say something`);
+      }
+      changes[field] = cleaned;
     }
-    if (req.body.title) {
-      article.slug = `${generateSlug(req.body.title)}-${Date.now()}`;
+
+    Object.assign(article, changes);
+    if (changes.title) {
+      article.slug = `${generateSlug(changes.title)}-${Date.now()}`;
     }
     article.updatedAt = new Date();
     await article.save();

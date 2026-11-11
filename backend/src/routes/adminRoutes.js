@@ -11,6 +11,7 @@ const { successResponse, errorResponse } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
 const generateSlug = require('../utils/generateSlug');
+const { plainText, cleanText, cleanTags, safeMediaUrl } = require('../utils/textFields');
 
 const router = express.Router();
 
@@ -368,7 +369,7 @@ router.put('/payouts/:id/reject', async (req, res, next) => {
     const payout = await Payout.findById(req.params.id);
     if (!payout) return errorResponse(res, 404, 'Payout not found');
     payout.status = 'rejected';
-    payout.rejectionReason = req.body.rejectionReason || 'Rejected by administrator';
+    payout.rejectionReason = plainText(req.body.rejectionReason, { maxLength: 300 }) || 'Rejected by administrator';
     await payout.save();
     return successResponse(res, 200, 'Payout rejected', { payout });
   } catch (error) {
@@ -454,8 +455,8 @@ router.post('/ai/generate', authorize('ADMIN'), async (req, res, next) => {
       return errorResponse(res, 400, 'Describe the topic the story should cover');
     }
     const story = await geminiService.writeStory({
-      topic: String(topic).trim().slice(0, 500),
-      angle: angle ? String(angle).trim().slice(0, 500) : '',
+      topic: plainText(topic, { maxLength: 500 }),
+      angle: angle ? plainText(angle, { maxLength: 500 }) : '',
       audience: audience === 'world' ? 'world' : 'rwanda'
     });
     return successResponse(res, 200, 'Draft ready for review', story);
@@ -477,18 +478,26 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
 
     const wantsPublish = publish === undefined ? await isAutoPublishOn() : publish === true || publish === 'true';
     const publishedAt = wantsPublish ? new Date() : undefined;
+    // The text comes back from the browser, so it is cleaned the same way a
+    // writer's story is - a machine can hand over a headline carrying markup.
+    const headline = plainText(title, { maxLength: 200 });
+    const body = cleanText(content, { maxLength: 60000 });
+    const gist = cleanText(summary, { maxLength: 600 });
+    if (!headline || !body || !gist) {
+      return errorResponse(res, 400, 'Title, summary and content have to say something');
+    }
     // A title in one of the languages we cannot slug leaves an empty address,
     // which would break the story route.
-    const baseSlug = generateSlug(String(title)) || 'inkuru';
+    const baseSlug = generateSlug(headline) || 'inkuru';
     const article = await Article.create({
-      title: String(title).trim(),
+      title: headline,
       slug: `${baseSlug}-${Date.now()}`,
-      summary: String(summary).trim(),
-      content: String(content).trim(),
-      featuredImage,
+      summary: gist,
+      content: body,
+      featuredImage: safeMediaUrl(featuredImage),
       author: req.user._id,
       category: categoryDoc._id,
-      tags: Array.isArray(tags) ? tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean).slice(0, 6) : [],
+      tags: cleanTags(tags, { max: 6 }),
       language: 'en',
       aiGenerated: true,
       status: wantsPublish ? 'published' : 'draft',

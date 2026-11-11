@@ -4,6 +4,7 @@ const LiveComment = require('../models/LiveComment');
 const { protect, authorize } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { notifyLiveEnded } = require('../sockets/liveSocket');
+const { plainText, cleanText } = require('../utils/textFields');
 
 const router = express.Router();
 
@@ -71,8 +72,8 @@ router.post('/', protect, authorize('ADMIN'), async (req, res, next) => {
     }
 
     const live = await Live.create({
-      title: title.slice(0, 140),
-      description: String(req.body.description || '').slice(0, 500),
+      title: plainText(title, { maxLength: 140 }),
+      description: cleanText(req.body.description, { maxLength: 500 }),
       host: req.user._id
     });
     return successResponse(res, 201, 'Live started', { live: await shape(live) });

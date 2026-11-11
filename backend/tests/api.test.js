@@ -148,6 +148,46 @@ test('a writer cannot edit the fields that decide pay or review', async () => {
   assert.equal(response.body.data.article.summary, 'A summary the writer is allowed to change');
 });
 
+test('a stored story keeps only text a reader can safely see', async () => {
+  const categoryResponse = await request(app).get('/api/categories');
+  const categoryId = categoryResponse.body.data.categories[0]._id;
+
+  const response = await request(app)
+    .post('/api/writers/articles')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      title: 'Fake <b>Headline</b> \u202egnaildeahC',
+      summary: '  Extra   spaces\n\n\n\n and a long   tail  ',
+      content: '<p>Body</p>',
+      category: categoryId,
+      tags: ['#News', 'news', '  ', 'RWANDA', 'a'.repeat(80)],
+      featuredImage: 'javascript:alert(1)'
+    });
+
+  assert.equal(response.status, 201);
+  const story = response.body.data.article;
+  assert.equal(story.title, 'Fake Headline gnaildeahC');
+  assert.equal(story.summary, story.summary.trim());
+  assert.ok(!/\n{3,}/.test(story.summary));
+  assert.ok(!story.summary.includes('   '));
+  // The body keeps its markup: paragraphs are how a story is written.
+  assert.equal(story.content, '<p>Body</p>');
+  assert.deepEqual(story.tags, ['news', 'rwanda', 'a'.repeat(40)]);
+  assert.equal(story.featuredImage, '');
+
+  const blank = await request(app)
+    .post('/api/writers/articles')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: '<b></b>', summary: 'A real summary', content: 'Real body text', category: categoryId });
+  assert.equal(blank.status, 400);
+
+  const blankComment = await request(app)
+    .post(`/api/articles/${articleId}/comments`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ content: '   \n  ' });
+  assert.equal(blankComment.status, 400);
+});
+
 test('writer publishes their own article', async () => {
   const response = await request(app)
     .post(`/api/writers/articles/${articleId}/publish`)

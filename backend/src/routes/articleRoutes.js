@@ -8,6 +8,8 @@ const ArticleView = require('../models/ArticleView');
 const { protect, optionalAuth, authorize } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { calculateValidView } = require('../services/validViewService');
+const clientIp = require('../utils/clientIp');
+const { cleanText } = require('../utils/textFields');
 
 const router = express.Router();
 
@@ -24,10 +26,12 @@ router.post('/:id/comments', protect, async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
+    const content = cleanText(req.body.content, { maxLength: 2000 });
+    if (!content) return errorResponse(res, 400, 'Write something before posting it');
     const comment = await Comment.create({
       article: article._id,
       user: req.user._id,
-      content: req.body.content
+      content
     });
     article.commentsCount = Number(article.commentsCount || 0) + 1;
     await article.save();
@@ -44,7 +48,11 @@ router.put('/comments/:id', protect, async (req, res, next) => {
     if (comment.user.toString() !== req.user._id.toString() && req.user.role !== 'ADMIN' && req.user.role !== 'EDITOR') {
       return errorResponse(res, 403, 'Unauthorized');
     }
-    comment.content = req.body.content || comment.content;
+    if (req.body.content !== undefined) {
+      const content = cleanText(req.body.content, { maxLength: 2000 });
+      if (!content) return errorResponse(res, 400, 'Write something before posting it');
+      comment.content = content;
+    }
     await comment.save();
     return successResponse(res, 200, 'Comment updated', { comment });
   } catch (error) {
@@ -136,7 +144,7 @@ router.post('/:id/report', protect, async (req, res, next) => {
       article: article._id,
       reporter: req.user._id,
       reason: req.body.reason,
-      details: req.body.details
+      details: cleanText(req.body.details, { maxLength: 1000 })
     });
     return successResponse(res, 201, 'Report submitted', { report });
   } catch (error) {
@@ -152,10 +160,7 @@ router.post('/:id/view', optionalAuth, async (req, res, next) => {
     const userId = req.user ? req.user._id : null;
     const anonymousSessionId = req.body.anonymousSessionId || req.headers['x-session-id'] || null;
     const readingDurationMs = Math.min(Math.max(0, Number(req.body.readingDurationMs || 0)), 2 * 60 * 60 * 1000);
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const ip = String(Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor || '')
-      .split(',')[0]
-      .trim() || req.socket.remoteAddress || '';
+    const ip = clientIp(req);
     const userAgent = req.headers['user-agent'] || '';
 
     const result = await calculateValidView({

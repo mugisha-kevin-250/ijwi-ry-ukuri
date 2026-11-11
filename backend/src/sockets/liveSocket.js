@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const Live = require('../models/Live');
 const LiveComment = require('../models/LiveComment');
 const env = require('../config/env');
+const { plainText } = require('../utils/textFields');
 
 const ROOM = (liveId) => `live:${liveId}`;
 
@@ -139,10 +140,17 @@ module.exports = function attachLiveSocket(httpServer) {
     });
 
     socket.on('live:chat', async (payload, ack) => {
-      const text = String((payload && payload.text) || '').trim();
-      if (!liveId || !text || !user) return ack && ack({ error: 'not-allowed' });
+      // Chat lines render inside a row of the audience panel, so they stay one
+      // plain line no matter what a viewer pastes into the box.
+      const message = plainText(payload && payload.text, { maxLength: 300 });
+      if (!liveId || !message || !user) return ack && ack({ error: 'not-allowed' });
       try {
-        const saved = await LiveComment.create({ live: liveId, user: user.id, name: payload.name || 'Mushyitsi', text: text.slice(0, 300) });
+        const saved = await LiveComment.create({
+          live: liveId,
+          user: user.id,
+          name: plainText(payload.name, { maxLength: 40 }) || 'Mushyitsi',
+          text: message
+        });
         io.to(ROOM(liveId)).emit('live:chat', saved);
         ack && ack({ ok: true });
       } catch (error) {

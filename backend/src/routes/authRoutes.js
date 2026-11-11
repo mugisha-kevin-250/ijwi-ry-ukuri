@@ -34,6 +34,7 @@ const User = require('../models/User');
 const env = require('../config/env');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { protect } = require('../middleware/auth');
+const { plainText, safeMediaUrl } = require('../utils/textFields');
 
 const router = express.Router();
 
@@ -44,23 +45,33 @@ function generateToken(user) {
 router.post('/register', async (req, res, next) => {
   try {
     const { fullName, username, email, password, country, language } = req.body;
-    if (!fullName || !username || !email || !password) {
+    const identity = {
+      fullName: plainText(fullName, { maxLength: 80 }),
+      // A username is a login handle, not a headline: no spaces, and the same
+      // lower-casing the schema does when it stores it, so the uniqueness check
+      // below compares what will actually be saved.
+      username: plainText(username, { maxLength: 30 }).replace(/\s+/g, '').toLowerCase(),
+      email: plainText(email, { maxLength: 120 }).toLowerCase()
+    };
+    if (!identity.fullName || !identity.username || !identity.email || !password) {
       return errorResponse(res, 400, 'Full name, username, email and password are required');
     }
+    // An address with no @ would be stored and then never let the reader back in.
+    if (!identity.email.includes('@')) {
+      return errorResponse(res, 400, 'Enter an email address, name@example.com');
+    }
 
-    const exists = await User.findOne({ $or: [{ email }, { username }] });
+    const exists = await User.findOne({ $or: [{ email: identity.email }, { username: identity.username }] });
     if (exists) {
       return errorResponse(res, 409, 'User already exists');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
-      fullName,
-      username,
-      email,
+      ...identity,
       password: hashedPassword,
-      country,
-      language,
+      country: plainText(country, { maxLength: 60 }),
+      language: plainText(language, { maxLength: 8 }) || 'en',
       role: 'READER'
     });
 
@@ -167,12 +178,14 @@ router.post('/google', async (req, res, next) => {
     // Google owns the password for these accounts, so a random one is stored to
     // satisfy the schema; sign-in always goes through Google.
     const created = await User.create({
-      fullName: claims.name || base,
+      // Display names and avatars come from Google, so they are treated as
+      // anything else a stranger types: plain, bounded, and a link that is a link.
+      fullName: plainText(claims.name, { maxLength: 80 }) || base,
       username: await uniqueUsername(base),
       email,
       password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10),
       googleId: claims.sub,
-      avatar: claims.picture || undefined,
+      avatar: safeMediaUrl(claims.picture) || undefined,
       role: 'READER'
     });
 

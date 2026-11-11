@@ -1,7 +1,8 @@
 import { createBrowserRouter, Navigate, Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
-import { useEffect, useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { useAuth } from '../context/AuthContext'
 import RouteProgressBar from '../components/common/RouteProgressBar'
+import WriterAccessGate from '../components/auth/WriterAccessGate'
 import AdminLayout from '../layouts/AdminLayout'
 import PublicLayout from '../layouts/PublicLayout'
 import WriterLayout from '../layouts/WriterLayout'
@@ -21,42 +22,21 @@ import WriterEarningsPage from '../pages/writer/WriterEarningsPage'
 import DashboardPage from '../pages/dashboard/DashboardPage'
 import AdminLoginPage from '../pages/admin/AdminLoginPage'
 import AdminUsersPage from '../pages/admin/AdminUsersPage'
+import AdminWritersPage from '../pages/admin/AdminWritersPage'
 import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import AdminArticlesPage from '../pages/admin/AdminArticlesPage'
 import AdminPayoutsPage from '../pages/admin/AdminPayoutsPage'
 import AdminSettingsPage from '../pages/admin/AdminSettingsPage'
 
-function RequireRole({ role, children }: { role: 'WRITER'; children: ReactNode }) {
-  const { user, loading, becomeWriter } = useAuth()
+function RequireRole({ children }: { role?: 'WRITER'; children: ReactNode }) {
+  const { user, loading } = useAuth()
   const location = useLocation()
-  const [promotionError, setPromotionError] = useState<string | null>(null)
-  // Signing up creates a READER; entering the writer area opens the writer account.
-  const needsPromotion = role === 'WRITER' && !!user && user.role === 'READER'
-
-  useEffect(() => {
-    if (!needsPromotion) return
-    let cancelled = false
-    setPromotionError(null)
-    becomeWriter().catch((err: any) => {
-      if (!cancelled) setPromotionError(err.message || 'Could not open the writer account')
-    })
-    return () => { cancelled = true }
-  }, [needsPromotion, becomeWriter])
 
   if (loading) return <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">Restoring your session…</div>
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
-  if (needsPromotion) {
-    if (promotionError) {
-      return (
-        <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-4 text-center">
-          <p className="text-sm font-semibold text-red-600">{promotionError}</p>
-          <Navigate to="/" replace />
-        </div>
-      )
-    }
-    return <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">Opening your writer account…</div>
-  }
-  return children
+  // An ADMIN or EDITOR already writes; a READER has to be approved first.
+  if (user.role === 'WRITER' || user.role === 'EDITOR' || user.role === 'ADMIN') return children
+  return <WriterAccessGate />
 }
 
 function RequireAdmin({ children }: { children: ReactNode }) {
@@ -121,6 +101,7 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="dashboard" replace /> },
           { path: 'dashboard', element: <RequireAdmin><DashboardPage kind="admin" /></RequireAdmin> },
           { path: 'users', element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
+          { path: 'writers', element: <RequireAdmin><AdminWritersPage /></RequireAdmin> },
           { path: 'users/:id', element: <RequireAdmin><AdminUserDetailPage /></RequireAdmin> },
           { path: 'articles', element: <RequireAdmin><AdminArticlesPage /></RequireAdmin> },
           { path: 'payouts', element: <RequireAdmin><AdminPayoutsPage /></RequireAdmin> },

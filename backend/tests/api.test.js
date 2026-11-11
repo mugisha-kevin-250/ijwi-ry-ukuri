@@ -57,6 +57,51 @@ test('writer registration', async () => {
   assert.equal(response.status, 201);
 });
 
+test('applying does not hand out the writer role', async () => {
+  const status = await request(app)
+    .get('/api/writers/me/status')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(status.status, 200);
+  assert.equal(status.body.data.role, 'READER');
+  assert.equal(status.body.data.application.status, 'pending');
+
+  const categoryResponse = await request(app).get('/api/categories');
+  const categoryId = categoryResponse.body.data.categories[0]._id;
+  const forbidden = await request(app)
+    .post('/api/writers/articles')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'Too Early', summary: 'Not approved yet', content: 'Article body', category: categoryId });
+
+  assert.equal(forbidden.status, 403);
+});
+
+test('an admin approves the pending application', async () => {
+  await request(app)
+    .post('/api/auth/register')
+    .send({ fullName: 'Approving Admin', username: 'approver', email: 'approver@example.com', password: 'Password123!' });
+  const approver = await mongoose.connection.collection('users').findOne({ email: 'approver@example.com' });
+  await mongoose.connection.collection('users').updateOne({ _id: approver._id }, { $set: { role: 'ADMIN' } });
+  const approverToken = jwtTokenFor(approver._id, 'ADMIN');
+
+  const queue = await request(app)
+    .get('/api/admin/writer-requests')
+    .set('Authorization', `Bearer ${approverToken}`);
+
+  assert.equal(queue.status, 200);
+  assert.ok(queue.body.data.pendingCount >= 1);
+  const application = queue.body.data.applications.find((item) => item.user.email === 'alice@example.com');
+  assert.ok(application, 'the pending application shows in the admin queue');
+
+  const approved = await request(app)
+    .post(`/api/admin/writer-requests/${application._id}/approve`)
+    .set('Authorization', `Bearer ${approverToken}`);
+
+  assert.equal(approved.status, 200);
+  assert.equal(approved.body.data.user.role, 'WRITER');
+  assert.equal(approved.body.data.user.writerStatus, 'approved');
+});
+
 test('article creation', async () => {
   const categoryResponse = await request(app).get('/api/categories');
   const categoryId = categoryResponse.body.data.categories[0]._id;

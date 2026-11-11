@@ -14,7 +14,7 @@ interface AuthContextType {
   logout: () => void
   updateProfile: (updates: Partial<User>) => void
   refreshUser: () => Promise<User | null>
-  becomeWriter: () => Promise<void>
+  requestWriterAccess: (reason?: string) => Promise<void>
   loading: boolean
   error: string | null
 }
@@ -170,20 +170,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return null
   }
 
-  // Registration creates a READER; the writer area requires the WRITER role.
-  const becomeWriter = async () => {
+  // Registration creates a READER. Writing needs the WRITER role, which only an
+  // ADMIN grants, so this files the application and never touches the role.
+  const requestWriterAccess = async (reason?: string) => {
     try {
-      await writerAPI.apply({})
+      await writerAPI.apply(reason ? { reasonForWriting: reason } : {})
     } catch (err: any) {
       const message = err.response?.data?.message || ''
       if (!/already submitted/i.test(message)) {
-        throw new Error(message || 'Could not create the writer account')
+        throw new Error(message || 'Could not send the writer application')
       }
     }
-    const fresh = await refreshUser()
-    if (!fresh || (fresh.role !== 'WRITER' && fresh.role !== 'ADMIN')) {
-      if (user) persistUser({ ...user, role: 'WRITER' })
-    }
+    await refreshUser()
   }
 
   const value: AuthContextType = {
@@ -197,7 +195,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     updateProfile,
     refreshUser,
-    becomeWriter,
+    requestWriterAccess,
     loading,
     error,
   }

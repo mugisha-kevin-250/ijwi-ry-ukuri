@@ -4,12 +4,16 @@ const User = require('../models/User');
 const WriterEarning = require('../models/WriterEarning');
 const Payout = require('../models/Payout');
 const Category = require('../models/Category');
+const WriterProfile = require('../models/WriterProfile');
 const PlatformSetting = require('../models/PlatformSetting');
 const { protect, authorize } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
 
 const router = express.Router();
+
+const USER_ROLES = ['READER', 'WRITER', 'EDITOR', 'ADMIN'];
+const WRITER_STATES = ['pending', 'approved', 'rejected', 'suspended'];
 
 router.use(protect, authorize('ADMIN', 'EDITOR'));
 
@@ -165,14 +169,88 @@ router.put('/users/:id', protect, authorize('ADMIN'), async (req, res, next) => 
     }
 
     const allowed = {};
-    if (req.body.role) allowed.role = String(req.body.role).toUpperCase();
+    if (req.body.role) {
+      const role = String(req.body.role).toUpperCase();
+      if (!USER_ROLES.includes(role)) return errorResponse(res, 400, 'Unknown role');
+      allowed.role = role;
+    }
     if (typeof req.body.isActive === 'boolean') allowed.isActive = req.body.isActive;
-    if (req.body.writerStatus) allowed.writerStatus = req.body.writerStatus;
+    if (req.body.writerStatus) {
+      const writerStatus = String(req.body.writerStatus);
+      if (!WRITER_STATES.includes(writerStatus)) return errorResponse(res, 400, 'Unknown writer status');
+      allowed.writerStatus = writerStatus;
+    }
     if (!Object.keys(allowed).length) return errorResponse(res, 400, 'Nothing to update');
 
-    const user = await User.findByIdAndUpdate(req.params.id, { $set: allowed }, { new: true }).lean();
+    const user = await User.findByIdAndUpdate(req.params.id, { $set: allowed }, { new: true, runValidators: true }).lean();
     if (!user) return errorResponse(res, 404, 'User not found');
     return successResponse(res, 200, 'User updated', { user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Applications sit in WriterProfile with status 'pending'; the account itself is
+// still a READER until an ADMIN approves it here.
+router.get('/writer-requests', async (req, res, next) => {
+  try {
+    const status = req.query.status === 'all'
+      ? null
+      : (WRITER_STATES.includes(req.query.status) ? req.query.status : 'pending');
+    const profiles = await WriterProfile.find(status ? { status } : {})
+      .sort({ createdAt: -1 })
+      .populate({ path: 'user', select: 'fullName username email avatar country role writerStatus isActive createdAt' })
+      .lean();
+
+    return successResponse(res, 200, 'Writer applications', {
+      applications: profiles.filter((profile) => profile.user),
+      pendingCount: status === 'pending'
+        ? profiles.length
+        : await WriterProfile.countDocuments({ status: 'pending' })
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/writer-requests/:id/approve', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const profile = await WriterProfile.findById(req.params.id);
+    if (!profile) return errorResponse(res, 404, 'Application not found');
+    const user = await User.findById(profile.user);
+    if (!user) return errorResponse(res, 404, 'Applicant account is gone');
+
+    profile.status = 'approved';
+    await profile.save();
+
+    // Never demote an EDITOR or ADMIN who happened to apply.
+    if (user.role === 'READER') user.role = 'WRITER';
+    user.writerStatus = 'approved';
+    user.writerProfile = profile._id;
+    await user.save();
+
+    return successResponse(res, 200, 'Writer approved', { user: user.toObject({ virtuals: false }), profile });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/writer-requests/:id/reject', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const profile = await WriterProfile.findById(req.params.id);
+    if (!profile) return errorResponse(res, 404, 'Application not found');
+
+    profile.status = 'rejected';
+    await profile.save();
+
+    const user = await User.findById(profile.user);
+    if (user) {
+      // A writer who was already approved keeps working; only the application closes.
+      user.writerStatus = 'rejected';
+      await user.save();
+      return successResponse(res, 200, 'Writer application rejected', { user, profile });
+    }
+    return successResponse(res, 200, 'Writer application rejected', { profile });
   } catch (error) {
     next(error);
   }

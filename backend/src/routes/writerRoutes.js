@@ -22,7 +22,16 @@ router.post('/apply', protect, async (req, res, next) => {
     const { fullName, username, bio, profileImage, country, language, reasonForWriting } = req.body;
     const existing = await WriterProfile.findOne({ user: req.user._id });
     if (existing) {
-      return errorResponse(res, 400, 'Application already submitted');
+      // A rejected writer can ask again; anyone else already has an open application.
+      if (existing.status !== 'rejected') {
+        return errorResponse(res, 400, 'Application already submitted');
+      }
+      existing.reasonForWriting = reasonForWriting || existing.reasonForWriting;
+      existing.status = 'pending';
+      await existing.save();
+      req.user.writerStatus = 'pending';
+      await req.user.save();
+      return successResponse(res, 200, 'Writer application resubmitted', { profile: existing });
     }
 
     const profile = await WriterProfile.create({
@@ -37,7 +46,8 @@ router.post('/apply', protect, async (req, res, next) => {
       status: 'pending'
     });
 
-    req.user.role = 'WRITER';
+    // Applying does not make anyone a writer - an ADMIN has to approve it first,
+    // so the account keeps its READER role until then.
     req.user.writerStatus = 'pending';
     req.user.writerProfile = profile._id;
     await req.user.save();
@@ -48,7 +58,22 @@ router.post('/apply', protect, async (req, res, next) => {
   }
 });
 
-router.post('/articles', protect, async (req, res, next) => {
+// Lets the writer area show the truth about where the reader stands.
+// Under /me because GET /api/writers/:id already belongs to the public directory.
+router.get('/me/status', protect, async (req, res, next) => {
+  try {
+    const profile = await WriterProfile.findOne({ user: req.user._id }).select('status createdAt updatedAt');
+    return successResponse(res, 200, 'Writer status', {
+      role: req.user.role,
+      writerStatus: req.user.writerStatus,
+      application: profile || null
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
   try {
     const { title, summary, content, category, tags = [], featuredImage } = req.body;
     if (!title || !summary || !content || !category) {
@@ -58,11 +83,6 @@ router.post('/articles', protect, async (req, res, next) => {
     const categoryDoc = await Category.findById(category);
     if (!categoryDoc) {
       return errorResponse(res, 404, 'Category not found');
-    }
-
-    if (req.user.role === 'READER') {
-      req.user.role = 'WRITER';
-      await req.user.save();
     }
 
     const article = await Article.create({

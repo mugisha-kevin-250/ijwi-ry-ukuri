@@ -90,6 +90,9 @@ export const writerAPI = {
   apply: (data: any) =>
     apiClient.post('/writers/apply', data),
 
+  getStatus: () =>
+    apiClient.get('/writers/me/status'),
+
   createArticle: (data: any) =>
     apiClient.post('/writers/articles', data),
 
@@ -208,6 +211,23 @@ export const editorAPI = {
     apiClient.put(`/editor/articles/${id}/unpublish`),
 }
 
+export interface WriterApplicationRecord {
+  _id: string
+  status: 'pending' | 'approved' | 'rejected' | 'suspended'
+  fullName: string
+  username: string
+  reasonForWriting?: string
+  bio?: string
+  country?: string
+  createdAt?: string
+  user?: User & { isActive?: boolean }
+}
+
+export interface WriterRequestsResult {
+  applications: WriterApplicationRecord[]
+  pendingCount: number
+}
+
 export const adminAPI = {
   getDashboard: () =>
     apiClient.get<AdminDashboardStats>('/admin/dashboard'),
@@ -240,6 +260,18 @@ export const adminAPI = {
 
   updateUser: (id: string, data: { role?: string; isActive?: boolean; writerStatus?: string }) =>
     apiClient.put(`/admin/users/${id}`, data),
+
+  getWriterRequests: async (status?: string): Promise<WriterRequestsResult> => {
+    const response = await apiClient.get('/admin/writer-requests', status ? { status } : undefined)
+    const payload = response.data.data as { applications?: WriterApplicationRecord[]; pendingCount?: number }
+    return { applications: payload?.applications ?? [], pendingCount: payload?.pendingCount ?? 0 }
+  },
+
+  approveWriterRequest: (id: string) =>
+    apiClient.post(`/admin/writer-requests/${id}/approve`),
+
+  rejectWriterRequest: (id: string) =>
+    apiClient.post(`/admin/writer-requests/${id}/reject`),
 
   getArticles: async (params?: { page?: number; limit?: number; status?: string; category?: string; search?: string; sort?: string }) => {
     const response = await apiClient.get('/admin/articles', params)

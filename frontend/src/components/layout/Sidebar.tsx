@@ -28,6 +28,7 @@ const navigation = {
     admin: [
       { href: '/mugishaimekevin/dashboard', label: t('nav.admin.dashboard'), icon: LayoutDashboard },
       { href: '/mugishaimekevin/users', label: t('nav.admin.users'), icon: Users },
+      { href: '/mugishaimekevin/writers', label: t('nav.admin.writers'), icon: PenTool },
       { href: '/mugishaimekevin/articles', label: t('nav.admin.news'), icon: List },
       { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts'), icon: DollarSign },
       { href: '/categories', label: t('nav.admin.categories'), icon: Settings },

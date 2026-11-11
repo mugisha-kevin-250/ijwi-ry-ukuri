@@ -11,6 +11,7 @@ import { LoadingCard, LoadingGrid } from '../../components/common/Loading'
 import EmptyState from '../../components/common/EmptyState'
 import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
+import AdSlot from '../../components/ads/AdSlot'
 import { cn } from '../../utils/cn'
 import { useSeo, absoluteSiteUrl } from '../../utils/useSeo'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
@@ -328,6 +329,10 @@ export default function ArticleDetailPage() {
         </div>
       </div>
 
+      {/* The reader has finished the story, so this is where an in-content unit
+          earns its keep without cutting into the read. */}
+      <AdSlot name="articleInline" />
+
       {article.tags && article.tags.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-6 border-t border-gray-200 dark:border-gray-800">
           <span className="text-sm text-gray-500 dark:text-gray-400">{t('articles.tags')}:</span>
@@ -431,6 +436,7 @@ export default function ArticleDetailPage() {
         <aside className="mt-10 space-y-4 lg:col-start-1 lg:row-start-1 lg:mt-0">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('articles.related')}</h2>
           <ArticleList articles={relatedArticles} variant="list" />
+          <AdSlot name="articleSidebar" className="pt-2" />
         </aside>
       )}
     </div>

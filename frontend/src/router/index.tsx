@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
-import { type ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { trackPageView } from '../utils/analytics'
 import RouteProgressBar from '../components/common/RouteProgressBar'
 import WriterAccessGate from '../components/auth/WriterAccessGate'
 import AdminLayout from '../layouts/AdminLayout'
@@ -51,7 +52,17 @@ function RequireAdmin({ children }: { children: ReactNode }) {
 // Readers who click a story from the footer were left wherever they had scrolled
 // on the previous page, so each new page opens at the top and back/forward still
 // returns them to the spot they left.
+// Readers never reload a page here, so Google Analytics has to hear about every
+// route change itself.
+function usePageViews() {
+  const { pathname, search } = useLocation()
+  useEffect(() => {
+    trackPageView(`${pathname}${search}`)
+  }, [pathname, search])
+}
+
 function RootLayout() {
+  usePageViews()
   return (
     <>
       <RouteProgressBar />

@@ -13,6 +13,7 @@ import { Eye, Heart, Share2, UserPlus, BookOpen, Clock3 } from 'lucide-react'
 import MediaImage from '../../components/common/MediaImage'
 import { PLACEHOLDER_IMAGE } from '../../services/apiClient'
 import { shareArticle } from '../../utils/shareArticle'
+import AdSlot from '../../components/ads/AdSlot'
 
 function ChipButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
@@ -323,6 +324,8 @@ export default function ArticleListPage() {
           <StoryCard key={article._id} article={article} />
         ))}
       </div>
+
+      <AdSlot name="list" className="mt-8" />
 
       {totalPages > 1 && (
         <div className="mt-8">

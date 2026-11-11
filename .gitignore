@@ -31,3 +31,7 @@ Thumbs.db
 
 # Scratch image generation output (unreferenced by the app)
 vibe_images/
+
+# Generated from the owner's AdSense id at build time — never committed,
+# because the publisher id inside it belongs to the account, not the repository.
+frontend/public/ads.txt

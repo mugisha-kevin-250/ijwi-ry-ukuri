@@ -4,6 +4,7 @@ import { Search } from 'lucide-react'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import { useSeo } from '../../utils/useSeo'
+import { trackEvent } from '../../utils/analytics'
 import Avatar from '../../components/common/Avatar'
 
 export default function SearchPage() {
@@ -28,7 +29,12 @@ export default function SearchPage() {
       setLoading(true)
       try {
         const res = await publicAPI.search(query)
-        setResults(res.data.data || { articles: [], authors: [] })
+        const payload = res.data.data || { articles: [], authors: [] }
+        setResults(payload)
+        trackEvent('search', {
+          search_term: query,
+          results: (payload.articles?.length || 0) + (payload.authors?.length || 0),
+        })
       } catch (e) {
         setResults({ articles: [], authors: [] })
       } finally {

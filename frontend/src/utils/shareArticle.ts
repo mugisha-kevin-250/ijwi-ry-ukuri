@@ -1,4 +1,5 @@
 import { toast } from 'react-toastify'
+import { trackEvent } from './analytics'
 
 interface ShareOptions {
   url: string
@@ -35,6 +36,7 @@ export async function shareArticle({ url, title, text, copiedLabel }: ShareOptio
   if (typeof navigator.share === 'function') {
     try {
       await navigator.share({ title, text, url })
+      trackEvent('share', { method: 'system', link: url })
       return
     } catch (error) {
       // The reader opened the sheet and closed it — nothing was meant to happen.
@@ -42,5 +44,6 @@ export async function shareArticle({ url, title, text, copiedLabel }: ShareOptio
     }
   }
   await copyText(url)
+  trackEvent('copy_link', { method: 'clipboard', link: url })
   toast.success(copiedLabel)
 }

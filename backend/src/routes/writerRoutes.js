@@ -122,12 +122,20 @@ router.get('/articles/:id', protect, async (req, res, next) => {
   }
 });
 
+// A writer owns the text of their story and nothing else. Everything that moves
+// money (validViews, earnings), decides review (status, publishedAt) or claims
+// authorship has to be set by the review endpoints or by an admin, never by the
+// body of this request.
+const WRITER_EDITABLE_FIELDS = ['title', 'summary', 'content', 'category', 'featuredImage', 'tags', 'language'];
+
 router.put('/articles/:id', protect, async (req, res, next) => {
   try {
     const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
     if (!article) return errorResponse(res, 404, 'Article not found');
     const wasPublished = article.status === 'published';
-    Object.assign(article, req.body);
+    for (const field of WRITER_EDITABLE_FIELDS) {
+      if (req.body[field] !== undefined) article[field] = req.body[field];
+    }
     if (req.body.title) {
       article.slug = `${generateSlug(req.body.title)}-${Date.now()}`;
     }

@@ -133,6 +133,21 @@ test('reading time is the words in the story, not its character count', async ()
   assert.equal(response.body.data.article.readingTime, 3);
 });
 
+test('a writer cannot edit the fields that decide pay or review', async () => {
+  const response = await request(app)
+    .put(`/api/writers/articles/${articleId}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ summary: 'A summary the writer is allowed to change', validViews: 999999, status: 'published', aiGenerated: true, author: articleId });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.article.validViews, 0);
+  assert.equal(response.body.data.article.status, 'draft');
+  assert.equal(response.body.data.article.aiGenerated, false);
+  // Rewriting who wrote the story is refused too, while a real field saves.
+  assert.notEqual(String(response.body.data.article.author), String(articleId));
+  assert.equal(response.body.data.article.summary, 'A summary the writer is allowed to change');
+});
+
 test('writer publishes their own article', async () => {
   const response = await request(app)
     .post(`/api/writers/articles/${articleId}/publish`)

@@ -44,7 +44,7 @@ export interface SeoOptions {
   path?: string
   image?: string
   type?: 'website' | 'article'
-  jsonLd?: Record<string, unknown>
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[]
 }
 
 export function absoluteSiteUrl(path?: string) {

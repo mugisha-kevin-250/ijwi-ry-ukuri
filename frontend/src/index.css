@@ -122,9 +122,10 @@ body {
   }
 }
 
-/* Markdown content styles */
+/* Story body: one comfortable measure, so a long read never stretches across
+   the whole column. */
 .prose-content {
-  @apply max-w-none;
+  @apply max-w-[42rem] text-[1.0625rem];
 }
 
 .prose-content h1 {
@@ -140,7 +141,7 @@ body {
 }
 
 .prose-content p {
-  @apply my-4 text-[var(--color-text-muted)] leading-relaxed;
+  @apply my-5 text-[var(--color-text-muted)] leading-[1.8];
 }
 
 .prose-content a {

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
-import { ArrowLeft, Calendar, Eye, Heart, MessageSquare, Bookmark, Share2, Tag, Sparkles, Loader2, UserPlus } from 'lucide-react'
+import { Calendar, ChevronRight, Clock, Eye, Heart, MessageSquare, Bookmark, Share2, Sparkles, Loader2, UserPlus } from 'lucide-react'
 import type { Article, Comment } from '../../types'
 import { publicAPI, articleAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
@@ -12,7 +12,8 @@ import EmptyState from '../../components/common/EmptyState'
 import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
 import { cn } from '../../utils/cn'
-import { useSeo } from '../../utils/useSeo'
+import { useSeo, absoluteSiteUrl } from '../../utils/useSeo'
+import { sanitizeHtml } from '../../utils/sanitizeHtml'
 import { requestSignIn } from '../../utils/signInPrompt'
 import { useArticleViewTracking } from '../../utils/viewTracking'
 import { useArticleBookmark, useArticleLike, useAuthorFollow, useVisiblePoll } from '../../utils/engagementStore'
@@ -25,8 +26,8 @@ function storyCategory(article: Article | null) {
   return typeof article.category === 'object' && article.category !== null ? article.category : null
 }
 
-// Stories are typed as plain text, so they have to be broken into paragraphs
-// here; only the older records that already carry markup go through as HTML.
+// Stories are typed as plain text in a textarea, so every line break the writer
+// made is a paragraph; only the older records that carry markup go through as HTML.
 const HTML_MARKUP = /<\/?(p|h[1-6]|ul|ol|li|blockquote|figure|figcaption|img|a|em|strong|b|i|br|div|span)\b/i
 
 function looksLikeHtml(content: string) {
@@ -35,7 +36,7 @@ function looksLikeHtml(content: string) {
 
 function splitParagraphs(content: string) {
   return String(content || '')
-    .split(/\n\s*\n/)
+    .split(/\n+/)
     .map((block) => block.trim())
     .filter(Boolean)
 }
@@ -53,6 +54,8 @@ export default function ArticleDetailPage() {
   const followAuthorId = article && typeof article.author === 'object' ? article.author._id : null
   const { following, toggle: toggleFollow } = useAuthorFollow(followAuthorId, article?.followingAuthor)
 
+  const seoCategory = storyCategory(article)
+
   useSeo({
     title: article?.title,
     description: article?.summary,
@@ -60,18 +63,32 @@ export default function ArticleDetailPage() {
     image: article?.featuredImage,
     type: 'article',
     jsonLd: article
-      ? {
-          '@context': 'https://schema.org',
-          '@type': 'NewsArticle',
-          headline: article.title,
-          description: article.summary,
-          image: article.featuredImage ? [article.featuredImage] : undefined,
-          datePublished: article.publishedAt ?? article.createdAt,
-          dateModified: article.updatedAt ?? article.createdAt,
-          inLanguage: article.language ?? 'rw',
-          author: { '@type': 'Person', name: typeof article.author === 'object' ? article.author.fullName : '' },
-          publisher: { '@type': 'Organization', name: "Ijwi ry'ukuri" },
-        }
+      ? [
+          {
+            '@context': 'https://schema.org',
+            '@type': 'NewsArticle',
+            headline: article.title,
+            description: article.summary,
+            image: article.featuredImage ? [article.featuredImage] : undefined,
+            datePublished: article.publishedAt ?? article.createdAt,
+            dateModified: article.updatedAt ?? article.createdAt,
+            inLanguage: article.language ?? 'rw',
+            author: { '@type': 'Person', name: typeof article.author === 'object' ? article.author.fullName : '' },
+            publisher: { '@type': 'Organization', name: "Ijwi ry'ukuri" },
+          },
+          {
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              { name: t('nav.home'), item: absoluteSiteUrl('/') },
+              { name: t('articles.title'), item: absoluteSiteUrl('/articles') },
+              ...(seoCategory
+                ? [{ name: categoryLabel(seoCategory, t), item: absoluteSiteUrl(categoryHref(seoCategory)) }]
+                : []),
+              { name: article.title, item: absoluteSiteUrl(`/article/${slug}`) },
+            ].map((crumb, index) => ({ '@type': 'ListItem', position: index + 1, ...crumb })),
+          },
+        ]
       : undefined,
   })
 
@@ -193,6 +210,13 @@ export default function ArticleDetailPage() {
   const author = typeof article.author === 'object' ? article.author : null
   const category = typeof article.category === 'object' ? article.category : null
   const readingTime = Number(article.readingTime || 1)
+  const publishedDate = article.publishedAt || article.createdAt
+  // Only worth a second line when the story really changed after it went out.
+  const storyUpdated = Boolean(
+    article.updatedAt &&
+    publishedDate &&
+    new Date(article.updatedAt).getTime() - new Date(publishedDate).getTime() > 24 * 60 * 60 * 1000,
+  )
 
   const formatDate = (dateStr: string | undefined) => {
     if (!dateStr) return t('articles.unknownDate')
@@ -211,24 +235,31 @@ export default function ArticleDetailPage() {
   return (
     <div className="mx-auto max-w-4xl lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,270px)_minmax(0,1fr)] lg:items-start lg:gap-10">
       <article className="space-y-8 lg:col-start-2 lg:row-start-1">
-      <Link
-        to="/articles"
-        className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white font-semibold text-base hover:bg-brand-700 transition-colors shadow-lg"
-      >
-        <ArrowLeft className="h-5 w-5" />
-        {t('articles.back')}
-      </Link>
+      <nav aria-label={t('articles.breadcrumb')} className="text-sm text-gray-500 dark:text-gray-400">
+        <ol className="flex flex-wrap items-center gap-1.5">
+          <li>
+            <Link to="/" className="transition-colors hover:text-brand-600 dark:hover:text-brand-400">{t('nav.home')}</Link>
+          </li>
+          <li aria-hidden="true"><ChevronRight className="h-3.5 w-3.5" /></li>
+          <li>
+            <Link to="/articles" className="transition-colors hover:text-brand-600 dark:hover:text-brand-400">{t('articles.title')}</Link>
+          </li>
+          {category && (
+            <>
+              <li aria-hidden="true"><ChevronRight className="h-3.5 w-3.5" /></li>
+              <li>
+                <Link to={categoryHref(category)} className="transition-colors hover:text-brand-600 dark:hover:text-brand-400">
+                  {categoryLabel(category, t)}
+                </Link>
+              </li>
+            </>
+          )}
+          <li aria-hidden="true"><ChevronRight className="h-3.5 w-3.5" /></li>
+          <li aria-current="page" className="max-w-[34ch] truncate font-medium text-gray-900 dark:text-white">{article.title}</li>
+        </ol>
+      </nav>
 
       <header className="space-y-4">
-        {category && (
-          <Link
-            to={categoryHref(category)}
-            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300"
-          >
-            <Tag className="h-3.5 w-3.5" aria-hidden="true" />
-            {categoryLabel(category, t)}
-          </Link>
-        )}
         <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white leading-tight">{article.title}</h1>
         {article.aiGenerated && (
           <p className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
@@ -253,8 +284,16 @@ export default function ArticleDetailPage() {
           )}
           <span className="flex items-center gap-1">
             <Calendar className="h-4 w-4" aria-hidden="true" />
-            {article.publishedAt ? formatDate(article.publishedAt) : formatRelative(article.createdAt)}
+            <time dateTime={publishedDate}>
+              {publishedDate ? formatDate(publishedDate) : formatRelative(article.createdAt)}
+            </time>
           </span>
+          {storyUpdated && (
+            <span className="flex items-center gap-1">
+              <Clock className="h-4 w-4" aria-hidden="true" />
+              {t('articles.updated')} {formatDate(article.updatedAt)}
+            </span>
+          )}
           <span className="flex items-center gap-1">
             <Eye className="h-4 w-4" aria-hidden="true" />
             {(article.views || 0).toLocaleString()} {t('articles.views')}
@@ -276,13 +315,13 @@ export default function ArticleDetailPage() {
         </div>
       )}
 
-      <div className="prose prose-lg dark:prose-invert max-w-none space-y-6">
-        <div className="text-gray-600 dark:text-gray-400 text-lg leading-relaxed mb-8 border-l-4 border-brand-500 pl-6 italic">
+      <div className="space-y-7">
+        <p className="max-w-[42rem] text-lg sm:text-xl leading-relaxed font-medium text-gray-700 dark:text-gray-300">
           {article.summary}
-        </div>
+        </p>
         <div ref={contentRef} className="prose-content">
           {looksLikeHtml(article.content) ? (
-            <div dangerouslySetInnerHTML={{ __html: article.content }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.content) }} />
           ) : (
             splitParagraphs(article.content).map((block, index) => <p key={index}>{block}</p>)
           )}

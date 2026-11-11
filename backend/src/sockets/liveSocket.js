@@ -10,7 +10,7 @@ function socketUser(socket) {
   try {
     const token = socket.handshake.auth && socket.handshake.auth.token;
     if (!token) return null;
-    const decoded = jwt.verify(token, env.JWT_SECRET);
+    const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: [env.JWT_ALGORITHM] });
     return { id: String(decoded.id) };
   } catch {
     return null;

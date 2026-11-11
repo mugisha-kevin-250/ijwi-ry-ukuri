@@ -3,11 +3,23 @@ const path = require('path');
 
 dotenv.config();
 
+// A token signed with a key that is in a public repository is not a token at
+// all, so production refuses to boot without its own secret. Local development
+// keeps a fixed key so a fresh clone runs with no .env file.
+const DEV_JWT_SECRET = 'dev-secret-key';
+const isProduction = process.env.NODE_ENV === 'production';
+const jwtSecret = process.env.JWT_SECRET || (isProduction ? '' : DEV_JWT_SECRET);
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET is required in production - set it to a key only this server knows.');
+}
+
 module.exports = {
   PORT: process.env.PORT || 5000,
   MONGODB_URI: process.env.MONGODB_URI || '',
-  JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-key',
-  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret',
+  JWT_SECRET: jwtSecret,
+  // Tokens are always HMAC-signed with this one algorithm; a verify call that
+  // accepts whatever the token claims lets a forged algorithm through.
+  JWT_ALGORITHM: 'HS256',
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
   // Render wipes the source tree on each deploy, so uploads must live on a mounted disk.
   UPLOAD_DIR: process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'),

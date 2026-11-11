@@ -11,7 +11,7 @@ async function protect(req, res, next) {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const decoded = jwt.verify(token, env.JWT_SECRET);
+    const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: [env.JWT_ALGORITHM] });
     const user = await User.findById(decoded.id).select('+password');
 
     if (!user || !user.isActive) {
@@ -39,7 +39,7 @@ async function optionalAuth(req, res, next) {
     const authHeader = req.headers.authorization || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (!token) return next();
-    const decoded = jwt.verify(token, env.JWT_SECRET);
+    const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: [env.JWT_ALGORITHM] });
     const user = await User.findById(decoded.id);
     if (user && user.isActive) req.user = user;
     next();

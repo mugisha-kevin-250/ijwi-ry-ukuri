@@ -25,6 +25,7 @@ import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import AdminWritersPage from '../pages/admin/AdminWritersPage'
 import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import AdminArticlesPage from '../pages/admin/AdminArticlesPage'
+import AdminAiWriterPage from '../pages/admin/AdminAiWriterPage'
 import AdminPayoutsPage from '../pages/admin/AdminPayoutsPage'
 import AdminSettingsPage from '../pages/admin/AdminSettingsPage'
 
@@ -104,6 +105,7 @@ export const router = createBrowserRouter([
           { path: 'writers', element: <RequireAdmin><AdminWritersPage /></RequireAdmin> },
           { path: 'users/:id', element: <RequireAdmin><AdminUserDetailPage /></RequireAdmin> },
           { path: 'articles', element: <RequireAdmin><AdminArticlesPage /></RequireAdmin> },
+          { path: 'ai-writer', element: <RequireAdmin><AdminAiWriterPage /></RequireAdmin> },
           { path: 'payouts', element: <RequireAdmin><AdminPayoutsPage /></RequireAdmin> },
           { path: 'settings', element: <RequireAdmin><AdminSettingsPage /></RequireAdmin> },
         ],

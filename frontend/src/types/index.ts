@@ -43,6 +43,8 @@ export interface Article {
   commentsCount: number
   readingTime: number
   language?: string
+  /** Only the admin portal produces these, and readers must see the label. */
+  aiGenerated?: boolean
   country?: string
   publishedAt?: string
   createdAt: string

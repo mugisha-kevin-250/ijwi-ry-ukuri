@@ -9,6 +9,8 @@ const PlatformSetting = require('../models/PlatformSetting');
 const { protect, authorize } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
+const geminiService = require('../services/geminiService');
+const generateSlug = require('../utils/generateSlug');
 
 const router = express.Router();
 
@@ -405,6 +407,110 @@ router.post('/settings', async (req, res, next) => {
       { upsert: true, new: true }
     );
     return successResponse(res, 201, 'Setting saved', { setting });
+  } catch (error) {
+    next(error);
+  }
+});
+
+async function isAutoPublishOn() {
+  const setting = await PlatformSetting.findOne({ key: 'aiAutoPublish' });
+  return setting?.value === true || setting?.value === 'true';
+}
+
+// Gemini only ever answers the admin portal, and nothing it writes reaches a
+// reader without either this switch or the admin's own click.
+router.get('/ai/status', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    return successResponse(res, 200, 'AI writer status', {
+      configured: geminiService.isConfigured(),
+      model: geminiService.activeModel(),
+      autoPublish: await isAutoPublishOn()
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/ai/auto-publish', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const enabled = req.body?.enabled === true || req.body?.enabled === 'true';
+    await PlatformSetting.findOneAndUpdate(
+      { key: 'aiAutoPublish' },
+      { $set: { key: 'aiAutoPublish', value: enabled, description: 'Publish AI-drafted stories without waiting for the admin' } },
+      { upsert: true, new: true }
+    );
+    return successResponse(res, 200, enabled ? 'AI stories will publish at once' : 'AI stories will wait for review', { autoPublish: enabled });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Produces a story and hands it back for the admin to read. Nothing is stored
+// or published here - that only happens through POST /ai/articles below.
+router.post('/ai/generate', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const { topic, angle, audience } = req.body || {};
+    if (!topic || String(topic).trim().length < 6) {
+      return errorResponse(res, 400, 'Describe the topic the story should cover');
+    }
+    const story = await geminiService.writeStory({
+      topic: String(topic).trim().slice(0, 500),
+      angle: angle ? String(angle).trim().slice(0, 500) : '',
+      audience: audience === 'world' ? 'world' : 'rwanda'
+    });
+    return successResponse(res, 200, 'Draft ready for review', story);
+  } catch (error) {
+    if (error.code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, error.message);
+    if (String(error.code || '').startsWith('AI_')) return errorResponse(res, 502, error.message);
+    next(error);
+  }
+});
+
+router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const { title, summary, content, category, tags = [], featuredImage, publish } = req.body || {};
+    if (!title || !summary || !content || !category) {
+      return errorResponse(res, 400, 'Title, summary, content and category are required');
+    }
+    const categoryDoc = await Category.findById(category);
+    if (!categoryDoc) return errorResponse(res, 404, 'Category not found');
+
+    const wantsPublish = publish === undefined ? await isAutoPublishOn() : publish === true || publish === 'true';
+    const publishedAt = wantsPublish ? new Date() : undefined;
+    // A title in one of the languages we cannot slug leaves an empty address,
+    // which would break the story route.
+    const baseSlug = generateSlug(String(title)) || 'inkuru';
+    const article = await Article.create({
+      title: String(title).trim(),
+      slug: `${baseSlug}-${Date.now()}`,
+      summary: String(summary).trim(),
+      content: String(content).trim(),
+      featuredImage,
+      author: req.user._id,
+      category: categoryDoc._id,
+      tags: Array.isArray(tags) ? tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean).slice(0, 6) : [],
+      language: 'en',
+      aiGenerated: true,
+      status: wantsPublish ? 'published' : 'draft',
+      publishedAt
+    });
+
+    if (wantsPublish) await notificationService.announceArticlePublished(article);
+
+    return successResponse(res, 201, wantsPublish ? 'Story published' : 'Story saved as a draft', { article });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const articles = await Article.find({ aiGenerated: true })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .populate('category', 'name slug');
+    const pendingReview = await Article.countDocuments({ aiGenerated: true, status: 'draft' });
+    return successResponse(res, 200, 'AI stories', { articles, pendingReview });
   } catch (error) {
     next(error);
   }

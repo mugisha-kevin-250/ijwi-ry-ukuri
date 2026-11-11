@@ -228,6 +228,22 @@ export interface WriterRequestsResult {
   pendingCount: number
 }
 
+export interface AiWriterStatus {
+  configured: boolean
+  model: string
+  autoPublish: boolean
+}
+
+export interface AiDraftResult {
+  title: string
+  summary: string
+  paragraphs: string[]
+  content: string
+  tags: string[]
+  model: string
+  generatedAt: string
+}
+
 export const adminAPI = {
   getDashboard: () =>
     apiClient.get<AdminDashboardStats>('/admin/dashboard'),
@@ -283,6 +299,35 @@ export const adminAPI = {
 
   deleteArticle: (id: string) =>
     apiClient.delete(`/admin/articles/${id}`),
+
+  getAiStatus: async (): Promise<AiWriterStatus> => {
+    const response = await apiClient.get('/admin/ai/status')
+    const payload = response.data.data as Partial<AiWriterStatus> | undefined
+    return {
+      configured: Boolean(payload?.configured),
+      model: payload?.model || '',
+      autoPublish: payload?.autoPublish === true
+    }
+  },
+
+  setAiAutoPublish: (enabled: boolean) =>
+    apiClient.put('/admin/ai/auto-publish', { enabled }),
+
+  generateAiDraft: async (input: { topic: string; angle?: string; audience?: 'rwanda' | 'world' }): Promise<AiDraftResult> => {
+    const response = await apiClient.post('/admin/ai/generate', input)
+    return response.data.data as AiDraftResult
+  },
+
+  saveAiArticle: async (payload: { title: string; summary: string; content: string; category: string; tags: string[]; publish: boolean }): Promise<Article> => {
+    const response = await apiClient.post('/admin/ai/articles', payload)
+    return (response.data.data as { article: Article }).article
+  },
+
+  getAiArticles: async (): Promise<{ articles: Article[]; pendingReview: number }> => {
+    const response = await apiClient.get('/admin/ai/articles')
+    const payload = response.data.data as { articles?: Article[]; pendingReview?: number }
+    return { articles: payload?.articles ?? [], pendingReview: payload?.pendingReview ?? 0 }
+  },
 }
 
 export const pushAPI = {  getStatus: () =>

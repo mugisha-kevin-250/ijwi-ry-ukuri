@@ -22,6 +22,9 @@ const articleSchema = new mongoose.Schema({
   commentsCount: { type: Number, default: 0 },
   readingTime: { type: Number, default: 1 },
   language: { type: String, default: 'en' },
+  // Readers have to be able to see which stories a machine wrote, and only the
+  // admin portal can produce them.
+  aiGenerated: { type: Boolean, default: false },
   country: String,
   publishedAt: Date,
   createdAt: { type: Date, default: Date.now },

@@ -25,6 +25,11 @@ module.exports = {
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
   VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'https://ijwi-ry--ukuri.web.app',
+  // Gemini writes the admin's story drafts. The key only ever lives here, on
+  // the server; without it the AI writer stays hidden in the admin portal.
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+  GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-flash-lite-latest',
+  GEMINI_TIMEOUT_MS: Number(process.env.GEMINI_TIMEOUT_MS || 90000),
   RATE_PER_1000_VIEWS: Number(process.env.RATE_PER_1000_VIEWS || 5000),
   MINIMUM_PAYOUT: Number(process.env.MINIMUM_PAYOUT || 10000),
   NODE_ENV: process.env.NODE_ENV || 'development'

@@ -1,4 +1,7 @@
 process.env.MONGODB_URI = '';
+// Every machine has to get the same answer from the AI writer, so the tests run
+// without a Gemini key and prove what the routes do when none is configured.
+process.env.GEMINI_API_KEY = '';
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -10,6 +13,7 @@ const { connectDatabase, disconnectDatabase } = require('../src/config/database'
 
 let token;
 let editorToken;
+let ownerToken;
 let articleId;
 let articleSlug;
 let payoutId;
@@ -374,4 +378,105 @@ test('live broadcast is admin only, one at a time, and open to all viewers', asy
   assert.equal(ended.status, 200);
   const nothing = await request(app).get('/api/live/current');
   assert.equal(nothing.body.data.live, null);
+});
+
+test('only the site owner reaches the AI writer', async () => {
+  const forbidden = await request(app)
+    .get('/api/admin/ai/status')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(forbidden.status, 403);
+});
+
+test('the AI writer reports what the server can do', async () => {
+  await request(app)
+    .post('/api/auth/register')
+    .send({ fullName: 'Owner Of AI', username: 'aiowner', email: 'aiowner@example.com', password: 'Password123!' });
+  const owner = await mongoose.connection.collection('users').findOne({ email: 'aiowner@example.com' });
+  await mongoose.connection.collection('users').updateOne({ _id: owner._id }, { $set: { role: 'ADMIN' } });
+  ownerToken = jwtTokenFor(owner._id, 'ADMIN');
+
+  const status = await request(app)
+    .get('/api/admin/ai/status')
+    .set('Authorization', `Bearer ${ownerToken}`);
+
+  assert.equal(status.status, 200);
+  assert.equal(status.body.data.configured, false);
+  assert.equal(status.body.data.autoPublish, false);
+
+  const tooShort = await request(app)
+    .post('/api/admin/ai/generate')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ topic: 'ai' });
+  assert.equal(tooShort.status, 400);
+
+  const noKey = await request(app)
+    .post('/api/admin/ai/generate')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ topic: 'Rwanda coffee exports' });
+  assert.equal(noKey.status, 503);
+});
+
+test('a reviewed AI story waits as a draft even in auto mode', async () => {
+  const toggled = await request(app)
+    .put('/api/admin/ai/auto-publish')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ enabled: true });
+  assert.equal(toggled.status, 200);
+  assert.equal(toggled.body.data.autoPublish, true);
+
+  const categories = await request(app).get('/api/categories');
+  const categoryId = categories.body.data.categories[0]._id;
+
+  const drafted = await request(app)
+    .post('/api/admin/ai/articles')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({
+      title: 'Reviewed AI Story',
+      summary: 'The admin read this one before anyone else.',
+      content: 'First paragraph.\n\nSecond paragraph.',
+      category: categoryId,
+      tags: ['AI', 'Test'],
+      publish: false
+    });
+
+  assert.equal(drafted.status, 201);
+  assert.equal(drafted.body.data.article.status, 'draft');
+  assert.equal(drafted.body.data.article.aiGenerated, true);
+  assert.ok(drafted.body.data.article.slug.startsWith('reviewed-ai-story-'));
+
+  const visible = await request(app).get('/api/articles');
+  const titles = visible.body.data.articles.map((item) => item.title);
+  assert.ok(!titles.includes('Reviewed AI Story'), 'a draft AI story is not served to readers');
+
+  const listed = await request(app)
+    .get('/api/admin/ai/articles')
+    .set('Authorization', `Bearer ${ownerToken}`);
+  assert.equal(listed.status, 200);
+  assert.ok(listed.body.data.articles.some((item) => item.title === 'Reviewed AI Story'));
+  assert.ok(listed.body.data.pendingReview >= 1);
+});
+
+test('the owner publishing an AI story sends it live', async () => {
+  const categories = await request(app).get('/api/categories');
+  const categoryId = categories.body.data.categories[0]._id;
+
+  const published = await request(app)
+    .post('/api/admin/ai/articles')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({
+      title: 'Published AI Story',
+      summary: 'The owner clicked publish.',
+      content: 'One paragraph of a published story.',
+      category: categoryId,
+      publish: true
+    });
+
+  assert.equal(published.status, 201);
+  assert.equal(published.body.data.article.status, 'published');
+  assert.ok(published.body.data.article.publishedAt);
+
+  const visible = await request(app).get('/api/articles');
+  const titles = visible.body.data.articles.map((item) => item.title);
+  assert.ok(titles.includes('Published AI Story'));
 });

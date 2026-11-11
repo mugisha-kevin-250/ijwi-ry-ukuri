@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
-import { ArrowLeft, Calendar, Eye, Heart, MessageSquare, Bookmark, Share2, Tag, Loader2, UserPlus } from 'lucide-react'
+import { ArrowLeft, Calendar, Eye, Heart, MessageSquare, Bookmark, Share2, Tag, Sparkles, Loader2, UserPlus } from 'lucide-react'
 import type { Article, Comment } from '../../types'
 import { publicAPI, articleAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
@@ -23,6 +23,21 @@ import { categoryGroupSlug, categoryHref, categoryLabel } from '../../data/categ
 function storyCategory(article: Article | null) {
   if (!article) return null
   return typeof article.category === 'object' && article.category !== null ? article.category : null
+}
+
+// Stories are typed as plain text, so they have to be broken into paragraphs
+// here; only the older records that already carry markup go through as HTML.
+const HTML_MARKUP = /<\/?(p|h[1-6]|ul|ol|li|blockquote|figure|figcaption|img|a|em|strong|b|i|br|div|span)\b/i
+
+function looksLikeHtml(content: string) {
+  return HTML_MARKUP.test(content || '')
+}
+
+function splitParagraphs(content: string) {
+  return String(content || '')
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
 }
 
 export default function ArticleDetailPage() {
@@ -215,6 +230,12 @@ export default function ArticleDetailPage() {
           </Link>
         )}
         <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white leading-tight">{article.title}</h1>
+        {article.aiGenerated && (
+          <p className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('articles.aiLabel')}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
           {author && (
             <Link
@@ -259,11 +280,13 @@ export default function ArticleDetailPage() {
         <div className="text-gray-600 dark:text-gray-400 text-lg leading-relaxed mb-8 border-l-4 border-brand-500 pl-6 italic">
           {article.summary}
         </div>
-        <div
-          ref={contentRef}
-          className="prose-content"
-          dangerouslySetInnerHTML={{ __html: article.content }}
-        />
+        <div ref={contentRef} className="prose-content">
+          {looksLikeHtml(article.content) ? (
+            <div dangerouslySetInnerHTML={{ __html: article.content }} />
+          ) : (
+            splitParagraphs(article.content).map((block, index) => <p key={index}>{block}</p>)
+          )}
+        </div>
       </div>
 
       {article.tags && article.tags.length > 0 && (

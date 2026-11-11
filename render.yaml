@@ -146,6 +146,16 @@ services:
       - key: VAPID_SUBJECT
         value: https://ijwi-ry--ukuri.web.app
 
+      # --- Gemini (admin AI story writer) ---
+      # Paste the key from https://aistudio.google.com/apikey into the dashboard.
+      # Without it the AI writer explains that it is not connected and writes
+      # nothing, so the rest of the site is unaffected.
+      - key: GEMINI_API_KEY
+        sync: false
+        value: REPLACE_WITH_GEMINI_API_KEY
+      - key: GEMINI_MODEL
+        value: gemini-flash-lite-latest
+
     # Persistent disk — ONLY available on paid plans. To use it: set
     # `plan: starter` above, uncomment this block, and change UPLOAD_DIR to
     # /var/uploads (the mount path must be absolute and outside the source dir).

@@ -25,7 +25,7 @@ declare global {
 // The stories are written in Kinyarwanda, so that is the language Google has to
 // translate from; declaring English made it re-translate our own Kinyarwanda
 // labels into machine Kinyarwanda. The widget itself stays off-screen because
-// the language menu is what switches it.
+// the language menu is what switches it (see I18nProvider).
 let translatorStarted = false
 window.googleTranslateElementInit = () => {
   if (translatorStarted || !window.google || !window.google.translate || !window.google.translate.TranslateElement) return

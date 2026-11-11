@@ -1192,21 +1192,37 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined)
 
-const SUPPORTED_LANGUAGES: Lang[] = ['rw', 'en', 'fr', 'sw']
+const SUPPORTED_LANGUAGES: Lang[] = ['en', 'rw', 'fr', 'sw']
+
+// English is the site default now. Older visits stored the previous 'rw' default
+// on every load, so a stored value only counts as a choice when the reader
+// actually picked a language from the switcher.
+const LANGUAGE_CHOICE_KEY = 'language-chosen'
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => {
     const stored = localStorage.getItem('lang') as Lang | null
-    return stored && SUPPORTED_LANGUAGES.includes(stored) ? stored : 'rw'
+    const chose = localStorage.getItem(LANGUAGE_CHOICE_KEY) === 'true'
+    if (chose && stored && SUPPORTED_LANGUAGES.includes(stored)) return stored
+    return 'en'
   })
 
   useEffect(() => {
     localStorage.setItem('lang', lang)
-    document.documentElement.lang = lang === 'rw' ? 'rw' : lang
+    document.documentElement.lang = lang
   }, [lang])
 
   const setLang = (l: Lang) => {
-    if (SUPPORTED_LANGUAGES.includes(l)) setLangState(l)
+    if (!SUPPORTED_LANGUAGES.includes(l)) return
+    localStorage.setItem(LANGUAGE_CHOICE_KEY, 'true')
+    setLangState(l)
+    // The labels above switch on their own, but the stories themselves are filed
+    // in Kinyarwanda, so the off-screen Google widget has to follow the menu.
+    const combo = document.querySelector<HTMLSelectElement>('#google_translate_element select.goog-te-combo')
+    if (combo) {
+      combo.value = l === 'rw' ? '' : l
+      combo.dispatchEvent(new Event('change'))
+    }
   }
 
   const t = (key: string) => translations[lang]?.[key] || translations.en[key] || key

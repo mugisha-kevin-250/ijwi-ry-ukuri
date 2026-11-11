@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
 const SITE_URL = 'https://ijwi-ry--ukuri.web.app'
-const DEFAULT_TITLE = "Ijwi ry'ukuri | Inkuru nyayo, abantu nyabo"
+const DEFAULT_TITLE = "Ijwi ry'ukuri | Real news, real people, stories shaping Rwanda"
 const DEFAULT_DESCRIPTION = "Ijwi ry'ukuri - Real news, real people, and stories shaping Rwanda."
 const DEFAULT_IMAGE = `${SITE_URL}/icons/icon-512x512.png`
 

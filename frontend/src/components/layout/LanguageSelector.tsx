@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Globe, Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { useI18n, type Lang } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
+import LanguageFlag from './LanguageFlag'
 
 const LANGUAGE_NAMES: Record<Lang, { name: string; nativeName: string }> = {
   rw: { name: 'Kinyarwanda', nativeName: 'Ikinyarwanda' },
@@ -45,7 +46,7 @@ export default function LanguageSelector({ className, buttonClassName }: Languag
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
-        <Globe className="h-4 w-4" aria-hidden="true" />
+        <LanguageFlag lang={lang} />
         <span>{current.nativeName}</span>
         <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} aria-hidden="true" />
       </button>
@@ -71,8 +72,11 @@ export default function LanguageSelector({ className, buttonClassName }: Languag
                 role="option"
                 aria-selected={lang === code}
               >
-                {LANGUAGE_NAMES[code].nativeName}
-                {lang === code && <Check className="h-4 w-4" aria-hidden="true" />}
+                <span className="flex items-center gap-2.5">
+                  <LanguageFlag lang={code} />
+                  {LANGUAGE_NAMES[code].nativeName}
+                </span>
+                {lang === code && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
               </button>
             </li>
           ))}

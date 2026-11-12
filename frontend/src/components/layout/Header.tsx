@@ -85,7 +85,9 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const query = searchValue.trim()
-    if (query) navigate(`/search?search=${encodeURIComponent(query)}`)
+    // The results page reads ?q=, so a search that arrives here has to use the
+    // same name or the page opens with an empty box and no results.
+    if (query) navigate(`/search?q=${encodeURIComponent(query)}`)
   }
 
   useEffect(() => {

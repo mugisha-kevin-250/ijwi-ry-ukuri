@@ -11,6 +11,7 @@ const { successResponse, errorResponse } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
 const generateSlug = require('../utils/generateSlug');
+const escapeRegex = require('../utils/escapeRegex');
 const { plainText, cleanText, cleanTags, safeMediaUrl } = require('../utils/textFields');
 
 const router = express.Router();
@@ -87,10 +88,6 @@ router.get('/dashboard', async (req, res, next) => {
     next(error);
   }
 });
-
-function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 router.get('/users', async (req, res, next) => {
   try {

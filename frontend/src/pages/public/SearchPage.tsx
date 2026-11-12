@@ -9,7 +9,9 @@ import Avatar from '../../components/common/Avatar'
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams()
-  const query = params.get('q') || ''
+  // A story's tag chips link here with ?tag=, the header box with ?q=; reading
+  // either keeps both entrances on the same results page.
+  const query = params.get('q') || params.get('tag') || ''
   const [term, setTerm] = useState(query)
   const [results, setResults] = useState<any>({ articles: [], authors: [] })
   const [loading, setLoading] = useState(false)

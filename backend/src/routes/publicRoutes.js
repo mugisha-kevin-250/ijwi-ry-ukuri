@@ -7,18 +7,23 @@ const { withEngagement } = require('../services/engagementService');
 const { categoryIdsFor } = require('../utils/categoryGroups');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 
+const escapeRegex = require('../utils/escapeRegex');
+
 const router = express.Router();
+
+// A reader can type anything into the search box, and every field of a story is
+// scanned with it, so the term is treated as plain text and kept short.
+function searchPattern(value) {
+  return new RegExp(escapeRegex(String(value).slice(0, 80)), 'i');
+}
 
 router.get('/articles', optionalAuth, async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search, category, sort = 'latest' } = req.query;
     const filter = { status: 'published' };
     if (search) {
-      filter.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { summary: { $regex: search, $options: 'i' } },
-        { tags: { $in: [new RegExp(search, 'i')] } }
-      ];
+      const pattern = searchPattern(search);
+      filter.$or = [{ title: pattern }, { summary: pattern }, { tags: { $in: [pattern] } }];
     }
     // A section asked for by slug has to include the copies stored under the
     // other language, otherwise "Sports" and "Amasport" each hide half the news.
@@ -141,7 +146,7 @@ router.get('/categories/:slug', optionalAuth, async (req, res, next) => {
 router.get('/search', async (req, res, next) => {
   try {
     const { search = '', page = 1, limit = 20 } = req.query;
-    const regex = new RegExp(search, 'i');
+    const regex = searchPattern(search);
     const articles = await Article.find({
       status: 'published',
       $or: [

@@ -196,6 +196,24 @@ test('writer publishes their own article', async () => {
   assert.equal(response.status, 200);
 });
 
+test('search reads what a reader typed as plain words', async () => {
+  const found = await request(app).get('/api/search?search=First');
+  assert.equal(found.status, 200);
+  assert.ok(found.body.data.articles.some((item) => item.title === 'My First Story'));
+
+  // Typed straight into a RegExp, "(" threw and the reader got a 500 instead of
+  // an empty result list; a stray "+" used to match the whole archive.
+  for (const term of ['(', 'a+', '[a-z]*']) {
+    const response = await request(app).get(`/api/search?search=${encodeURIComponent(term)}`);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.data.articles.length, 0, `"${term}" was treated as a pattern`);
+  }
+
+  const list = await request(app).get(`/api/articles?search=${encodeURIComponent('(Story')}`);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.data.articles.length, 0);
+});
+
 test('article approval and publish', async () => {
   const adminUser = await request(app).post('/api/auth/register').send({ fullName: 'Admin User', username: 'admin1', email: 'admin@example.com', password: 'Password123!' });
   const admin = await mongoose.connection.collection('users').findOne({ email: 'admin@example.com' });

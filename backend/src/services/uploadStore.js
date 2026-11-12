@@ -30,11 +30,12 @@ async function save({ buffer, filename, mimetype, user }) {
     uploadedBy: user ?? null
   });
 
-  try {
-    fs.writeFileSync(path.join(env.UPLOAD_DIR, filename), buffer);
-  } catch {
-    // The disk is a cache; Atlas already holds the durable copy.
-  }
+  // The disk is only a cache and Atlas already holds the durable copy, so the
+  // mirror is left running in the background: a slow or read-only filesystem
+  // must not add its latency to the upload the writer is waiting for.
+  fs.promises
+    .writeFile(path.join(env.UPLOAD_DIR, filename), buffer)
+    .catch(() => {});
 
   return `/uploads/${filename}`;
 }

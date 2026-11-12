@@ -37,15 +37,39 @@
   `NewsArticle` JSON-LD (`frontend/src/utils/useSeo.ts`), and the Search Console
   verification `<meta name="google-site-verification">` in `frontend/index.html`
   (never remove that tag or ownership is lost).
+- Publisher pages readers and reviewers ask for: `/about`, `/contact`,
+  `/editorial-policy`, `/corrections`, `/advertising`, `/privacy`, `/terms`, each its
+  own page under `frontend/src/pages/public/`, all in the footer and in
+  `sitemap-pages.xml`. Their wording describes what this site really does; where a fact
+  depends on the owner (the contact address), the page says so instead of inventing one.
+- Analytics and advertising, off until configured: `frontend/src/utils/analytics.ts`
+  loads GA4 only when `VITE_GA_MEASUREMENT_ID` is in the build and reports `page_view`
+  per route plus share, copy_link and search — no names, emails or story drafts travel.
+  `frontend/src/utils/adsense.ts` and `frontend/src/components/ads/AdSlot.tsx` reserve
+  layout-stable slots and fetch nothing without `VITE_ADSENSE_CLIENT`, and `ads.txt` is
+  generated from `VITE_ADSENSE_PUB_ID`.
+- Gemini story writer, admin-only: `POST /api/admin/ai/generate` and
+  `/api/admin/ai/articles` behind `authorize('ADMIN')`, a server-side kill switch in
+  Admin -> AI Writer, and a review gate — a generated story is saved as a `draft` and
+  only reaches readers when the admin publishes it, even with auto-publish on. The key
+  never leaves the server (`GEMINI_API_KEY`), and the calls are capped per client IP.
+- English is the default language, with Kinyarwanda, French and Kiswahili selectable
+  from the flag menu in the header (`frontend/src/context/I18nContext.tsx`).
+- Abuse limits and clean storage: rate limits on sign-in, uploads and the AI writer,
+  all text through `backend/src/utils/textFields.js` before it is stored, and a
+  `Content-Security-Policy` header on every hosted response. See "Security settings".
 
 ### Regenerating PWA + SEO assets
 ```
 cd frontend
 npm run icons       # Logo.png -> icons/ + favicons (needs jimp, a devDependency)
-npm run sitemap     # live API -> public/sitemap.xml (also runs automatically in prebuild)
+npm run sitemap     # live API -> public/sitemap*.xml (also runs automatically in prebuild)
+npm run ads-txt     # VITE_ADSENSE_PUB_ID -> public/ads.txt (also runs in prebuild)
 ```
-`npm run build` regenerates the sitemap first, so publishing new stories only needs a
-rebuild + redeploy to grow the sitemap.
+`npm run build` regenerates both first, so publishing new stories only needs a
+rebuild + redeploy to grow the sitemaps. With no AdSense publisher id the `ads-txt`
+script writes no file, which is what you want: an `ads.txt` with a placeholder record
+is a policy problem, not a missing feature.
 
 ## Migration and pre-existing setup
 - Local content migrated into Atlas (`backend/scripts/migrate-local-to-atlas.js`), and the
@@ -110,6 +134,43 @@ feature until the key is in.
 | Render env | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `.env.render`, generated with `npx web-push generate-vapid-keys` | `GET /api/push/status` -> `enabled: false`, the alerts switches fall back to a "not switched on yet" note, `/api/push/broadcast` answers 503. |
 | Render env | `GOOGLE_CLIENT_ID` | `423361172120-8m17rtkmh91qc5b3r9o3qc3s5c2tvh9f.apps.googleusercontent.com` — Google Cloud -> Google Auth Platform -> Credentials -> OAuth client ID (Web application). Its **Authorized JavaScript origins** are `https://ijwi-ry--ukuri.web.app` and `http://localhost:5173`. The *client secret* is not used by this flow; never paste it anywhere. | `POST /api/auth/google` -> 503 "Google sign-in is not configured on this server". |
 | `frontend/.env.production` (then rebuild) | `VITE_GOOGLE_CLIENT_ID` | the same Client ID, the public half — already set and deployed | the "Continue with Google" button is not rendered at all. |
+| Render env | `GEMINI_API_KEY` | Google AI Studio -> API keys. **The key used earlier in this project appeared in a chat log, so create a new one and retire that.** `GEMINI_MODEL` (default `gemini-flash-lite-latest`) and `GEMINI_TIMEOUT_MS` are optional. | Admin -> AI Writer says the writer is not configured and hides the form; the `POST /api/admin/ai/*` endpoints answer 503. |
+| `frontend/.env.production` (then rebuild) | `VITE_GA_MEASUREMENT_ID` | Google Analytics -> Admin -> Property details -> Measurement ID (`G-XXXXXXXXXX`). | No Google script is fetched and nothing at all is reported — the site behaves exactly as it did before analytics existed. |
+| `frontend/.env.production` (then rebuild) | `VITE_ADSENSE_CLIENT`, `VITE_ADSENSE_PUB_ID`, `VITE_ADSENSE_SLOT_*` | AdSense -> By ad unit. The two ids are the same publisher number with different prefixes. | No ad script, empty ad boxes are never rendered, and `npm run ads-txt` writes no `ads.txt` file for Google to fetch. |
+| `frontend/.env.production` (then rebuild) | `VITE_CONTACT_EMAIL` | the address the newsroom actually reads. | `/contact`, `/corrections`, `/advertising`, `/terms` and the footer tell readers to comment under a story instead of printing an address that does not exist. |
+| `frontend/.env.production` (then rebuild) | `VITE_TURN_URLS`, `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL` | a TURN service (the free public relays are shut down). | Live video falls back to the slow JPEG relay through Render, and a viewer on a symmetric-NAT mobile network may get nothing. |
+
+Anything that lives in `.env.production` is inlined into the published bundle, so it is
+public by design: only ids meant to be public go there, and each one needs
+`npm run build` before it takes effect.
+
+## Security settings that are now part of the running site
+
+- **JWT.** `JWT_SECRET` must be set in production or the API refuses to start; the
+  default `dev-secret-key` is rejected on purpose. Tokens are always verified with
+  `HS256` (`config/env.js` -> `JWT_ALGORITHM`), so a token that claims another algorithm
+  is refused instead of being checked with it. `JWT_REFRESH_SECRET` no longer exists in
+  the code — delete it from the Render dashboard when you are in there.
+- **Rate limits** (`app.js`, keyed on the client IP from `X-Forwarded-For` because
+  Render and Firebase both proxy): sign-in, registration and password-reset routes get
+  20 attempts per 15 minutes (successful calls are not counted), `/api/upload` 60 per
+  hour, and the two Gemini endpoints 10 per hour. Over the limit answers 429 with a
+  readable sentence.
+- **Stored text.** Every write path runs through `backend/src/utils/textFields.js`:
+  control/zero-width/bidi characters are stripped, lengths are capped, markup is removed
+  from titles, names and chat, `javascript:` and friends never reach the database, and
+  an empty-after-cleaning title, summary or body is a 400 instead of a blank story.
+  Article bodies keep their markup because the reader renders them through
+  `frontend/src/utils/sanitizeHtml.ts`.
+- **Error responses.** The handler logs `METHOD /path: message` (the stack only outside
+  production) and never serialises a whole error object to the client.
+- **Content-Security-Policy** ships as a Firebase Hosting response header for `/**`
+  (`frontend/firebase.json`). It is the reason `pagead2.googlesyndication.com`,
+  `www.googletagmanager.com`, `accounts.google.com` and the Google Translate origins are
+  listed; **adding any other third-party script means adding its origin there first**, or
+  the browser blocks it and the feature looks broken with no server-side error.
+- `helmet` sets the rest of the protective headers, uploads are size- and type-checked,
+  and `/api-docs` is disabled in production.
 
 ## Uploaded images live in the database
 
@@ -152,12 +213,23 @@ ID at build time.
 ## Getting indexed (Search Console)
 1. Property `https://ijwi-ry--ukuri.web.app/` — verify with the **HTML tag** method. The
    tag is already in `frontend/index.html`; click Verify once the deploy is live.
-2. Submit `https://ijwi-ry--ukuri.web.app/sitemap.xml` under Pages -> Sitemaps.
-3. Use URL Inspection -> Request indexing for the home page and a few articles. Google
+2. Submit `https://ijwi-ry--ukuri.web.app/sitemap.xml` under Pages -> Sitemaps. It is an
+   index of `sitemap-pages.xml` (home, articles, categories, search, the publisher
+   pages), `sitemap-articles.xml`, `sitemap-categories.xml`, `sitemap-writers.xml` and
+   `sitemap-news.xml`, so one submission covers everything; drafts, the admin portal and
+   signed-in routes are never in it.
+3. Submit `https://ijwi-ry--ukuri.web.app/sitemap-news.xml` too (or rely on it being
+   listed in the index). Google News only honours the last two days of entries, which is
+   why the generator keeps that file short.
+4. Use URL Inspection -> Request indexing for the home page and a few articles. Google
    needs the pages to return content, which they do after JS runs; "soft 404" reports
    usually mean the article list was empty when crawled.
-4. After each publishing session, `npm run build` regenerates the sitemap from the live
-   API and the deploy pushes it.
+5. After each publishing session, `npm run build` regenerates the sitemaps from the live
+   API and the deploy pushes them.
+6. `https://ijwi-ry--ukuri.web.app/feed.xml` is the RSS 2.0 feed (also linked from every
+   page as `<link rel="alternate">`). Register the site in Google Publisher Center with
+   this feed and the news sitemap as its sources; that, not the sitemap alone, is what
+   gets a site into Top Stories.
 
 ## Live video (admin -> everyone)
 `POST /api/live` starts a broadcast (ADMIN only, one at a time) and `/live` on the frontend
@@ -206,12 +278,25 @@ page must reference the same `assets/index-*.js` hash (`curl -s https://ijwi-ry-
 vs the browser's Network tab). A mismatch means the old service worker is still in charge.
 
 ## Admin account
-`bootstrapAdmin()` in `backend/src/utils/seedUsers.js` promotes/creates the ADMIN once,
-guarded by the `adminBootstrapped` PlatformSetting flag, so later credential edits are not
-reverted on restart.
-- Login at `/mugishaimekevin/login`: username `kevin`, password `eeettt123`.
-- **That password is a test credential and is committed in the seed.** Change it from
-  Admin -> Settings (it also rotates the JWT), and treat `eeettt123` as public.
+`bootstrapAdmin()` in `backend/src/utils/seedUsers.js` creates or promotes the first
+ADMIN once, guarded by the `adminBootstrapped` PlatformSetting flag, so later credential
+edits are not reverted on restart.
+
+- It only acts when `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_EMAIL` and
+  `BOOTSTRAP_ADMIN_PASSWORD` are in the environment. Set them in Render, deploy once,
+  sign in at `/mugishaimekevin/login`, change the password in Admin -> Settings, then
+  delete the three variables. Without them production logs a warning and starts anyway
+  with no new admin — which is correct for a database that already has one.
+- **No admin password is committed any more.** The old seed created `kevin` with a
+  fixed password and printed it in this file, so that credential is public: rotate it,
+  and assume anyone who read the repository knew it.
+- The four role accounts (`kevin`, `editor`, `writer`, `reader` at `@example.com`) are
+  created only when `NODE_ENV` is not `production`, each with a freshly generated
+  password printed once in the boot log. On a brand-new local database, read that line
+  to know what to sign in with; an existing database keeps whatever you set there.
+  **Check Admin -> Users on Atlas**: if `editor`/`writer`/`reader` exist from an earlier
+  deploy, they were created with the committed passwords and must have their passwords
+  changed or be deactivated.
 
 ## Notes
 - Free plan limits: the instance sleeps when idle (first request pays a ~30-60s cold

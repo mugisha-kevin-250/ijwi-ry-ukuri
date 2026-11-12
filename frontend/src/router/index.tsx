@@ -22,6 +22,8 @@ import CorrectionsPage from '../pages/public/CorrectionsPage'
 import EditorialPolicyPage from '../pages/public/EditorialPolicyPage'
 import PrivacyPage from '../pages/public/PrivacyPage'
 import TermsPage from '../pages/public/TermsPage'
+import CookiePolicyPage from '../pages/public/CookiePolicyPage'
+import DisclaimerPage from '../pages/public/DisclaimerPage'
 import UserProfilePage from '../pages/public/UserProfilePage'
 import WriterDashboardPage from '../pages/writer/WriterDashboardPage'
 import WriterArticlesPage from '../pages/writer/WriterArticlesPage'
@@ -103,6 +105,8 @@ export const router = createBrowserRouter([
           { path: 'corrections', element: <CorrectionsPage /> },
           { path: 'advertising', element: <AdvertisingPage /> },
           { path: 'privacy', element: <PrivacyPage /> },
+          { path: 'cookies', element: <CookiePolicyPage /> },
+          { path: 'disclaimer', element: <DisclaimerPage /> },
           { path: 'terms', element: <TermsPage /> },
           { path: 'user/:id', element: <UserProfilePage /> },
         ],

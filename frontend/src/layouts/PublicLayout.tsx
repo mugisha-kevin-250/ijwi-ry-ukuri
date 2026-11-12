@@ -3,6 +3,7 @@ import Header from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
 import BottomNav from '../components/layout/BottomNav'
 import SignInPrompt from '../components/auth/SignInPrompt'
+import ConsentBanner from '../components/consent/ConsentBanner'
 
 export default function PublicLayout() {
   return (
@@ -14,6 +15,7 @@ export default function PublicLayout() {
       <Footer />
       <BottomNav />
       <SignInPrompt />
+      <ConsentBanner />
     </div>
   )
 }

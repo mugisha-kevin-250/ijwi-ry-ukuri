@@ -24,25 +24,27 @@ branch protection/CI, which needs owner GitHub settings.
 ## Release 1 — Publisher foundation & AdSense readiness (Critical) — IN PROGRESS
 
 Status 2026-11-12: already in place — About, Contact, Privacy, Terms, Editorial Policy,
-Corrections and Advertising pages with footer links; `robots.txt`, a sitemap index
-(pages/articles/categories/writers/news), `sitemap-news.xml`, `feed.xml`, per-route
-canonical/OG/`NewsArticle` JSON-LD and the Search Console tag; config-driven `ads.txt`,
-three reserved ad placements and a GA4 wrapper that reports nothing until an id is built in.
-Open: custom domain and canonical redirects (owner), cookie policy and disclaimer, a real
+Corrections, Advertising, Cookie Policy and Disclaimer pages with footer links; `robots.txt`,
+a sitemap index (pages/articles/categories/writers/news), `sitemap-news.xml`, `feed.xml`,
+per-route canonical/OG/`NewsArticle` JSON-LD and the Search Console tag; config-driven
+`ads.txt`, three reserved ad placements and a GA4 wrapper that reports nothing until an id
+is built in; and a consent banner that holds both Google scripts back until the reader
+answers yes, with the answer changeable on `/cookies`.
+Open: custom domain and canonical redirects (owner), a real
 contact form, authors directory and Person data, image credits/captions and correction and
-sponsored labels, consent gating for GA4 and ads, `sitemap-images.xml`, and any measured
+sponsored labels, `sitemap-images.xml`, server-side proof of the consent answer, and any measured
 Core Web Vitals numbers.
 
 | Work item | Existing | Required changes | Dependencies | DB impact | Security/privacy impact | Acceptance criteria | Testing |
 |---|---|---|---|---|---|---|---|
 | Canonical domain/redirects | Firebase default domain live | Support custom domain, canonical host redirects, URL preservation, sitemap/meta/canonical alignment | Owner-registered domain, DNS, hosting config | None | TLS/redirect correctness | Single canonical domain; old URLs resolve/redirect correctly | Manual + crawl checks |
-| Required publisher pages | Missing | About, Contact, Privacy, Terms, Editorial Policy, Corrections Policy, Advertising/Sponsored Policy, Cookie Policy, Disclaimer, Authors/Journalists directory with real/placeholder-configured content | Owner-supplied facts | Minimal (settings/content storage optional) | Legal/privacy accuracy depends on owner | Pages routable, linked in footer/header, accessible | Responsive + content review |
+| Required publisher pages | 9 of the list live | Only the Authors/Journalists directory is left; the pages exist, are routed, translated and in the footer | Owner author data | Minimal (settings/content storage optional) | Legal/privacy accuracy depends on owner | Pages routable, linked in footer/header, accessible | Content review, responsive check |
 | Contact form | Missing | Validated form + backend endpoint, spam protection, success/failure states, privacy notice | Mail/service choice (optional) | Optional message storage | Abuse/spam, PII handling | Submissions validated server-side; no private leakage | API + UI tests |
 | Author model/pages | Partial (User/WriterProfile) | Dedicated/public author records (or extend safely), author pages listing articles, Person schema, verified identities only | Owner author data | Additive fields/collection | Avoid fabricated identities | Author pages render real profiles/articles | Data migration-safe tests |
 | Article template/SEO | Partial | Complete bylines/dates/image credits/captions/corrections label/sponsored label/related/share/bookmark, dynamic meta/OG/JSON-LD (NewsArticle/Org/Person/Breadcrumb), canonical | Frontend + API shape | Additive fields (e.g. image credit/caption/correction refs) | Accurate metadata only | Valid structured data; accessible layout | Rich Results/Schema validators, responsive |
 | SEO endpoints | Partial | `/robots.txt` correctness, `/sitemap.xml` index, `/sitemap-news.xml`, `/sitemap-images.xml` (if useful), `/feed.xml` RSS; exclude drafts/private/noindex; stable canonicals | API/public URL data | None | No private URL leakage | Valid XML/RSS; Search Console-ready | Fetch/validate endpoints |
-| ads.txt & AdSense prep | Missing | Config-driven `/ads.txt` (real record only), ad-slot config model/UI placeholders, consent-aware loading, layout-safe placements | Owner AdSense publisher ID/approval | Additive settings | Policy/compliance | Correct file when configured; no fake ads | Manual verification |
-| GA4 & consent | Missing | Configurable GA4, SPA page_view/events (no PII), consent gating per region/choice, privacy settings link | Owner GA4 ID, legal/CMP decision | Optional consent records | High (privacy) | Events fire once with consent; opt-out honored | Event/debug validation |
+| ads.txt & AdSense prep | Built, waiting on the owner id | `/ads.txt` from `VITE_ADSENSE_PUB_ID`, three consent-aware placements that render nothing without their own slot id | Owner AdSense publisher ID/approval | None | Policy/compliance | Correct file when configured; no fake ads | Verified in the browser with test ids |
+| GA4 & consent | Built, waiting on the owner id | `page_view` per route plus share/copy_link/search events, no PII; a banner that asks once, keeps the answer in `localStorage`, and refuses to fetch either Google script until yes; `/cookies` shows the answer and resets it | Owner GA4 ID | None yet — the answer is browser-local, so there is no consent record to audit | High (privacy); default is refusal | Events fire once with consent; opt-out honored and reversible without support | Verified in the browser with a test id: decline loaded no script, accept reported the current path |
 | Performance/CWV | Unknown | Image optimization, lazy-load, dimensions, font/code splitting/caching review; measure LCP/INP/CLS | Tooling/time | None | None | Meets reasonable targets; no regressions | PageSpeed Insights/field data |
 | Search Console | Doc/process | Verification support (meta/DNS per hosting), sitemap submit instructions, monitoring checklist | Owner access | None | None | Documented and testable steps | Owner-verified externally |
 

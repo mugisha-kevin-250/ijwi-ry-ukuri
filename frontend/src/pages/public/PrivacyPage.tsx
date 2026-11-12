@@ -68,8 +68,13 @@ export default function PrivacyPage() {
         <p>
           If the owner turns on Google Analytics or Google AdSense advertising, those services set their own cookies
           and read your device information for measurement and ad choice. Both stay off until the site is configured
-          with the ids for them, and nothing about a reader is ever sent to a writer or advertiser as a named record -
-          they see totals only.
+          with the ids for them, and even then neither loads until you answer yes to the question at the bottom of your
+          first page - refusing costs you nothing but the analytics. Nothing about a reader is ever sent to a writer or
+          advertiser as a named record; they see totals only.{' '}
+          <Link to="/cookies" className="font-medium text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">
+            The cookie policy
+          </Link>{' '}
+          lists every entry this site keeps in your browser, and that page is where you change your answer.
         </p>
       </Section>
 

@@ -3,7 +3,8 @@
 //   sitemap.xml              index  -> lists every file below
 //   sitemap-pages.xml        static pages (home, all articles, categories, live,
 //                            search, and the newsroom pages: about, contact,
-//                            editorial-policy, corrections, advertising, privacy, terms)
+//                            editorial-policy, corrections, advertising, privacy,
+//                            cookies, disclaimer, terms)
 //   sitemap-articles.xml     one URL per published story
 //   sitemap-categories.xml   one URL per category feed
 //   sitemap-writers.xml      one URL per author profile page
@@ -233,6 +234,8 @@ async function main() {
     'corrections',
     'advertising',
     'privacy',
+    'cookies',
+    'disclaimer',
     'terms',
   ]
 

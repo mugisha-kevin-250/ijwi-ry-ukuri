@@ -61,11 +61,20 @@ a minute; the article page paints an ad frame. Until step 3 the AdSense and
 Analytics reviews will fail, because Google crawls the live domain, not your
 laptop.
 
+**One thing to expect on the first visit after this.** Putting either id in the build
+also turns on the consent banner at the bottom of every page, and neither Google
+script loads for a reader who declines — so Realtime stays empty until you press
+Accept yourself, and an ad frame only appears in a browser that has accepted. That is
+the behaviour Google's own EU consent policy asks for; if you would rather run a full
+consent management platform, say so before applying for AdSense, because switching
+later means replacing this banner.
+
 ## 4. Apply for the AdSense account — after 3, not before
 
 Google rejects news sites that lack the pages an advertiser expects. Those pages
 are now real and live-tied (/advertising, /corrections, /editorial-policy,
-/about, /contact, /privacy, /terms), and `ads.txt` is generated from the id.
+/about, /contact, /privacy, /cookies, /disclaimer, /terms), and `ads.txt` is
+generated from the id.
 Submitting an application before the id is deployed wastes the review.
 
 ## 5. Publish the newsroom contact address

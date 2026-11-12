@@ -12,6 +12,8 @@ export const PUBLISHER_PAGES = [
   { href: '/corrections', key: 'publisher.corrections' },
   { href: '/advertising', key: 'publisher.advertising' },
   { href: '/privacy', key: 'publisher.privacy' },
+  { href: '/cookies', key: 'publisher.cookies' },
+  { href: '/disclaimer', key: 'publisher.disclaimer' },
   { href: '/terms', key: 'publisher.terms' },
 ] as const
 

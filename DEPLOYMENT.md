@@ -38,16 +38,22 @@
   verification `<meta name="google-site-verification">` in `frontend/index.html`
   (never remove that tag or ownership is lost).
 - Publisher pages readers and reviewers ask for: `/about`, `/contact`,
-  `/editorial-policy`, `/corrections`, `/advertising`, `/privacy`, `/terms`, each its
+  `/editorial-policy`, `/corrections`, `/advertising`, `/privacy`, `/cookies`,
+  `/disclaimer`, `/terms`, each its
   own page under `frontend/src/pages/public/`, all in the footer and in
   `sitemap-pages.xml`. Their wording describes what this site really does; where a fact
   depends on the owner (the contact address), the page says so instead of inventing one.
-- Analytics and advertising, off until configured: `frontend/src/utils/analytics.ts`
-  loads GA4 only when `VITE_GA_MEASUREMENT_ID` is in the build and reports `page_view`
+- Analytics and advertising, off until configured and then off until the reader agrees:
+  `frontend/src/utils/analytics.ts` loads GA4 only when `VITE_GA_MEASUREMENT_ID` is in
+  the build and reports `page_view`
   per route plus share, copy_link and search — no names, emails or story drafts travel.
   `frontend/src/utils/adsense.ts` and `frontend/src/components/ads/AdSlot.tsx` reserve
   layout-stable slots and fetch nothing without `VITE_ADSENSE_CLIENT`, and `ads.txt` is
-  generated from `VITE_ADSENSE_PUB_ID`.
+  generated from `VITE_ADSENSE_PUB_ID`. On top of that, `frontend/src/utils/consent.ts`
+  and `components/consent/ConsentBanner.tsx` ask the reader once, store the answer in
+  that browser under `ijwiryukuri-consent`, and hold both Google scripts back until the
+  answer is yes — so turning on either id also turns on the banner. `/cookies` lists
+  what is stored and lets the reader take the answer back.
 - Gemini story writer, admin-only: `POST /api/admin/ai/generate` and
   `/api/admin/ai/articles` behind `authorize('ADMIN')`, a server-side kill switch in
   Admin -> AI Writer, and a review gate — a generated story is saved as a `draft` and
@@ -135,8 +141,8 @@ feature until the key is in.
 | Render env | `GOOGLE_CLIENT_ID` | `423361172120-8m17rtkmh91qc5b3r9o3qc3s5c2tvh9f.apps.googleusercontent.com` — Google Cloud -> Google Auth Platform -> Credentials -> OAuth client ID (Web application). Its **Authorized JavaScript origins** are `https://ijwi-ry--ukuri.web.app` and `http://localhost:5173`. The *client secret* is not used by this flow; never paste it anywhere. | `POST /api/auth/google` -> 503 "Google sign-in is not configured on this server". |
 | `frontend/.env.production` (then rebuild) | `VITE_GOOGLE_CLIENT_ID` | the same Client ID, the public half — already set and deployed | the "Continue with Google" button is not rendered at all. |
 | Render env | `GEMINI_API_KEY` | Google AI Studio -> API keys. **The key used earlier in this project appeared in a chat log, so create a new one and retire that.** `GEMINI_MODEL` (default `gemini-flash-lite-latest`) and `GEMINI_TIMEOUT_MS` are optional. | Admin -> AI Writer says the writer is not configured and hides the form; the `POST /api/admin/ai/*` endpoints answer 503. |
-| `frontend/.env.production` (then rebuild) | `VITE_GA_MEASUREMENT_ID` | Google Analytics -> Admin -> Property details -> Measurement ID (`G-XXXXXXXXXX`). | No Google script is fetched and nothing at all is reported — the site behaves exactly as it did before analytics existed. |
-| `frontend/.env.production` (then rebuild) | `VITE_ADSENSE_CLIENT`, `VITE_ADSENSE_PUB_ID`, `VITE_ADSENSE_SLOT_*` | AdSense -> By ad unit. The two ids are the same publisher number with different prefixes. | No ad script, empty ad boxes are never rendered, and `npm run ads-txt` writes no `ads.txt` file for Google to fetch. |
+| `frontend/.env.production` (then rebuild) | `VITE_GA_MEASUREMENT_ID` | Google Analytics -> Admin -> Property details -> Measurement ID (`G-XXXXXXXXXX`). | No Google script is fetched and nothing at all is reported — the site behaves exactly as it did before analytics existed. Adding it also makes the consent banner appear, and GA only loads for readers who answer yes. |
+| `frontend/.env.production` (then rebuild) | `VITE_ADSENSE_CLIENT`, `VITE_ADSENSE_PUB_ID`, `VITE_ADSENSE_SLOT_*` | AdSense -> By ad unit. The two ids are the same publisher number with different prefixes. | No ad script, empty ad boxes are never rendered, and `npm run ads-txt` writes no `ads.txt` file for Google to fetch. A placement only shows once it has its own `VITE_ADSENSE_SLOT_<NAME>` value, and only for readers who answered yes. |
 | `frontend/.env.production` (then rebuild) | `VITE_CONTACT_EMAIL` | the address the newsroom actually reads. | `/contact`, `/corrections`, `/advertising`, `/terms` and the footer tell readers to comment under a story instead of printing an address that does not exist. |
 | `frontend/.env.production` (then rebuild) | `VITE_TURN_URLS`, `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL` | a TURN service (the free public relays are shut down). | Live video falls back to the slow JPEG relay through Render, and a viewer on a symmetric-NAT mobile network may get nothing. |
 

@@ -26,27 +26,32 @@ Live topology: Firebase Hosting serves the SPA at
 | AI writer | Admin-only Gemini draft + save, per-IP call cap, server-side auto-publish switch that still requires a review step | `services/geminiService.js`, `pages/admin/AdminAiWriterPage.tsx` |
 | Live video | One broadcast at a time, Socket.IO signalling, WebRTC with a JPEG relay fallback when no TURN is configured | `sockets/liveSocket.js`, `utils/liveMedia.ts` |
 | Publishing/SEO | `robots.txt`, sitemap index with pages/articles/categories/writers/news children, RSS `feed.xml`, per-route canonical + OG + `NewsArticle` JSON-LD, Search Console tag | `frontend/public/`, `utils/useSeo.ts`, `scripts/generate-sitemap.mjs` |
-| Monetisation plumbing | `ads.txt` generator, three reserved ad placements, GA4 wrapper that reports nothing until configured | `scripts/generate-ads-txt.mjs`, `components/ads/AdSlot.tsx`, `utils/analytics.ts` |
+| Monetisation plumbing | `ads.txt` generator, three reserved ad placements, GA4 wrapper, and both of them held behind a reader's answer to the consent question | `scripts/generate-ads-txt.mjs`, `components/ads/AdSlot.tsx`, `utils/analytics.ts`, `utils/consent.ts` |
 | PWA | Manifest, generated icons, offline shell worker, install prompt, Web Push subscriptions | `frontend/public/sw.js`, `components/pwa/` |
-| Publisher pages | About, Contact, Editorial Policy, Corrections, Advertising, Privacy, Terms | `frontend/src/pages/public/` |
+| Publisher pages | About, Contact, Editorial Policy, Corrections, Advertising, Privacy, Cookie Policy, Disclaimer, Terms | `frontend/src/pages/public/` |
 | Abuse limits | Rate limits on auth, password reset, uploads and AI calls, keyed on the real client IP; every stored string cleaned and length-capped; error responses no longer serialise an error object | `app.js`, `utils/textFields.js`, `middleware/errorHandler.js` |
 | Transport security | `helmet` on the API, a `Content-Security-Policy` response header on every hosted file | `app.js`, `frontend/firebase.json` |
-| Tests | 24 backend API tests, all passing | `backend/tests/api.test.js` |
+| Tests | 25 backend API tests, all passing | `backend/tests/api.test.js` |
 
 ## 2. What is missing, by how much it hurts
 
 ### Blocks an AdSense or Google News review
 
-1. **No consent handling.** GA4 and the ad script load whenever their id is set —
-   there is no banner, no stored choice, and `privacy` page promises nothing the
-   code enforces. For EEA readers that is a legal problem before it is a policy one.
+1. **Consent handling — closed 2026-11-12.** GA4 and the ad script now load only
+   after the reader answers yes to a banner (`components/consent/ConsentBanner.tsx`),
+   the answer is remembered in that browser, and the cookie page can take it back.
+   What is still true: the answer lives only in the reader's browser, so there is no
+   server-side proof of consent for an audit, and every reader is asked the same
+   question regardless of where they are.
 2. **No author identity beyond a username.** `/user/<id>` exists, but there is no
    authors directory, no `Person` structured data, no beat or credential, so a
    reviewer cannot see who stands behind a story.
 3. **No contact route that works.** `/contact` prints an address only if
    `VITE_CONTACT_EMAIL` is built in, and there is no form, so a reader with a
    correction has no way to reach the newsroom except the comment box.
-4. **Two required pages absent**: cookie policy and disclaimer.
+4. **Cookie policy and disclaimer — closed 2026-11-12.** `/cookies` and
+   `/disclaimer` exist, are in the footer, the newsroom-page list and the sitemap,
+   and the cookie page names the real storage keys rather than a generic list.
 5. **No custom domain.** Everything is on the Firebase `web.app` origin, which
    AdSense treats as a shared host and Google News as a weak signal. Canonicals,
    sitemaps and feeds are all baked to that origin.

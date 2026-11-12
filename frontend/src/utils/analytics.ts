@@ -1,3 +1,5 @@
+import { monitoringAllowed } from './consent'
+
 const MEASUREMENT_ID = String(import.meta.env.VITE_GA_MEASUREMENT_ID || '').trim()
 
 declare global {
@@ -9,8 +11,10 @@ declare global {
 
 /**
  * Google Analytics stays completely switched off until the owner puts a
- * measurement id in the build environment, so nothing is sent anywhere and no
- * third-party script is loaded for a reader on our own initiative.
+ * measurement id in the build environment, and even then nothing is loaded or
+ * sent until this reader accepts, in the banner on their first visit. Two
+ * separate gates, because a feature the owner turns on is not consent from the
+ * person whose visit is being counted.
  */
 export const analyticsEnabled = Boolean(MEASUREMENT_ID)
 
@@ -34,7 +38,7 @@ function start() {
 }
 
 export function trackPageView(path: string) {
-  if (!analyticsEnabled) return
+  if (!analyticsEnabled || !monitoringAllowed()) return
   start()
   window.gtag?.('event', 'page_view', {
     page_path: path,
@@ -44,7 +48,7 @@ export function trackPageView(path: string) {
 }
 
 export function trackEvent(name: string, params: Record<string, string | number | boolean> = {}) {
-  if (!analyticsEnabled) return
+  if (!analyticsEnabled || !monitoringAllowed()) return
   start()
   window.gtag?.('event', name, params)
 }

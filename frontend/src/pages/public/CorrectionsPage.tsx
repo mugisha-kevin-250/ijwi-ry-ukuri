@@ -7,7 +7,7 @@ import { contactEmail, publisherPagesUpdated } from '../../utils/siteConfig'
 export default function CorrectionsPage() {
   useSeo({
     title: 'Corrections',
-    description: "How Ijwi ry'ukuri fixes a published story, what a correction looks like and how to report an error.",
+    description: "How RADAR fixes a published story, what a correction looks like and how to report an error.",
     path: '/corrections',
   })
 

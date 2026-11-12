@@ -6,7 +6,7 @@ import { publisherPagesUpdated } from '../../utils/siteConfig'
 export default function EditorialPolicyPage() {
   useSeo({
     title: 'Editorial policy',
-    description: "How a story gets approved, what counts as a source, how corrections are made and how machine-written drafts are handled at Ijwi ry'ukuri.",
+    description: "How a story gets approved, what counts as a source, how corrections are made and how machine-written drafts are handled at RADAR.",
     path: '/editorial-policy',
   })
 

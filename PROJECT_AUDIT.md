@@ -1,4 +1,4 @@
-# Project audit — Ijwi ry'Ukuri
+# Project audit — RADAR
 
 Audited 2026-11-12 from the working tree at `main`. Read the code, not the
 previous summaries: every line below is something I opened and checked. This is

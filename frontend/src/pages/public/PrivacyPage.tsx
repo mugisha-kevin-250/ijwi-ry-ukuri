@@ -6,7 +6,7 @@ import { contactEmail, publisherPagesUpdated } from '../../utils/siteConfig'
 export default function PrivacyPage() {
   useSeo({
     title: 'Privacy policy',
-    description: "Exactly what Ijwi ry'ukuri stores about a reader, who else sees it, and how to ask for it to be removed.",
+    description: "Exactly what RADAR stores about a reader, who else sees it, and how to ask for it to be removed.",
     path: '/privacy',
   })
 

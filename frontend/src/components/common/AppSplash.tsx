@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '../../context/I18nContext'
+import RadarLogo from './RadarLogo'
 
 const MIN_VISIBLE_MS = 900
 const MAX_VISIBLE_MS = 6000
@@ -46,15 +47,8 @@ export default function AppSplash() {
         leaving ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      <img
-        src="/icons/icon-192x192.png"
-        alt=""
-        className="h-20 w-20 rounded-2xl object-contain"
-        onError={(event) => {
-          event.currentTarget.src = '/favicon.svg'
-        }}
-      />
-      <p className="text-2xl font-extrabold tracking-tight text-[#1877F2]">Ijwi ry'ukuri</p>
+      <RadarLogo size={84} />
+      <p className="text-2xl font-black uppercase tracking-[0.22em] text-[#062b52]">RADAR</p>
       <p className="max-w-xs text-center text-sm leading-relaxed text-slate-600">{t('splash.welcome')}</p>
       <span className="mt-2 h-1 w-40 overflow-hidden rounded-full bg-blue-100">
         <span className="app-splash-bar block h-full w-1/2 rounded-full bg-[#1877F2]" aria-hidden="true" />

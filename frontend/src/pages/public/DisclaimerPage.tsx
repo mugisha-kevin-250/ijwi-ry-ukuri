@@ -6,7 +6,7 @@ import { contactEmail, publisherPagesUpdated } from '../../utils/siteConfig'
 export default function DisclaimerPage() {
   useSeo({
     title: 'Disclaimer',
-    description: "The limits of what Ijwi ry'ukuri's stories, numbers and translations can be relied on for, stated plainly.",
+    description: "The limits of what RADAR's stories, numbers and translations can be relied on for, stated plainly.",
     path: '/disclaimer',
   })
 

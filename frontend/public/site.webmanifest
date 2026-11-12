@@ -1,7 +1,7 @@
 {
-  "name": "Ijwi ry'ukuri — Real news, real people",
-  "short_name": "Ijwi ry'ukuri",
-  "description": "Real news, real people, and stories shaping Rwanda.",
+  "name": "RADAR — Real news, real people",
+  "short_name": "RADAR",
+  "description": "Real news, real people, and stories shaping Rwanda, Africa and the world.",
   "id": "https://ijwi-ry--ukuri.web.app/",
   "start_url": "/",
   "scope": "/",

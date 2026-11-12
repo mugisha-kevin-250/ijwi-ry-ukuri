@@ -78,7 +78,7 @@ function SlideImage({ article, className = '', eager = false }: { article: Artic
   }
   return (
     <div className={cn(className, 'flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-700 to-cyan-500')} aria-hidden="true">
-      <span className="rounded-full border border-white/40 px-3 py-1 text-xs font-bold tracking-widest text-white/90">Ijwi ry'ukuri</span>
+      <span className="rounded-full border border-white/40 px-3 py-1 text-xs font-bold tracking-widest text-white/90">RADAR</span>
     </div>
   )
 }

@@ -7,7 +7,7 @@ import { contactEmail } from '../../utils/siteConfig'
 export default function AdvertisingPage() {
   useSeo({
     title: 'Advertising',
-    description: "How advertising works on Ijwi ry'ukuri: where ads appear, what we accept and how to buy a campaign.",
+    description: "How advertising works on RADAR: where ads appear, what we accept and how to buy a campaign.",
     path: '/advertising',
   })
 

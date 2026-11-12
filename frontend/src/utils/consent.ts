@@ -9,7 +9,26 @@
  */
 export type ConsentChoice = 'accepted' | 'declined'
 
-const STORAGE_KEY = 'ijwiryukuri-consent'
+const STORAGE_KEY = 'radar-consent'
+const LEGACY_STORAGE_KEY = 'ijwiryukuri-consent'
+
+// The newsroom changed its name, not the readers' minds. An answer given under
+// the old brand still has to be honoured, so the first read copies it across and
+// the old key goes, leaving one honest record of the choice.
+function migrateLegacyChoice() {
+  try {
+    if (localStorage.getItem(STORAGE_KEY) !== null) return
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
+    if (legacy === 'accepted' || legacy === 'declined') {
+      localStorage.setItem(STORAGE_KEY, legacy)
+      localStorage.removeItem(LEGACY_STORAGE_KEY)
+    }
+  } catch {
+    // Nothing readable: the banner asks again, which is the safe outcome.
+  }
+}
+
+migrateLegacyChoice()
 
 // A reader who has never been asked has not agreed to anything, so an unset
 // choice means the same as a refusal. This is the only safe default when the
@@ -51,7 +70,7 @@ export function monitoringAllowed(): boolean {
   return consentChoice() === 'accepted'
 }
 
-const CHANGED = 'ijwi-consent-changed'
+const CHANGED = 'radar-consent-changed'
 
 function announce() {
   window.dispatchEvent(new Event(CHANGED))

@@ -1,4 +1,4 @@
-# Deployment — IJWI R'UKURI (Render + Firebase Hosting + MongoDB Atlas)
+# Deployment — RADAR (Render + Firebase Hosting + MongoDB Atlas)
 
 | Piece | Host | Config |
 | --- | --- | --- |
@@ -58,7 +58,8 @@
   layout-stable slots and fetch nothing without `VITE_ADSENSE_CLIENT`, and `ads.txt` is
   generated from `VITE_ADSENSE_PUB_ID`. On top of that, `frontend/src/utils/consent.ts`
   and `components/consent/ConsentBanner.tsx` ask the reader once, store the answer in
-  that browser under `ijwiryukuri-consent`, and hold both Google scripts back until the
+  that browser under `radar-consent` (an answer given while the site was named
+  `ijwiryukuri-consent` is migrated on the first read), and hold both Google scripts back until the
   answer is yes — so turning on either id also turns on the banner. `/cookies` lists
   what is stored and lets the reader take the answer back.
 - Gemini story writer, admin-only: `POST /api/admin/ai/generate` and

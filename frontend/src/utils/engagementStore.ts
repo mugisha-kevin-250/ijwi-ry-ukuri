@@ -33,7 +33,7 @@ function notify() {
 
 // Every tab of an installed PWA shows the same state the moment one of them
 // changes it, without waiting for a reload.
-const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ijwi-engagement') : null
+const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('radar-engagement') : null
 if (channel) {
   channel.onmessage = (event: MessageEvent<Patch>) => {
     const patch = event.data

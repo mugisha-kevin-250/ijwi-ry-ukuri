@@ -18,8 +18,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SITE_URL = 'https://ijwi-ry--ukuri.web.app'
-const SITE_NAME = "Ijwi ry'ukuri"
-const SITE_DESCRIPTION = 'Rwandan news written by approved writers: politics, business, technology, sports, culture and health.'
+const SITE_NAME = 'RADAR'
+const SITE_DESCRIPTION = 'News written by approved writers: world, politics, business, technology, sports, entertainment and health.'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 function apiBase() {
@@ -145,7 +145,7 @@ function rssFeed(items) {
     <language>en</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
     <docs>https://www.rss.org/rss.xml</docs>
-    <generator>Ijwi ry'ukuri build scripts</generator>
+    <generator>RADAR build scripts</generator>
     <atom:link href="${escape(`${SITE_URL}/feed.xml`)}" rel="self" type="application/rss+xml" />
     <image>
       <url>${escape(`${SITE_URL}/icons/icon-192x192.png`)}</url>

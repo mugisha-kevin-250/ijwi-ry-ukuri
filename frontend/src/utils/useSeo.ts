@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 
 const SITE_URL = 'https://ijwi-ry--ukuri.web.app'
-const DEFAULT_TITLE = "Ijwi ry'ukuri | Real news, real people, stories shaping Rwanda"
-const DEFAULT_DESCRIPTION = "Ijwi ry'ukuri - Real news, real people, and stories shaping Rwanda."
+const DEFAULT_TITLE = 'RADAR | Real news, real people, stories shaping Rwanda and the world'
+const DEFAULT_DESCRIPTION = 'RADAR - Real news, real people, and stories shaping Rwanda, Africa and the world.'
 const DEFAULT_IMAGE = `${SITE_URL}/icons/icon-512x512.png`
 
 function upsertMeta(selector: string, attribute: string, value: string, create: () => HTMLElement) {
@@ -67,7 +67,7 @@ export function useSeo({
   jsonLd,
 }: SeoOptions) {
   const url = absoluteSiteUrl(path)
-  const nextTitle = title ? `${title} | Ijwi ry'ukuri` : DEFAULT_TITLE
+  const nextTitle = title ? `${title} | RADAR` : DEFAULT_TITLE
   const nextDescription = description || DEFAULT_DESCRIPTION
   const nextImage = image || DEFAULT_IMAGE
   const jsonLdText = jsonLd ? JSON.stringify(jsonLd) : ''

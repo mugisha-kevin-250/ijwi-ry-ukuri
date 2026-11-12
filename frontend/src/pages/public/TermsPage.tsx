@@ -6,7 +6,7 @@ import { contactEmail, publisherPagesUpdated } from '../../utils/siteConfig'
 export default function TermsPage() {
   useSeo({
     title: 'Terms of use',
-    description: "What you may do on Ijwi ry'ukuri, what you own when you write or comment here, and when an account gets stopped.",
+    description: "What you may do on RADAR, what you own when you write or comment here, and when an account gets stopped.",
     path: '/terms',
   })
 

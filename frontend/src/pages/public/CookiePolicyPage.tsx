@@ -14,15 +14,15 @@ const BROWSER_STORAGE = [
   { key: 'lang, language-chosen', what: 'The language you picked, so the next page opens in it instead of guessing again.' },
   { key: 'theme', what: 'Whether you asked for the dark version of the site.' },
   { key: 'anon_session_id', what: 'A random string with no relation to you, so one person cannot be counted as a hundred readers. Writers are paid per valid view, and this is what makes the count honest.' },
-  { key: 'ijwiryukuri-consent', what: 'Your answer to the cookie question, if you were asked one. See "Change your choice" below.' },
-  { key: 'ijwiryukuri-newsletter', what: 'The email address you typed into the news-alert box, kept here only until it is sent.' },
+  { key: 'radar-consent', what: 'Your answer to the cookie question, if you were asked one. See "Change your choice" below. If you answered while this site was named Ijwi ry\'ukuri, that answer was moved here rather than asked again.' },
+  { key: 'radar-newsletter', what: 'The email address you typed into the news-alert box, kept here only until it is sent.' },
   { key: 'pwa-install-dismissed-at', what: 'The moment you closed the "add to home screen" invitation, so it leaves you alone for a while.' },
 ]
 
 export default function CookiePolicyPage() {
   useSeo({
     title: 'Cookie policy',
-    description: "Ijwi ry'ukuri sets no cookies of its own. What it does keep in your browser, who else sets one, and how to change your mind.",
+    description: "RADAR sets no cookies of its own. What it does keep in your browser, who else sets one, and how to change your mind.",
     path: '/cookies',
   })
 

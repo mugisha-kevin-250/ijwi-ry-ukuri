@@ -1,4 +1,4 @@
-/* Service worker for the Ijwi ry'ukuri PWA.
+/* Service worker for the RADAR PWA.
  * Cached data is limited to public news reads, so a signed-in user's private
  * responses are never stored on a shared device.
  *
@@ -7,7 +7,7 @@
  * cached shell — bump it here (and only here) or returning readers keep serving
  * the previous bundle forever.
  */
-const VERSION = 'ijwi-v14'
+const VERSION = 'radar-v15'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const PAGE_CACHE = `${VERSION}-pages`
@@ -125,14 +125,14 @@ self.addEventListener('push', (event) => {
     payload = { title: self.location.origin, body: event.data ? event.data.text() : '' }
   }
 
-  const title = payload.title || "Ijwi ry'ukuri"
+  const title = payload.title || 'RADAR'
   event.waitUntil(
     self.registration.showNotification(title, {
       body: payload.body || '',
       icon: '/icons/icon-192x192.png',
       badge: '/icons/icon-192x192.png',
       data: { url: payload.url || '/' },
-      tag: payload.tag || 'ijwi-news',
+      tag: payload.tag || 'radar-news',
     }),
   )
 })

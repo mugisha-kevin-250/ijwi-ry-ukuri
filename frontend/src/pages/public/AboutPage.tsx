@@ -5,23 +5,24 @@ import { useSeo } from '../../utils/useSeo'
 export default function AboutPage() {
   useSeo({
     title: 'About the newsroom',
-    description: "Who writes for Ijwi ry'ukuri, how writers are approved and paid, and what we do with machine-written drafts.",
+    description: "Who writes for RADAR, how writers are approved and paid, and what we do with machine-written drafts.",
     path: '/about',
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'NewsMediaOrganization',
-      name: "Ijwi ry'ukuri",
+      name: "RADAR",
+      alternateName: "Ijwi ry'ukuri",
       url: 'https://ijwi-ry--ukuri.web.app',
       logo: 'https://ijwi-ry--ukuri.web.app/icons/icon-512x512.png',
-      description: 'Rwandan news in Kinyarwanda, English, French and Swahili, written by approved writers.',
-      areaServed: 'RW',
+      description: 'News in Kinyarwanda, English, French and Swahili, written by approved writers.',
+      areaServed: ['RW', 'world'],
       sameAs: ['https://ijwi-ry--ukuri.web.app'],
     },
   })
 
   return (
     <PublisherPage
-      title="About Ijwi ry'ukuri"
+      title="About RADAR"
       intro="An independent Rwandan news site. Stories are written by people whose access was approved by the newsroom, checked before they go out, and open to every reader without a paywall."
     >
       <Section title="What we publish">
@@ -34,6 +35,16 @@ export default function AboutPage() {
           The site reads in Kinyarwanda, English, French and Swahili. Pick a language from the flag in the header;
           the stories themselves keep the language their writer typed them in, and anything that has not been
           written in your language is translated for you as you read.
+        </p>
+      </Section>
+
+      <Section title="Where the name comes from">
+        <p>
+          This newsroom launched as <em>Ijwi ry&apos;ukuri</em> - &quot;the voice of truth&quot; - and the work did not
+          change when the name did: approved writers, checked reporting, corrections in the open. RADAR describes what
+          the newsroom tries to do now that it covers the world as well as Rwanda - keep a sweep going over the places
+          a reader cares about and report what the sweep picks up. The stories, accounts, author pages and links that
+          existed under the old name still work; nothing was reset.
         </p>
       </Section>
 

@@ -7,6 +7,7 @@ import { useI18n } from '../../context/I18nContext'
 import { categoryHref, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 import { PUBLISHER_PAGES } from '../../components/layout/PublisherPage'
 import { contactEmail } from '../../utils/siteConfig'
+import RadarLogo from '../common/RadarLogo'
 
 // The footer is part of the story feed, not a static list: which categories and
 // which headlines it offers changes as the newsroom publishes.
@@ -58,8 +59,8 @@ export default function Footer() {
     <footer translate="no" className="mt-12 bg-[#062b52] text-blue-100">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1.3fr_1fr_1fr_1.1fr] lg:px-8">
         <div>
-          <Link to="/" className="text-xl font-black tracking-tight text-white">
-            Ijwi ry<span className="text-cyan-300">'ukuri</span>
+          <Link to="/" className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-white" aria-label="RADAR Home">
+            <RadarLogo size={28} wordmark onDark />
           </Link>
           <p className="mt-3 max-w-sm text-sm leading-relaxed">{t('footer.tagline')}</p>
           <div className="mt-5 flex flex-wrap gap-2">
@@ -170,7 +171,7 @@ export default function Footer() {
 
       <div className="border-t border-white/15">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-xs sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <p>© {new Date().getFullYear()} Ijwi ry'ukuri. {t('footer.rights')}</p>
+          <p>© {new Date().getFullYear()} RADAR. {t('footer.rights')}</p>
           <div className="flex flex-wrap gap-4">
             <Link to="/about" className="hover:text-white">{t('footer.about')}</Link>
             <Link to="/privacy" className="hover:text-white">{t('publisher.privacy')}</Link>

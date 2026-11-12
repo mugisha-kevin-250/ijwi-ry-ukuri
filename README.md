@@ -1,4 +1,4 @@
-# Ijwi ry'Ukuri — a Rwandan newsroom on the web
+# RADAR — a newsroom on the web, from Rwanda to the world
 
 Readers read, writers write, an editor approves, and the site pays approved
 writers for the views people actually earn by reading. Stories are written here,

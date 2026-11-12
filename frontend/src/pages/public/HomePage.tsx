@@ -27,6 +27,9 @@ import { useArticleLike, useAuthorFollow } from '../../utils/engagementStore'
 import { shareArticle } from '../../utils/shareArticle'
 import { categoryHref, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 
+const NEWSLETTER_KEY = 'radar-newsletter'
+const LEGACY_NEWSLETTER_KEY = 'ijwiryukuri-newsletter'
+
 /**
  * The topic strip names each section in the reader's language and links to the
  * canonical copy of it, because the newsroom stores the same section twice
@@ -55,7 +58,7 @@ function ArticleImage({ article, className = '' }: { article: Article; className
 
   return (
     <div className={`${className} flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-700 to-cyan-500`} aria-hidden="true">
-      <span className="rounded-full border border-white/40 px-3 py-1 text-xs font-bold tracking-widest text-white/90">Ijwi ry'ukuri</span>
+      <span className="rounded-full border border-white/40 px-3 py-1 text-xs font-bold tracking-widest text-white/90">RADAR</span>
     </div>
   )
 }
@@ -276,9 +279,13 @@ export default function HomePage() {
 
   const handleNewsletterSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const saved = JSON.parse(localStorage.getItem('ijwiryukuri-newsletter') || '[]') as string[]
+    // The key changed with the brand, so an address typed under the old name is
+    // still read; it moves across the next time the box is used.
+    const stored = localStorage.getItem(NEWSLETTER_KEY) ?? localStorage.getItem(LEGACY_NEWSLETTER_KEY)
+    const saved = JSON.parse(stored || '[]') as string[]
     if (!saved.includes(newsletterEmail.trim().toLowerCase())) {
-      localStorage.setItem('ijwiryukuri-newsletter', JSON.stringify([...saved, newsletterEmail.trim().toLowerCase()]))
+      localStorage.setItem(NEWSLETTER_KEY, JSON.stringify([...saved, newsletterEmail.trim().toLowerCase()]))
+      localStorage.removeItem(LEGACY_NEWSLETTER_KEY)
     }
     setNewsletterMessage(t('home.emailSaved'))
     setNewsletterEmail('')

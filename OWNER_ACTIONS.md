@@ -103,7 +103,7 @@ Nothing in the last few commits has been pushed to the hosts. A release is:
 ```
 git push                                        # Render redeploys the backend
 cd frontend
-# 1. bump VERSION in public/sw.js (ijwi-v14 -> ijwi-v15) or returning readers
+# 1. bump VERSION in public/sw.js (radar-v15 -> radar-v16) or returning readers
 #    keep the previous bundle forever
 npm run build                                   # regenerates sitemaps + ads.txt, then builds
 npx firebase-tools deploy --only hosting

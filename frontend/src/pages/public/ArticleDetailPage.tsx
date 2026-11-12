@@ -75,7 +75,7 @@ export default function ArticleDetailPage() {
             dateModified: article.updatedAt ?? article.createdAt,
             inLanguage: article.language ?? 'rw',
             author: { '@type': 'Person', name: typeof article.author === 'object' ? article.author.fullName : '' },
-            publisher: { '@type': 'Organization', name: "Ijwi ry'ukuri" },
+            publisher: { '@type': 'Organization', name: "RADAR" },
           },
           {
             '@context': 'https://schema.org',

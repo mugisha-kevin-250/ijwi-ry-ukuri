@@ -4,6 +4,7 @@ import { Menu, X, User, LogOut, LayoutDashboard, Settings, Search } from 'lucide
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../common/Avatar'
+import RadarLogo from '../common/RadarLogo'
 import LanguageSelector from './LanguageSelector'
 import LiveButton from './LiveButton'
 import NotificationsBell from './NotificationsBell'
@@ -107,9 +108,8 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     >
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
         <div className="flex h-16 items-center justify-between gap-4">
-          <Link to="/" className="flex shrink-0 items-center gap-2 text-xl font-extrabold tracking-tight text-[#062b52] dark:text-blue-300" aria-label="Ijwi ry'ukuri Home">
-            <img src="/logo.png" alt="Ijwi ry'ukuri logo" className="h-8 w-8" onError={(e) => { e.currentTarget.src = '/favicon.svg'; }} />
-            <span className="hidden sm:block">Ijwi ry<span className="text-blue-600 dark:text-cyan-300">'ukuri</span></span>
+          <Link to="/" className="flex shrink-0 items-center gap-2 text-xl font-extrabold tracking-tight text-[#062b52] dark:text-blue-300" aria-label="RADAR Home">
+            <RadarLogo size={30} wordmark hideWordmarkOnSmallScreens />
           </Link>
 
           {variant !== 'public' && (

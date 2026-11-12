@@ -79,11 +79,12 @@ Submitting an application before the id is deployed wastes the review.
 
 ## 5. Publish the newsroom contact address
 
-`frontend/.env.production` has no `VITE_CONTACT_EMAIL`, so the Contact,
-Corrections and Advertising pages tell a reader to use the comments under a story
-rather than print an address that does not exist — and the footer's mail link is
-hidden. Set it to an inbox someone actually reads, rebuild, redeploy. A reader
-reporting an error needs a route that is not "leave a comment".
+`/contact` now has a working form: a reader's message is stored and appears in the
+admin inbox at `/mugishaimekevin/messages`, where staff can mark it answered or
+close it. `frontend/.env.production` still has no `VITE_CONTACT_EMAIL`, so the two
+mailto links on the Contact, Corrections and Advertising pages and the footer mail
+link stay hidden until you set it to an inbox someone actually reads. The form is
+the route that works today; the address is the faster one, and it is yours to add.
 
 ## 6. Re-attach the images that are gone for good
 

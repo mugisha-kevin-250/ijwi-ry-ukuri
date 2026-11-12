@@ -1,11 +1,13 @@
 const express = require('express');
 const Category = require('../models/Category');
 const Article = require('../models/Article');
+const ContactMessage = require('../models/ContactMessage');
 const User = require('../models/User');
 const { optionalAuth } = require('../middleware/auth');
 const { withEngagement } = require('../services/engagementService');
 const { categoryIdsFor } = require('../utils/categoryGroups');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
+const { cleanText, plainText } = require('../utils/textFields');
 
 const escapeRegex = require('../utils/escapeRegex');
 
@@ -177,6 +179,38 @@ router.get('/writers/:id', async (req, res, next) => {
     const writer = await User.findById(req.params.id).select('fullName username bio avatar country language');
     const articles = await Article.find({ author: writer?._id, status: 'published' }).sort({ publishedAt: -1 });
     return successResponse(res, 200, 'Writer details', { writer, articles });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const CONTACT_TOPICS = ['correction', 'story-tip', 'advertising', 'writer-access', 'other'];
+// Enough of an address to reply to, not an RFC-compliant parser: a wrong one costs
+// the reader a bounce letter, and a human-shaped check gives a human-shaped error.
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+router.post('/contact', async (req, res, next) => {
+  try {
+    // Bots fill every field they are given; a person never sees this one. The
+    // answer is the same success as a real message, so a crawler cannot learn
+    // which field to leave out and come back working.
+    if (cleanText(req.body.website, { maxLength: 200 })) {
+      return successResponse(res, 201, 'Message received');
+    }
+
+    const name = plainText(req.body.name, { maxLength: 120 });
+    const email = plainText(req.body.email, { maxLength: 200 }).toLowerCase();
+    const message = cleanText(req.body.message, { maxLength: 4000 });
+    const topic = CONTACT_TOPICS.includes(req.body.topic) ? req.body.topic : 'other';
+
+    const problems = [];
+    if (name.length < 2) problems.push('Please tell us who is writing.');
+    if (!EMAIL_SHAPE.test(email)) problems.push('That email address is missing something, so we could not reply to it.');
+    if (message.length < 20) problems.push('Please add a little more detail, so the newsroom has something to work with.');
+    if (problems.length) return errorResponse(res, 400, problems.join(' '));
+
+    await ContactMessage.create({ name, email, topic, message });
+    return successResponse(res, 201, 'Message received');
   } catch (error) {
     next(error);
   }

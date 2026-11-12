@@ -84,6 +84,9 @@ export const publicAPI = {
 
   getWriter: (id: string) =>
     apiClient.get(`/writers/${id}`),
+
+  sendContact: (data: { name: string; email: string; topic: string; message: string; website?: string }) =>
+    apiClient.post('/contact', data),
 }
 
 export const writerAPI = {
@@ -244,6 +247,25 @@ export interface AiDraftResult {
   generatedAt: string
 }
 
+/** One message a reader sent through /contact. */
+export interface ContactMessageRecord {
+  _id: string
+  name: string
+  email: string
+  topic: 'correction' | 'story-tip' | 'advertising' | 'writer-access' | 'other'
+  message: string
+  status: 'open' | 'answered' | 'closed'
+  createdAt: string
+  handledAt?: string | null
+  handledBy?: { fullName?: string; username?: string } | null
+}
+
+export interface ContactInbox {
+  messages: ContactMessageRecord[]
+  total: number
+  openCount: number
+}
+
 export const adminAPI = {
   getDashboard: () =>
     apiClient.get<AdminDashboardStats>('/admin/dashboard'),
@@ -262,6 +284,22 @@ export const adminAPI = {
 
   markPayoutPaid: (id: string) =>
     apiClient.put(`/admin/payouts/${id}/mark-paid`),
+
+  getContactMessages: async (status?: string): Promise<ContactInbox> => {
+    const response = await apiClient.get('/admin/contact-messages', { status })
+    const payload = response.data.data as Partial<ContactInbox> | null
+    return {
+      messages: Array.isArray(payload?.messages) ? payload.messages : [],
+      total: Number(payload?.total ?? 0),
+      openCount: Number(payload?.openCount ?? 0),
+    }
+  },
+
+  setContactMessageStatus: (id: string, status: ContactMessageRecord['status']) =>
+    apiClient.put(`/admin/contact-messages/${id}/status`, { status }),
+
+  deleteContactMessage: (id: string) =>
+    apiClient.delete(`/admin/contact-messages/${id}`),
 
   getSettings: () =>
     apiClient.get('/admin/settings'),

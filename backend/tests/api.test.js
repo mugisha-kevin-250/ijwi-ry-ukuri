@@ -17,6 +17,7 @@ let ownerToken;
 let articleId;
 let articleSlug;
 let payoutId;
+let contactId;
 
 test.before(async () => {
   await connectDatabase();
@@ -552,4 +553,105 @@ test('the owner publishing an AI story sends it live', async () => {
   const visible = await request(app).get('/api/articles');
   const titles = visible.body.data.articles.map((item) => item.title);
   assert.ok(titles.includes('Published AI Story'));
+});
+
+test('a reader reaches the newsroom through the contact form', async () => {
+  const sent = await request(app)
+    .post('/api/contact')
+    .send({
+      name: 'Alice Reader',
+      email: 'alice@example.com',
+      topic: 'correction',
+      message: 'The council budget figure in story 14 is one billion short of the published document.'
+    });
+
+  assert.equal(sent.status, 201);
+  assert.equal(sent.body.success, true);
+
+  const inbox = await request(app)
+    .get('/api/admin/contact-messages')
+    .set('Authorization', `Bearer ${ownerToken}`);
+
+  assert.equal(inbox.status, 200);
+  const mine = inbox.body.data.messages.find((item) => item.email === 'alice@example.com');
+  assert.ok(mine, 'the message the reader sent is in the newsroom inbox');
+  assert.equal(mine.topic, 'correction');
+  assert.equal(mine.status, 'open');
+  assert.ok(inbox.body.data.openCount >= 1);
+  contactId = mine._id;
+
+  const closed = await request(app)
+    .get('/api/admin/contact-messages')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(closed.status, 403);
+});
+
+test('the contact form refuses what a reply would fail on', async () => {
+  const noAddress = await request(app)
+    .post('/api/contact')
+    .send({ name: 'Alice Reader', email: 'not-an-address', topic: 'other', message: 'A long enough message to be worth reading by the newsroom.' });
+  assert.equal(noAddress.status, 400);
+
+  const tooShort = await request(app)
+    .post('/api/contact')
+    .send({ name: 'Alice Reader', email: 'alice@example.com', topic: 'other', message: 'hi' });
+  assert.equal(tooShort.status, 400);
+
+  const noName = await request(app)
+    .post('/api/contact')
+    .send({ email: 'alice@example.com', topic: 'other', message: 'A long enough message to be worth reading by the newsroom.' });
+  assert.equal(noName.status, 400);
+});
+
+test('a bot that fills the hidden field is thanked and stores nothing', async () => {
+  const before = await request(app)
+    .get('/api/admin/contact-messages')
+    .set('Authorization', `Bearer ${ownerToken}`);
+
+  const spider = await request(app)
+    .post('/api/contact')
+    .send({
+      name: 'Cheap Watches',
+      email: 'spam@example.com',
+      topic: 'advertising',
+      message: 'Buy our products today, this is long enough to pass every other check the form makes.',
+      website: 'http://cheap-watches.example.com'
+    });
+
+  // The same answer a real reader gets, so the crawler cannot learn which field gave it away.
+  assert.equal(spider.status, 201);
+
+  const after = await request(app)
+    .get('/api/admin/contact-messages')
+    .set('Authorization', `Bearer ${ownerToken}`);
+
+  assert.equal(after.body.data.total, before.body.data.total);
+  assert.ok(!after.body.data.messages.some((item) => item.email === 'spam@example.com'));
+});
+
+test('staff mark a message answered and only the owner can delete it', async () => {
+  const answered = await request(app)
+    .put(`/api/admin/contact-messages/${contactId}/status`)
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ status: 'answered' });
+
+  assert.equal(answered.status, 200);
+  assert.equal(answered.body.data.message.status, 'answered');
+  assert.ok(answered.body.data.message.handledBy, 'who answered it is recorded');
+
+  const rejected = await request(app)
+    .put(`/api/admin/contact-messages/${contactId}/status`)
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ status: 'filed-under-mattress' });
+  assert.equal(rejected.status, 400);
+
+  const readerDelete = await request(app)
+    .delete(`/api/admin/contact-messages/${contactId}`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(readerDelete.status, 403);
+
+  const ownerDelete = await request(app)
+    .delete(`/api/admin/contact-messages/${contactId}`)
+    .set('Authorization', `Bearer ${ownerToken}`);
+  assert.equal(ownerDelete.status, 200);
 });

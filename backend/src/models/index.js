@@ -5,6 +5,7 @@ module.exports = {
   Article: require('./Article'),
   ArticleView: require('./ArticleView'),
   Comment: require('./Comment'),
+  ContactMessage: require('./ContactMessage'),
   Like: require('./Like'),
   Bookmark: require('./Bookmark'),
   Follow: require('./Follow'),

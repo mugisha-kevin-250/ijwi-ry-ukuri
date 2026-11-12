@@ -31,7 +31,7 @@ Live topology: Firebase Hosting serves the SPA at
 | Publisher pages | About, Contact, Editorial Policy, Corrections, Advertising, Privacy, Cookie Policy, Disclaimer, Terms | `frontend/src/pages/public/` |
 | Abuse limits | Rate limits on auth, password reset, uploads and AI calls, keyed on the real client IP; every stored string cleaned and length-capped; error responses no longer serialise an error object | `app.js`, `utils/textFields.js`, `middleware/errorHandler.js` |
 | Transport security | `helmet` on the API, a `Content-Security-Policy` response header on every hosted file | `app.js`, `frontend/firebase.json` |
-| Tests | 25 backend API tests, all passing | `backend/tests/api.test.js` |
+| Tests | 29 backend API tests, all passing | `backend/tests/api.test.js` |
 
 ## 2. What is missing, by how much it hurts
 
@@ -46,9 +46,11 @@ Live topology: Firebase Hosting serves the SPA at
 2. **No author identity beyond a username.** `/user/<id>` exists, but there is no
    authors directory, no `Person` structured data, no beat or credential, so a
    reviewer cannot see who stands behind a story.
-3. **No contact route that works.** `/contact` prints an address only if
-   `VITE_CONTACT_EMAIL` is built in, and there is no form, so a reader with a
-   correction has no way to reach the newsroom except the comment box.
+3. **No contact route that works — closed 2026-11-12.** `/contact` now carries a
+   validated form (`POST /api/contact`, honeypot + rate limit + server-side checks)
+   that stores into `ContactMessage` and appears in the admin inbox at
+   `/mugishaimekevin/messages`. What still remains: nothing forwards those messages
+   to an email box, so a member of staff has to open the admin inbox to see them.
 4. **Cookie policy and disclaimer — closed 2026-11-12.** `/cookies` and
    `/disclaimer` exist, are in the footer, the newsroom-page list and the sitemap,
    and the cookie page names the real storage keys rather than a generic list.
@@ -82,7 +84,7 @@ Live topology: Firebase Hosting serves the SPA at
 
 ### Engineering hygiene
 
-15. **No frontend tests at all.** `backend/tests/api.test.js` (25 cases) is the only
+15. **No frontend tests at all.** `backend/tests/api.test.js` (29 cases) is the only
     automated check, and it now runs in CI (`Read the code, not the summary` is no longer
     the only defence). There is no test for a single React component, so a page that
     renders wrong reaches readers unnoticed — which is how the header search box shipped

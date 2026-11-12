@@ -4,6 +4,7 @@ const User = require('../models/User');
 const WriterEarning = require('../models/WriterEarning');
 const Payout = require('../models/Payout');
 const Category = require('../models/Category');
+const ContactMessage = require('../models/ContactMessage');
 const WriterProfile = require('../models/WriterProfile');
 const PlatformSetting = require('../models/PlatformSetting');
 const { protect, authorize } = require('../middleware/auth');
@@ -517,6 +518,56 @@ router.get('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       .populate('category', 'name slug');
     const pendingReview = await Article.countDocuments({ aiGenerated: true, status: 'draft' });
     return successResponse(res, 200, 'AI stories', { articles, pendingReview });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The contact form on /contact lands here. Editors see it too: a correction
+// belongs to whoever reads it first, not only to the owner.
+router.get('/contact-messages', async (req, res, next) => {
+  try {
+    const { status, page = 1, limit = 50 } = req.query;
+    const filter = status && ['open', 'answered', 'closed'].includes(status) ? { status } : {};
+    const messages = await ContactMessage.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit))
+      .populate('handledBy', 'fullName username');
+    const total = await ContactMessage.countDocuments(filter);
+    const openCount = await ContactMessage.countDocuments({ status: 'open' });
+    return successResponse(res, 200, 'Messages fetched', { messages, total, openCount, page: Number(page), limit: Number(limit) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/contact-messages/:id/status', async (req, res, next) => {
+  try {
+    const status = plainText(req.body.status, { maxLength: 20 });
+    if (!['open', 'answered', 'closed'].includes(status)) return errorResponse(res, 400, 'That is not a state a message can be in.');
+    const message = await ContactMessage.findById(req.params.id);
+    if (!message) return errorResponse(res, 404, 'Message not found');
+    message.status = status;
+    // Who dealt with it is only worth recording once it leaves the inbox; putting
+    // it back to open should not leave a name against an unanswered question.
+    message.handledBy = status === 'open' ? null : req.user._id;
+    message.handledAt = status === 'open' ? null : new Date();
+    await message.save();
+    return successResponse(res, 200, 'Message updated', { message });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// A reader can ask for what they wrote to us to be removed, and the request form
+// itself holds a personal address, so deletion has to exist rather than be a
+// promise on the privacy page.
+router.delete('/contact-messages/:id', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const message = await ContactMessage.findByIdAndDelete(req.params.id);
+    if (!message) return errorResponse(res, 404, 'Message not found');
+    return successResponse(res, 200, 'Message deleted');
   } catch (error) {
     next(error);
   }

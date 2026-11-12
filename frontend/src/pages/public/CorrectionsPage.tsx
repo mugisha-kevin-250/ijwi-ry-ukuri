@@ -57,8 +57,12 @@ export default function CorrectionsPage() {
           </p>
         ) : (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-[1rem] text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-            There is no published newsroom address yet, so corrections reach us through the comments on the story that
-            is wrong - sign in and say which sentence is wrong and what it should say.
+            There is no published newsroom address yet. The{' '}
+            <Link to="/contact" className="font-medium text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">
+              contact form
+            </Link>{' '}
+            reaches the same people, and the comments under the story that is wrong reach the writer who can fix it
+            there - say which sentence is wrong and what it should say.
           </p>
         )}
         <p>

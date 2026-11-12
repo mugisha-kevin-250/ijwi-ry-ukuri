@@ -46,6 +46,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     { href: '/mugishaimekevin/articles', label: t('nav.admin.news') },
     { href: '/mugishaimekevin/ai-writer', label: t('nav.admin.aiWriter') },
     { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts') },
+    { href: '/mugishaimekevin/messages', label: t('nav.admin.messages') },
     { href: '/categories', label: t('nav.admin.categories') },
     { href: '/mugishaimekevin/settings', label: t('nav.admin.settings') },
   ]

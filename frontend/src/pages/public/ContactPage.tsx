@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Mail } from 'lucide-react'
 import PublisherPage, { Section } from '../../components/layout/PublisherPage'
+import ContactForm from '../../components/forms/ContactForm'
 import { useSeo } from '../../utils/useSeo'
 import { contactEmail } from '../../utils/siteConfig'
 
@@ -34,7 +35,15 @@ export default function ContactPage() {
       title="Contact the newsroom"
       intro="Corrections, story tips, writer applications and advertising questions all reach the same small team. Here is the fastest way for each one."
     >
-      <Section title="Write to us">
+      <Section title="Write to the newsroom">
+        <p>
+          One form, and it reaches the same inbox whoever runs the section you are writing about. Say which story if it
+          is about a story - a correction we cannot trace to a report is a correction nobody can make.
+        </p>
+        <ContactForm />
+      </Section>
+
+      <Section title="Or send an email">
         {contactEmail ? (
           <p className="flex flex-wrap items-center gap-2">
             <Mail className="h-5 w-5 text-brand-600 dark:text-brand-400" aria-hidden="true" />
@@ -48,8 +57,8 @@ export default function ContactPage() {
           </p>
         ) : (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-[1rem] text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-            No newsroom address is published on the site yet. Until one is, the comments under a story are the
-            fastest way to reach the people who run it - sign in and answer the story you are writing about.
+            The newsroom has not published a mailbox on the site yet, which is why the form above exists: it reaches the
+            same people and does not need an address to work. Fill it in and the answer comes back to you by email.
           </p>
         )}
       </Section>

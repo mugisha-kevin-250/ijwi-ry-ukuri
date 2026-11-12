@@ -97,9 +97,11 @@ export default function PrivacyPage() {
             </>
           ) : (
             <>
-              These pages have no newsroom address published yet, so send the request in the comments of a recent
-              story and the owner will see it. The same promises apply: your data can be shown to you, fixed, or
-              deleted.
+              These pages have no newsroom address published yet, so send the request through{' '}
+              <Link to="/contact" className="font-medium text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">
+                the contact form
+              </Link>
+              . The same promises apply: your data can be shown to you, fixed, or deleted.
             </>
           )}
         </p>

@@ -85,6 +85,17 @@ const aiLimiter = rateLimit({
   message: tooMany('The AI writer is limited to 10 stories an hour, please try again later.')
 });
 
+// An open form is the one place on a news site where a stranger can write into the
+// database, so it gets both the honeypot in the page and this ceiling.
+const contactLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('That is more than the newsroom can take from one address in an hour. Please try again later.')
+});
+
 // Password reset asks the server to mail someone, so it is guarded like sign-in.
 for (const path of [
   '/api/auth/login',
@@ -100,6 +111,7 @@ for (const path of [
 app.use('/api/upload', uploadLimiter);
 app.post('/api/admin/ai/generate', aiLimiter);
 app.post('/api/admin/ai/articles', aiLimiter);
+app.post('/api/contact', contactLimiter);
 
 const swaggerOptions = {
   definition: {

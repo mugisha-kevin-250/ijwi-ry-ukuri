@@ -43,6 +43,13 @@
   own page under `frontend/src/pages/public/`, all in the footer and in
   `sitemap-pages.xml`. Their wording describes what this site really does; where a fact
   depends on the owner (the contact address), the page says so instead of inventing one.
+- Reader mail: `POST /api/contact` is the one form a reader can use without an address
+  being configured. The server checks name, email shape and message length, ignores a
+  hidden field a bot would fill, and allows ten messages an hour per client IP before
+  storing the message in `ContactMessage`. Staff read it at
+  `/mugishaimekevin/messages` (open / answered / closed); only the owner can delete a
+  message, which is what makes the privacy page's erasure promise possible. No IP
+  address, user agent or fingerprint is recorded with a message.
 - Analytics and advertising, off until configured and then off until the reader agrees:
   `frontend/src/utils/analytics.ts` loads GA4 only when `VITE_GA_MEASUREMENT_ID` is in
   the build and reports `page_view`

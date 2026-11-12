@@ -37,6 +37,7 @@ import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import AdminArticlesPage from '../pages/admin/AdminArticlesPage'
 import AdminAiWriterPage from '../pages/admin/AdminAiWriterPage'
 import AdminPayoutsPage from '../pages/admin/AdminPayoutsPage'
+import AdminMessagesPage from '../pages/admin/AdminMessagesPage'
 import AdminSettingsPage from '../pages/admin/AdminSettingsPage'
 
 function RequireRole({ children }: { role?: 'WRITER'; children: ReactNode }) {
@@ -136,6 +137,7 @@ export const router = createBrowserRouter([
           { path: 'articles', element: <RequireAdmin><AdminArticlesPage /></RequireAdmin> },
           { path: 'ai-writer', element: <RequireAdmin><AdminAiWriterPage /></RequireAdmin> },
           { path: 'payouts', element: <RequireAdmin><AdminPayoutsPage /></RequireAdmin> },
+          { path: 'messages', element: <RequireAdmin><AdminMessagesPage /></RequireAdmin> },
           { path: 'settings', element: <RequireAdmin><AdminSettingsPage /></RequireAdmin> },
         ],
       },

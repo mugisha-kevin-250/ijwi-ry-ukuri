@@ -99,7 +99,11 @@ export default function TermsPage() {
             </>
           ) : (
             <>
-              Raise anything about these terms in the comments of a recent story and the owner will answer. See also
+              Raise anything about these terms through{' '}
+              <Link to="/contact" className="font-medium text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">
+                the contact form
+              </Link>
+              {' '}and the owner will answer. See also
               the{' '}
               <Link to="/privacy" className="font-medium text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">
                 privacy policy

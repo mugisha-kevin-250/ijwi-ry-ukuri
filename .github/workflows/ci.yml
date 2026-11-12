@@ -1,0 +1,73 @@
+name: CI
+
+# Only what a reviewer needs before approving: the API still behaves, the SPA
+# still compiles, and no env file with real values has crept into the commit.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  secrets:
+    name: No credentials in git
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Only .env.example and .env.production may be tracked
+        run: |
+          tracked=$(git ls-files | grep -E '(^|/)\.env([.-].*)?$' \
+            | grep -vE '(^|/)\.env\.example$|(^|/)\.env\.production$' || true)
+          if [ -n "$tracked" ]; then
+            echo "These env files must never be committed:"; echo "$tracked"; exit 1
+          fi
+      - name: No private keys or bearer tokens in tracked files
+        run: |
+          if git grep -lE -e '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-' -e 'AIza[0-9A-Za-z_-]{30,}' ; then
+            echo "A tracked file contains what looks like a private key or a Google API key."; exit 1
+          fi
+          echo "No private keys or API keys found in tracked files."
+
+  backend:
+    name: API tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # 20 is what Render runs (NODE_VERSION=20); testing on a newer Node
+          # would let code pass here and fail in production.
+          node-version: '20'
+      - name: Install
+        # No backend lockfile is committed, so npm ci is not possible yet.
+        run: npm install --no-audit --no-fund
+      - name: Test
+        # The suite blanks MONGODB_URI and starts an in-memory MongoDB, so it
+        # never needs a database and never touches a real one.
+        run: npm test
+
+  frontend:
+    name: SPA build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Type check
+        run: npx tsc -b
+      - name: Bundle
+        # `npm run build` would also run prebuild, whose sitemap generator reads
+        # the live API - a cold Render instance would turn that into a red build
+        # with nothing wrong with the code. The bundle is checked, the SEO files
+        # are generated at release time by the person who deploys.
+        run: npx vite build

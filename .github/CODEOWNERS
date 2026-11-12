@@ -1,0 +1,21 @@
+# Everyone needs a review from the site owner before anything reaches main.
+# This file only assigns reviewers; branch protection is what enforces it, and
+# that is a GitHub setting (Settings -> Branches -> main -> require a review).
+*                                       @mugisha-kevin-250
+
+# Editorial data and the money attached to it.
+backend/src/models/                     @mugisha-kevin-250
+backend/src/routes/                     @mugisha-kevin-250
+backend/src/services/                   @mugisha-kevin-250
+
+# Anything that changes what a reader or Google sees, or how a request is
+# answered: the hosted config carries the CSP header and the rewrite rules.
+frontend/firebase.json                  @mugisha-kevin-250
+frontend/public/                        @mugisha-kevin-250
+render.yaml                             @mugisha-kevin-250
+.env.example                            @mugisha-kevin-250
+*/.env.example                          @mugisha-kevin-250
+
+# The phase-zero documents describe production; a wrong line costs more here
+# than in code, because the owner acts on them.
+*.md                                    @mugisha-kevin-250

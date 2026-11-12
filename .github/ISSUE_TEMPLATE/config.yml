@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A security problem
+    url: https://github.com/mugisha-kevin-250/ijwi-ry-ukuri/security/advisories/new
+    about: >
+      Anything that exposes a reader's or writer's data, breaks a permission, or
+      could put a draft in front of the public. Open it as a private advisory,
+      not as an issue - see SECURITY.md.
+  - name: A factual correction to a published story
+    url: https://ijwi-ry--ukuri.web.app/corrections
+    about: >
+      Corrections are handled by the newsroom, not by this repository. The page
+      says how to reach the editors and what a correction looks like once it is
+      made.

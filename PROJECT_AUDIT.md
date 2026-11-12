@@ -77,14 +77,21 @@ Live topology: Firebase Hosting serves the SPA at
 
 ### Engineering hygiene
 
-15. **No frontend tests at all**, and the single backend test file is the only
-    automated check. Nothing runs in CI, because there is no CI.
-16. **No `README.md`, `CONTRIBUTING.md`, `LICENSE`, `.github/` templates or
-    `CODEOWNERS`.** A contributor — or the owner on a new machine — has to reverse
-    engineer the setup from `DEPLOYMENT.md`.
-17. **Performance is unmeasured.** No Lighthouse or Core Web Vitals numbers exist
-    for the live site, and the SPA ships one bundle with Google Translate, GA, GIS
-    and ads all competing for the same first paint.
+15. **No frontend tests at all.** `backend/tests/api.test.js` (25 cases) is the only
+    automated check, and it now runs in CI (`Read the code, not the summary` is no longer
+    the only defence). There is no test for a single React component, so a page that
+    renders wrong reaches readers unnoticed — which is how the header search box shipped
+    pointing at a query parameter the results page never read.
+16. **Collaboration files exist as of 2026-11-12 but have never been exercised**: the CI
+    workflow has not run on GitHub yet (nothing has been pushed), branch protection and
+    private vulnerability reporting are owner settings that `CODEOWNERS` and `SECURITY.md`
+    can only ask for, and `backend/package-lock.json` is still untracked, so CI installs
+    the backend with `npm install` and gets whatever versions are current that day.
+17. **Performance is unmeasured, and the first number is not reassuring.** The SPA builds
+    to one JavaScript chunk of 1.27 MB (365 kB gzipped) that every reader downloads before
+    the page shows anything, with Google Translate, GIS, GA4 and the ad script all asking
+    for the main thread after that. No Lighthouse or Core Web Vitals figure exists for the
+    live site, so LCP, INP and CLS are unknown rather than fine.
 18. **`render.yaml` is documentation, not the deployment.** The Render service was
     created from the dashboard, so the file can drift from reality without any
     deploy noticing.

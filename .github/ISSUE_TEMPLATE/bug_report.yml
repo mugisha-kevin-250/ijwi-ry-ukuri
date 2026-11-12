@@ -1,0 +1,60 @@
+name: Something is broken
+description: A page, a link, a number or a permission does not behave as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill this in from the running site, not from memory. A report that says
+        which page, which account and which story cost a few seconds; one that
+        does not can take days, because the reviewer cannot see what you saw.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what the site did instead, and what you expected.
+      placeholder: |
+        Signed in as a WRITER, opened /writer/articles, clicked Publish.
+        The story stayed in draft and the button showed "Something went wrong".
+        I expected it to move to pending_review.
+    validations:
+      required: true
+  - type: input
+    id: page
+    attributes:
+      label: Page or URL
+      placeholder: https://ijwi-ry--ukuri.web.app/article/<slug>
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Signed in as
+      options: [nobody, READER, WRITER, EDITOR, ADMIN]
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device and browser
+      options: [Android phone, iPhone, Windows desktop, macOS desktop, Linux desktop, other]
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Browser console and network
+      description: >
+        Open DevTools, repeat the step, and paste the red lines plus any request
+        that was not 2xx, with its status code. Never paste a token, a
+        password or a full Authorization header - the value, not the name, is
+        the secret.
+      render: text
+  - type: textarea
+    id: reader-data
+    attributes:
+      label: Is any reader's or writer's personal data involved?
+      description: >
+        If a bug exposes someone's name, email, phone, subscription or earnings
+        to somebody who should not see it, do not describe the victim here. Open
+        a security report instead (see SECURITY.md) so the details stay private.

@@ -1,0 +1,47 @@
+name: A feature or a change
+description: Something the newsroom needs the site to do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most requests here are editorial, not technical: a reader action, a
+        workflow step, a page Google or an advertiser expects. Say who benefits.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Who is blocked, and by what
+      description: The person (reader, writer, editor, owner) and what they cannot do today.
+      placeholder: |
+        A reader who spots a factual error has no way to reach the newsroom
+        except by leaving a comment under the story.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What should happen instead
+      description: Behaviour, not implementation. Include what the page says when the feature is not configured.
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Data it touches
+      description: >
+        New collection or field? Does an existing record need a value it does not
+        have? Schema changes here are additive only, so name the migration and
+        how it is rolled back.
+  - type: textarea
+    id: rules
+    attributes:
+      label: Does it need a decision from outside the code?
+      description: >
+        An API key, an AdSense or Analytics id, a domain, a paid plan, an
+        editorial policy or a legal review. See OWNER_ACTIONS.md - a feature
+        that depends on one of those is written to say it is not configured,
+        never to fake the result.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What else did you consider?

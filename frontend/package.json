@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "icons": "node scripts/generate-icons.mjs",
+    "logo": "node scripts/generate-logo.mjs",
     "sitemap": "node scripts/generate-sitemap.mjs",
     "ads-txt": "node scripts/generate-ads-txt.mjs",
     "prebuild": "node scripts/generate-sitemap.mjs && node scripts/generate-ads-txt.mjs",

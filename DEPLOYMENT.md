@@ -11,8 +11,10 @@
 - Light mode is the only startup state: `ThemeContext` ignores the device
   `prefers-color-scheme`, so a dark-mode phone still opens the site white. Dark turns
   on only from Settings -> Theme (stored as `theme=dark` in localStorage).
-- PWA install: logo-derived icons (`frontend/scripts/generate-icons.mjs` ->
-  `frontend/public/icons/` + `favicon-*.png`), `frontend/public/site.webmanifest`,
+- PWA install: RADAR-mark icons (`frontend/scripts/generate-logo.mjs` ->
+  `Logo.png` + `Logo-compact.png`, then `generate-icons.mjs` ->
+  `frontend/public/icons/` + `favicon-*.png` + `favicon.svg`),
+  `frontend/public/site.webmanifest`,
   and `frontend/public/sw.js` (offline shell/pages/public API reads; signed-in routes
   are never cached). `InstallPromptBanner` shows the blue/white install + alerts prompt.
 - Turning alerts on is not limited to that prompt: `NewsAlertsCard`
@@ -76,7 +78,8 @@
 ### Regenerating PWA + SEO assets
 ```
 cd frontend
-npm run icons       # Logo.png -> icons/ + favicons (needs jimp, a devDependency)
+npm run logo        # draws the RADAR mark -> Logo.png + Logo-compact.png (needs jimp)
+npm run icons       # those two PNGs -> icons/ + favicons (needs jimp, a devDependency)
 npm run sitemap     # live API -> public/sitemap*.xml (also runs automatically in prebuild)
 npm run ads-txt     # VITE_ADSENSE_PUB_ID -> public/ads.txt (also runs in prebuild)
 ```

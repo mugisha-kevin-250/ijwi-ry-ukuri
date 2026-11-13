@@ -264,11 +264,59 @@ export interface AiWriterStatus {
 export interface AiDraftResult {
   title: string
   summary: string
+  metaDescription?: string
   paragraphs: string[]
   content: string
   tags: string[]
   model: string
   generatedAt: string
+  /** Set when the draft was built on a topic Google actually reported. */
+  evidence?: {
+    provider: string
+    geo: string
+    region: string
+    day: string
+    topic: string
+    trafficLabel: string
+    approxTraffic: number | null
+    sourceUrl: string
+    fetchedAt: string
+    headlines: { title: string; url: string; source: string }[]
+  }
+  destination?: string
+}
+
+/** One search Google reported as trending, with the headlines it credited. */
+export interface TrendTopicRecord {
+  topic: string
+  trafficLabel: string
+  approxTraffic: number | null
+  seenAt: string | null
+  sourceUrl: string
+  headlines: { title: string; url: string; source: string }[]
+  storedDay?: string
+  lastSeenAt?: string
+}
+
+export interface TrendGeoRecord {
+  geo: string
+  name: string
+  ok: boolean
+  status: number | null
+  reason: string | null
+  stale: boolean
+  fetchedAt: string
+  sourceUrl: string
+  topics: TrendTopicRecord[]
+}
+
+export interface TrendRadar {
+  provider: string
+  providerUrl: string
+  geos: TrendGeoRecord[]
+  liveRegions: number
+  cacheMinutes: number
+  checkedAt: string
 }
 
 /** One message a reader sent through /contact. */
@@ -380,7 +428,21 @@ export const adminAPI = {
     return response.data.data as AiDraftResult
   },
 
-  saveAiArticle: async (payload: { title: string; summary: string; content: string; category: string; tags: string[]; publish: boolean }): Promise<Article> => {
+  /** A story built on one topic from the fetched trending list. */
+  generateTrendDraft: async (input: { geo: string; topic: string; angle?: string; audience?: 'rwanda' | 'world' }): Promise<AiDraftResult> => {
+    const response = await apiClient.post('/admin/ai/trends', input)
+    return response.data.data as AiDraftResult
+  },
+
+  saveAiArticle: async (payload: {
+    title: string
+    summary: string
+    metaDescription?: string
+    content: string
+    category: string
+    tags: string[]
+    publish: boolean
+  }): Promise<Article> => {
     const response = await apiClient.post('/admin/ai/articles', payload)
     return (response.data.data as { article: Article }).article
   },
@@ -389,6 +451,20 @@ export const adminAPI = {
     const response = await apiClient.get('/admin/ai/articles')
     const payload = response.data.data as { articles?: Article[]; pendingReview?: number }
     return { articles: payload?.articles ?? [], pendingReview: payload?.pendingReview ?? 0 }
+  },
+
+  /** What Google reports people searching, read by the server. */
+  getTrends: async (refresh = false): Promise<TrendRadar> => {
+    const response = await apiClient.get('/admin/trends', refresh ? { refresh: '1' } : undefined)
+    const payload = response.data.data as Partial<TrendRadar> | null
+    return {
+      provider: payload?.provider || 'google-trends',
+      providerUrl: payload?.providerUrl || 'https://trends.google.com/',
+      geos: Array.isArray(payload?.geos) ? payload.geos : [],
+      liveRegions: Number(payload?.liveRegions ?? 0),
+      cacheMinutes: Number(payload?.cacheMinutes ?? 15),
+      checkedAt: payload?.checkedAt || '',
+    }
   },
 }
 

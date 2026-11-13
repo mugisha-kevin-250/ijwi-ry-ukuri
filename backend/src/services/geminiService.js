@@ -14,25 +14,38 @@ function activeModel() {
   return env.GEMINI_MODEL || DEFAULT_MODEL;
 }
 
-function buildPrompt({ topic, angle, audience }) {
+function buildPrompt({ topic, angle, audience, evidence, region }) {
   const lines = [
     `Write a news article in English about: ${topic}`,
+    region ? `The story is being filed for readers in/around ${region}.` : '',
     audience === 'world'
       ? 'Write for a general international audience.'
       : 'Centre the story on Rwanda and the region, and say so plainly when a fact is only known internationally.',
     angle ? `Editorial angle to follow: ${angle}` : '',
     '',
+    evidence && evidence.length
+      ? [
+          'Real coverage Google listed against this topic, for background only:',
+          ...evidence.map((item) => `- ${item.source || 'unknown'}: ${item.title}`),
+          'Do not copy a sentence from any of them, do not put words in their mouths, and do not credit a',
+          'detail to one of them unless it is the only thing you were told about it.',
+          ''
+        ].join('\n')
+      : '',
     'Rules you must follow:',
     '- Report only what you are confident is true. Never invent quotes, names of people, statistics, dates or documents.',
     '- If a figure or detail is uncertain, say what is not yet confirmed instead of guessing.',
     '- No first person, no marketing tone, no adjectives that praise the subject.',
     '- Structure it as a news report: the most important fact first, then background, then what happens next.',
     '- Six to eight short paragraphs, each of two to four sentences.',
-    '- A headline of at most 90 characters, a summary of at most 200 characters that is not a repeat of the headline.',
+    '- A headline of at most 90 characters that also works as the search-result title.',
+    '- A meta description of at most 155 characters: what a search engine shows under the link. It must not',
+    '  repeat the headline and must not read like an advertisement.',
+    '- A summary of at most 200 characters that is not a repeat of the headline.',
     '- Three to five lowercase tags.',
     '',
     'Return ONLY a JSON object with exactly these keys:',
-    '{"title": string, "summary": string, "paragraphs": string[], "tags": string[]}',
+    '{"title": string, "metaDescription": string, "summary": string, "paragraphs": string[], "tags": string[]}',
     '"paragraphs" holds only the body sentences, no headline, no bullet lists, no markdown.'
   ];
   return lines.filter((line) => line !== '').join('\n');
@@ -54,13 +67,14 @@ function parseStory(text) {
     : [];
   return {
     title: String(parsed.title || '').trim(),
+    metaDescription: String(parsed.metaDescription || '').trim(),
     summary: String(parsed.summary || '').trim(),
     paragraphs,
     tags: Array.isArray(parsed.tags) ? parsed.tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean).slice(0, 6) : []
   };
 }
 
-async function writeStory({ topic, angle, audience = 'rwanda' } = {}) {
+async function writeStory({ topic, angle, audience = 'rwanda', evidence, region } = {}) {
   if (!isConfigured()) {
     const error = new Error('Gemini is not configured on the server');
     error.code = 'AI_NOT_CONFIGURED';
@@ -78,7 +92,7 @@ async function writeStory({ topic, angle, audience = 'rwanda' } = {}) {
         'x-goog-api-key': env.GEMINI_API_KEY
       },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: buildPrompt({ topic, angle, audience }) }] }],
+        contents: [{ role: 'user', parts: [{ text: buildPrompt({ topic, angle, audience, evidence, region }) }] }],
         generationConfig: {
           temperature: 0.55,
           topP: 0.95,

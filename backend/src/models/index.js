@@ -16,6 +16,7 @@ module.exports = {
   Payout: require('./Payout'),
   PushSubscription: require('./PushSubscription'),
   PlatformSetting: require('./PlatformSetting'),
+  TrendTopic: require('./TrendTopic'),
   Live: require('./Live'),
   LiveComment: require('./LiveComment')
 };

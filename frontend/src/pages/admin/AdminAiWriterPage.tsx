@@ -1,28 +1,53 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Ref } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ExternalLink, FileText, Loader2, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import { AlertTriangle, FileText, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import { adminAPI, publicAPI, type AiDraftResult, type AiWriterStatus } from '../../services/api'
 import type { Article, Category } from '../../types'
 import { useI18n } from '../../context/I18nContext'
-import { categoryLabel, canonicalCategoryId, resolveCategories } from '../../data/categoryVisuals'
-import { ConfirmDialog } from '../../components/common/Modal'
+import { canonicalCategoryId, resolveCategories } from '../../data/categoryVisuals'
+import { sectionHrefFor } from '../../data/sections'
+import AiReviewQueue from '../../components/admin/AiReviewQueue'
+import TrendRadar from '../../components/admin/TrendRadar'
 
-const STATUS_PILLS: Record<string, string> = {
-  draft: 'bg-slate-100 text-slate-700',
-  pending_review: 'bg-amber-50 text-amber-700',
-  approved: 'bg-sky-50 text-sky-700',
-  rejected: 'bg-red-50 text-red-700',
-  published: 'bg-emerald-50 text-emerald-700',
-  archived: 'bg-slate-100 text-slate-500',
+/** The section tree as the server sends it, with the stored document behind each node. */
+interface TreeSection {
+  _id: string | null
+  slug: string
+  name?: string
+  labelKey?: string
+  children?: TreeSection[]
 }
 
-const LABELS: Record<string, string> = {
-  draft: 'Draft',
-  pending_review: 'Waiting for review',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  published: 'Published',
-  archived: 'Archived',
+interface SectionChoice {
+  id: string
+  href: string
+  label: string
+  group: string
+}
+
+/**
+ * Every section a story can be filed under, sub-sections included, so an AI
+ * story can be put on /sports/football and not only on /sports. A node the
+ * database has no document for is left out - there would be nothing to save.
+ */
+function buildSectionChoices(tree: TreeSection[], labelOf: (node: TreeSection) => string): SectionChoice[] {
+  const choices: SectionChoice[] = []
+  tree.forEach((section) => {
+    const group = labelOf(section)
+    if (section._id) choices.push({ id: String(section._id), href: `/${section.slug}`, label: group, group })
+    const children = section.children || []
+    children.forEach((child) => {
+      if (!child._id) return
+      choices.push({
+        id: String(child._id),
+        href: `/${section.slug}/${child.slug}`,
+        label: `   ${labelOf(child)}`,
+        group,
+      })
+    })
+  })
+  return choices
 }
 
 function Field({
@@ -33,6 +58,8 @@ function Field({
   onChange,
   placeholder,
   rows,
+  counter,
+  fieldRef,
 }: {
   id: string
   label: string
@@ -41,13 +68,23 @@ function Field({
   onChange: (value: string) => void
   placeholder?: string
   rows?: number
+  counter?: number
+  fieldRef?: Ref<HTMLTextAreaElement | HTMLInputElement>
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</label>
+      <label htmlFor={id} className="mb-1.5 flex items-baseline justify-between gap-3 text-sm font-semibold text-slate-700">
+        <span>{label}</span>
+        {counter !== undefined && (
+          <span className={`text-xs font-normal ${value.length > counter ? 'text-red-600' : 'text-slate-400'}`}>
+            {value.length}/{counter}
+          </span>
+        )}
+      </label>
       {rows ? (
         <textarea
           id={id}
+          ref={fieldRef as Ref<HTMLTextAreaElement>}
           value={value}
           rows={rows}
           onChange={(event) => onChange(event.target.value)}
@@ -58,6 +95,7 @@ function Field({
         <input
           id={id}
           type="text"
+          ref={fieldRef as Ref<HTMLInputElement>}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
@@ -73,20 +111,26 @@ export default function AdminAiWriterPage() {
   const { t } = useI18n()
   const [status, setStatus] = useState<AiWriterStatus | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
-  const [stories, setStories] = useState<Article[]>([])
-  const [pendingReview, setPendingReview] = useState(0)
+  const [sectionTree, setSectionTree] = useState<TreeSection[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  // Bumped when a save lands, so the review queue below shows it immediately.
+  const [queueKey, setQueueKey] = useState(0)
 
   const [topic, setTopic] = useState('')
   const [angle, setAngle] = useState('')
   const [audience, setAudience] = useState<'rwanda' | 'world'>('rwanda')
   const [generating, setGenerating] = useState(false)
+  // Set when the topic came from the trending list. The server only writes a
+  // trend story for a topic its own fetch really received from Google.
+  const [trend, setTrend] = useState<{ geo: string; topic: string } | null>(null)
+  const topicField = useRef<HTMLTextAreaElement>(null)
 
   const [draft, setDraft] = useState<AiDraftResult | null>(null)
   const [savedId, setSavedId] = useState('')
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
+  const [meta, setMeta] = useState('')
   const [body, setBody] = useState('')
   const [tags, setTags] = useState('')
   const [category, setCategory] = useState('')
@@ -94,28 +138,55 @@ export default function AdminAiWriterPage() {
 
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
-  const [busyId, setBusyId] = useState('')
-  const [removing, setRemoving] = useState<Article | null>(null)
 
-  const sections = useMemo(() => resolveCategories(categories), [categories])
+  /** Sections the site has, then any stored category the tree does not cover. */
+  const choices = useMemo(() => {
+    const labelOf = (node: TreeSection) => {
+      const translated = node.labelKey ? t(node.labelKey) : ''
+      return translated && translated !== node.labelKey ? translated : node.name || node.slug
+    }
+    const tree = buildSectionChoices(sectionTree, labelOf)
+    const used = new Set(tree.map((choice) => choice.href))
+    const legacy = resolveCategories(categories)
+      .filter((item) => item.category._id)
+      .map((item) => ({
+        id: String(item.category._id),
+        href: sectionHrefFor(item.category) || `/category/${item.category.slug}`,
+        label: item.category.name || String(item.category.slug),
+        group: 'Other stored sections',
+      }))
+      .filter((choice) => !used.has(choice.href))
+    return [...tree, ...legacy]
+  }, [categories, sectionTree, t])
+
+  /** The section a saved story belongs to, printed with its address. */
+  const grouped = useMemo(() => {
+    const map = new Map<string, SectionChoice[]>()
+    choices.forEach((choice) => {
+      map.set(choice.group, [...(map.get(choice.group) || []), choice])
+    })
+    return [...map.entries()]
+  }, [choices])
 
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError('')
-    const [statusResult, categoryResult, storyResult] = await Promise.allSettled([
+    const [statusResult, categoryResult] = await Promise.allSettled([
       adminAPI.getAiStatus(),
-      publicAPI.getCategories(),
-      adminAPI.getAiArticles()
+      publicAPI.getCategories()
     ])
     if (statusResult.status === 'fulfilled') setStatus(statusResult.value)
     else setLoadError('Only the site owner can open the AI writer.')
     if (categoryResult.status === 'fulfilled') {
-      const payload = categoryResult.value.data.data as { categories?: Category[] } | Category[]
-      setCategories(Array.isArray(payload) ? payload : payload?.categories ?? [])
-    }
-    if (storyResult.status === 'fulfilled') {
-      setStories(storyResult.value.articles)
-      setPendingReview(storyResult.value.pendingReview)
+      const payload = categoryResult.value.data.data as
+        | { categories?: Category[]; sections?: TreeSection[] }
+        | Category[]
+      if (!Array.isArray(payload)) {
+        setSectionTree(payload?.sections ?? [])
+        setCategories(payload?.categories ?? [])
+      } else {
+        setCategories(payload)
+      }
     }
     setLoading(false)
   }, [])
@@ -124,7 +195,10 @@ export default function AdminAiWriterPage() {
     void load()
   }, [load])
 
-  const persist = async (input: { title: string; summary: string; content: string; tags: string[]; category: string }, publish: boolean): Promise<Article | null> => {
+  const persist = async (
+    input: { title: string; summary: string; metaDescription?: string; content: string; tags: string[]; category: string },
+    publish: boolean,
+  ): Promise<Article | null> => {
     if (!input.title.trim() || !input.summary.trim() || !input.content.trim() || !input.category) {
       setError('A headline, a summary, a body and a section are all needed.')
       return null
@@ -139,6 +213,7 @@ export default function AdminAiWriterPage() {
         publish
       })
       setNotice(publish ? 'Story published to readers.' : 'Story saved as a draft.')
+      setQueueKey((key) => key + 1)
       return article
     } catch (err: any) {
       setError(err?.response?.data?.message || 'The story could not be saved.')
@@ -155,16 +230,27 @@ export default function AdminAiWriterPage() {
     }
     setGenerating(true)
     try {
-      const story = await adminAPI.generateAiDraft({
-        topic: topic.trim(),
-        angle: angle.trim() || undefined,
-        audience
-      })
-      const chosenCategory = category || String(sections[0]?.category._id || '')
+      const story = trend
+        ? await adminAPI.generateTrendDraft({
+          geo: trend.geo,
+          topic: trend.topic,
+          angle: angle.trim() || undefined,
+          audience
+        })
+        : await adminAPI.generateAiDraft({
+          topic: topic.trim(),
+          angle: angle.trim() || undefined,
+          audience
+        })
+      // A story that came off the trending list belongs on the trending page
+      // unless the admin moves it.
+      const trendingChoice = trend ? choices.find((choice) => choice.href === '/trending') : undefined
+      const chosenCategory = trendingChoice?.id || category || choices[0]?.id || ''
       setDraft(story)
       setSavedId('')
       setTitle(story.title)
       setSummary(story.summary)
+      setMeta(story.metaDescription || '')
       setBody(story.paragraphs.join('\n\n'))
       setTags(story.tags.join(', '))
       setCategory(chosenCategory)
@@ -174,14 +260,13 @@ export default function AdminAiWriterPage() {
         const created = await persist({
           title: story.title,
           summary: story.summary,
+          metaDescription: story.metaDescription || '',
           content: story.paragraphs.join('\n\n'),
           tags: story.tags,
           category: chosenCategory
         }, true)
         if (created) {
           setSavedId(created._id)
-          // The story is already with readers, so the list has to show it now.
-          await load()
         }
       }
     } catch (err: any) {
@@ -195,19 +280,31 @@ export default function AdminAiWriterPage() {
     setError('')
     setNotice('')
     setSaving(true)
-    const created = await persist({ title, summary, content: body, tags: tags.split(',').map((tag) => tag.trim().toLowerCase()).filter(Boolean).slice(0, 6), category }, publish)
+    const created = await persist({ title, summary, metaDescription: meta, content: body, tags: tags.split(',').map((tag) => tag.trim().toLowerCase()).filter(Boolean).slice(0, 6), category }, publish)
     if (created) {
       setDraft(null)
       setSavedId('')
       setTopic('')
       setAngle('')
+      setTrend(null)
       setTitle('')
       setSummary('')
+      setMeta('')
       setBody('')
       setTags('')
-      await load()
     }
     setSaving(false)
+  }
+
+  /** A topic picked from the trending list becomes the thing Gemini writes. */
+  const chooseTrend = (value: string, geo: string) => {
+    setTrend({ geo, topic: value })
+    setTopic(value)
+    setDraft(null)
+    setSavedId('')
+    setError('')
+    setNotice('')
+    topicField.current?.focus()
   }
 
   const toggleAutoPublish = async () => {
@@ -222,43 +319,15 @@ export default function AdminAiWriterPage() {
     }
   }
 
-  const changeStatus = async (article: Article, next: string) => {
-    setBusyId(article._id)
-    setError('')
-    try {
-      await adminAPI.updateArticleStatus(article._id, next)
-      await load()
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'The story status could not be changed.')
-    } finally {
-      setBusyId('')
-    }
-  }
-
-  const remove = async () => {
-    const article = removing
-    if (!article) return
-    setBusyId(article._id)
-    setError('')
-    try {
-      await adminAPI.deleteArticle(article._id)
-      setRemoving(null)
-      await load()
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'The story could not be deleted.')
-    } finally {
-      setBusyId('')
-    }
-  }
-
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-blue-700">Newsroom</p>
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">AI story writer</h1>
+          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">AI newsroom</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Type a topic and Gemini writes a report you can read, edit and then publish.
+            See what readers are searching, have Gemini write the story, then approve it yourself. Only this portal
+            can reach the AI, and nothing reaches a reader without a decision here.
           </p>
           {status?.model && (
             <p className="mt-2 text-xs text-slate-400">Model: {status.model}</p>
@@ -294,6 +363,8 @@ export default function AdminAiWriterPage() {
         </div>
       )}
 
+      <TrendRadar onUse={status?.configured ? chooseTrend : undefined} />
+
       {status?.configured && (
         <>
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -310,9 +381,16 @@ export default function AdminAiWriterPage() {
             <div className="space-y-4">
               <Field
                 id="aiTopic"
-                label="Topic"
+                label={trend ? 'Trending topic from Google' : 'Topic'}
+                hint={trend
+                  ? `Google reported "${trend.topic}" trending in ${trend.geo} and the server fetched it, so this story is written from a real search.`
+                  : 'Or pick one from the trending list above and it writes from what Google actually reported.'}
+                fieldRef={topicField}
                 value={topic}
-                onChange={setTopic}
+                onChange={(value) => {
+                  setTopic(value)
+                  if (trend && value !== trend.topic) setTrend(null)
+                }}
                 placeholder="Rwanda's coffee exports reach a record season"
                 rows={2}
               />
@@ -351,7 +429,7 @@ export default function AdminAiWriterPage() {
               className="mt-5 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-60"
             >
               {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {generating ? 'Gemini is writing…' : 'Write the story'}
+              {generating ? 'Gemini is writing…' : trend ? 'Write this trending story' : 'Write the story'}
             </button>
             {generating && (
               <p className="mt-2 text-xs text-slate-500">A report can take up to a minute. Keep this page open.</p>
@@ -366,8 +444,42 @@ export default function AdminAiWriterPage() {
                   ? 'Auto mode published this story as soon as Gemini finished. Open it in the editor to fix anything.'
                   : 'Nothing reaches a reader until you save it. Check every fact and fix the wording.'}
               </p>
+              {draft.evidence && (
+                <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3 text-xs text-blue-900">
+                  <p className="font-bold">Written from one real search</p>
+                  <p className="mt-1">
+                    Google Trends, {draft.evidence.region}: “{draft.evidence.topic}”
+                    {draft.evidence.trafficLabel && ` · ${draft.evidence.trafficLabel} searches`} · fetched{' '}
+                    {new Date(draft.evidence.fetchedAt).toLocaleString()}
+                  </p>
+                  {draft.evidence.headlines.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {draft.evidence.headlines.map((item) => (
+                        <li key={item.url}>
+                          <a href={item.url} target="_blank" rel="noreferrer nofollow" className="underline decoration-blue-300">
+                            {item.title || item.url}
+                          </a>
+                          <span className="text-blue-700/70"> — {item.source}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="mt-2 text-blue-800/80">
+                    Gemini saw these as background only and was told not to copy them. Check them before you publish.
+                  </p>
+                </div>
+              )}
+
               <div className="mt-4 space-y-4">
-                <Field id="aiTitle" label="Headline" value={title} onChange={setTitle} />
+                <Field id="aiTitle" label="Headline" hint="Also used as the search-result title." value={title} onChange={setTitle} counter={90} />
+                <Field
+                  id="aiMeta"
+                  label="Meta description"
+                  hint="What a search engine prints under the link. Keep it under 155 characters and do not repeat the headline."
+                  value={meta}
+                  onChange={setMeta}
+                  counter={155}
+                />
                 <Field id="aiSummary" label="Summary" hint="Shown as the standfirst under the headline." value={summary} onChange={setSummary} rows={3} />
                 <Field id="aiBody" label="Body" hint="Leave one empty line between paragraphs." value={body} onChange={setBody} rows={16} />
                 <Field id="aiTags" label="Tags" hint="Comma separated." value={tags} onChange={setTags} />
@@ -379,12 +491,20 @@ export default function AdminAiWriterPage() {
                     onChange={(event) => setCategory(event.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   >
-                    {sections.map((section) => (
-                      <option key={String(section.category._id)} value={String(section.category._id)}>
-                        {categoryLabel(section.category, t)}
-                      </option>
+                    <option value="">Choose where this story goes</option>
+                    {grouped.map(([group, options]) => (
+                      <optgroup key={group} label={group}>
+                        {options.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    A sub-section is its own address — Football opens /sports/football and still reads on /sports.
+                  </p>
                 </div>
               </div>
 
@@ -465,100 +585,7 @@ export default function AdminAiWriterPage() {
         </div>
       )}
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <h2 className="font-bold text-slate-900">Stories written here</h2>
-          {pendingReview > 0 && (
-            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
-              {pendingReview} waiting for you
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="space-y-3 p-5">
-            {[1, 2, 3].map((item) => <div key={item} className="h-20 animate-pulse rounded-xl bg-slate-100" />)}
-          </div>
-        ) : stories.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-slate-500">No AI stories yet.</p>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {stories.map((article) => {
-              const busy = busyId === article._id
-              return (
-                <li key={article._id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-slate-900">{article.title}</p>
-                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      <span className={`rounded-full px-2 py-0.5 font-bold ${STATUS_PILLS[article.status] || 'bg-slate-100 text-slate-600'}`}>
-                        {LABELS[article.status] || article.status}
-                      </span>
-                      <span>{new Date(article.createdAt).toLocaleString()}</span>
-                      <span>{Math.round(String(article.content || '').split(/\s+/).filter(Boolean).length)} words</span>
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {article.status === 'published' ? (
-                      <>
-                        <Link
-                          to={`/article/${article.slug}`}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-50"
-                        >
-                          View <ExternalLink className="h-3 w-3" />
-                        </Link>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void changeStatus(article, 'draft')}
-                          className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-200 disabled:opacity-60"
-                        >
-                          Take down
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void changeStatus(article, 'published')}
-                        className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-500 disabled:opacity-60"
-                      >
-                        Publish
-                      </button>
-                    )}
-                    <Link
-                      to={`/writer/articles/${article._id}/edit`}
-                      className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Edit
-                    </Link>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => setRemoving(article)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      Delete
-                    </button>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
-
-      <ConfirmDialog
-        isOpen={!!removing}
-        onClose={() => setRemoving(null)}
-        onConfirm={() => void remove()}
-        title={`Delete — ${removing?.title || ''}`}
-        message="This removes the story from the site for good. Readers who already saw it will get a missing page."
-        confirmLabel="Delete story"
-        cancelLabel={t('profile.cancel')}
-        variant="destructive"
-        isLoading={!!busyId}
-      />
+      <AiReviewQueue reloadKey={queueKey} />
     </div>
   )
 }

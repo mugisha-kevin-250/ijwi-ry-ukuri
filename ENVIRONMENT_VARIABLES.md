@@ -31,6 +31,9 @@ table and that file cannot drift apart. `backend/.env.example` lists all of it.
 | `GEMINI_API_KEY` | empty | The only place this key exists. The browser never receives it; the admin portal calls the model through the server. | The AI writer stays hidden in Admin and `/api/admin/ai/generate` answers 503. |
 | `GEMINI_MODEL` | `gemini-flash-lite-latest` | Which Gemini text model writes a draft. | — |
 | `GEMINI_TIMEOUT_MS` | `90000` | How long the server waits for a draft before giving up. | — |
+| `TREND_GEOS` | `RW,UG,KE,TZ,NG,ZA,US` | The regions the trending radar asks Google for. Each one is a `https://trends.google.com/trending/rss?geo=XX` feed. | The radar shows no regions; the portal says so instead of inventing topics. |
+| `TREND_CACHE_MINUTES` | `15` | How long one region's fetched list is kept, so the admin portal does not hammer Google on every page open. | — |
+| `TREND_TIMEOUT_MS` | `15000` | How long one region's feed may take before that region is marked unreachable. | — |
 | `UPLOAD_DIR` | `backend/uploads` | Where uploaded images are mirrored on disk. Render's free plan has no disk, so this is a cache and MongoDB is the copy that survives. | — |
 | `SEED_UPLOADS_DIR` | same as `UPLOAD_DIR` | Boot copies any missing file from here into `UPLOAD_DIR`, never overwriting a newer one. | — |
 | `UPLOAD_STORE_LIMIT_MB` | `400` | Caps the `uploads` collection: Atlas M0 gives the cluster 512MB and a full cluster breaks every query. | Uploads past the cap answer 507. |

@@ -110,6 +110,7 @@ for (const path of [
 }
 app.use('/api/upload', uploadLimiter);
 app.post('/api/admin/ai/generate', aiLimiter);
+app.post('/api/admin/ai/trends', aiLimiter);
 app.post('/api/admin/ai/articles', aiLimiter);
 app.post('/api/contact', contactLimiter);
 

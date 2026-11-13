@@ -42,6 +42,11 @@ module.exports = {
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
   GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-flash-lite-latest',
   GEMINI_TIMEOUT_MS: Number(process.env.GEMINI_TIMEOUT_MS || 90000),
+  // What readers are searching for right now, read from Google's own feed on the
+  // server. No secret is involved and nothing is sent to the browser.
+  TREND_GEOS: process.env.TREND_GEOS || '',
+  TREND_CACHE_MINUTES: Number(process.env.TREND_CACHE_MINUTES || 15),
+  TREND_TIMEOUT_MS: Number(process.env.TREND_TIMEOUT_MS || 15000),
   RATE_PER_1000_VIEWS: Number(process.env.RATE_PER_1000_VIEWS || 5000),
   MINIMUM_PAYOUT: Number(process.env.MINIMUM_PAYOUT || 10000),
   NODE_ENV: process.env.NODE_ENV || 'development'

@@ -5,6 +5,9 @@ const articleSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
   summary: { type: String, required: true, trim: true },
+  // What a search engine prints under the link. Optional: a story written
+  // without one falls back to its summary.
+  metaDescription: { type: String, trim: true },
   content: { type: String, required: true },
   featuredImage: String,
   author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

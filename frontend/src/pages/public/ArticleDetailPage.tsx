@@ -59,7 +59,7 @@ export default function ArticleDetailPage() {
 
   useSeo({
     title: article?.title,
-    description: article?.summary,
+    description: article?.metaDescription || article?.summary,
     path: slug ? `/article/${slug}` : undefined,
     image: article?.featuredImage,
     type: 'article',

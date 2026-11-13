@@ -11,6 +11,7 @@ const { protect, authorize } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
+const trendService = require('../services/trendService');
 const generateSlug = require('../utils/generateSlug');
 const escapeRegex = require('../utils/escapeRegex');
 const { plainText, cleanText, cleanTags, safeMediaUrl } = require('../utils/textFields');
@@ -465,9 +466,36 @@ router.post('/ai/generate', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
+// The trends analyzer: a topic only exists here if Google's feed really named
+// it, so the evidence in the prompt is fetched data rather than typed guesswork.
+router.post('/ai/trends', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const { geo, topic, angle, audience } = req.body || {};
+    if (!geo || !topic) return errorResponse(res, 400, 'Choose a trending topic from the list first');
+
+    const evidence = await trendService.evidenceFor(geo, topic);
+    if (!evidence) {
+      return errorResponse(res, 400, 'Google did not report that topic to this server. Refresh the trending list and pick one of the topics it shows.');
+    }
+
+    const story = await geminiService.writeStory({
+      topic: evidence.topic,
+      angle: angle ? plainText(angle, { maxLength: 500 }) : '',
+      audience: audience === 'world' ? 'world' : 'rwanda',
+      region: evidence.region,
+      evidence: evidence.headlines
+    });
+    return successResponse(res, 200, 'Trend draft ready for review', { ...story, evidence, destination: '/trending' });
+  } catch (error) {
+    if (error.code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, error.message);
+    if (String(error.code || '').startsWith('AI_')) return errorResponse(res, 502, error.message);
+    next(error);
+  }
+});
+
 router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
   try {
-    const { title, summary, content, category, tags = [], featuredImage, publish } = req.body || {};
+    const { title, summary, content, category, metaDescription, tags = [], featuredImage, publish } = req.body || {};
     if (!title || !summary || !content || !category) {
       return errorResponse(res, 400, 'Title, summary, content and category are required');
     }
@@ -491,6 +519,7 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       title: headline,
       slug: `${baseSlug}-${Date.now()}`,
       summary: gist,
+      metaDescription: metaDescription ? plainText(metaDescription, { maxLength: 200 }) : undefined,
       content: body,
       featuredImage: safeMediaUrl(featuredImage),
       author: req.user._id,
@@ -516,8 +545,23 @@ router.get('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       .sort({ createdAt: -1 })
       .limit(50)
       .populate('category', 'name slug');
-    const pendingReview = await Article.countDocuments({ aiGenerated: true, status: 'draft' });
+    // The queue is anything a machine wrote that no reader has seen yet.
+    const pendingReview = await Article.countDocuments({ aiGenerated: true, status: { $in: ['draft', 'pending_review'] } });
     return successResponse(res, 200, 'AI stories', { articles, pendingReview });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * What Google says people are searching for right now, in the regions the
+ * newsroom watches. Server-side only, and every topic carries the feed it came
+ * from so an admin can check it before a story is built on it.
+ */
+router.get('/trends', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const force = req.query.refresh === '1' || req.query.refresh === 'true';
+    return successResponse(res, 200, 'Trending searches', await trendService.radar({ force }));
   } catch (error) {
     next(error);
   }

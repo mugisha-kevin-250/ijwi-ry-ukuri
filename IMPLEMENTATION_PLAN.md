@@ -49,17 +49,24 @@ Core Web Vitals numbers.
 
 ## Release 2 — Global newsroom & editorial workflow (High) — STARTED
 
-Status 2026-11-12: the pieces already running are writer applications that an admin
+Status 2026-11-13: the pieces already running are writer applications that an admin
 approves, the four roles with `authorize()` checks on every route, the
 `draft/pending_review/approved/rejected/published/archived` states an editor moves a story
-through, and the AI writer's own gate: a generated story is saved as a draft and only goes
-live when an admin publishes it, even with auto-publish switched on. Missing: granular
+through, the section/sub-section hierarchy the header and `/sports/football` addresses are built
+from, and the AI newsroom's own gate: a generated story is saved as a draft and only goes live
+when an admin publishes it, even with auto-publish switched on. The admin portal now carries a
+"Pending admin approval" queue where every AI story is previewed as a reader would see it —
+including the search-result snippet and a warning when the meta description runs past 155
+characters — then approved, rejected, re-opened, taken down or deleted. Gemini is reachable from
+the admin portal only: `/api/admin/ai/*` and `/api/admin/trends` all carry `authorize('ADMIN')`,
+the route is wrapped in `RequireAdmin`, and no writer, editor or reader sidebar, header menu or
+page references an AI surface. Missing: granular
 permissions and staff roles, `in_review`/`changes_requested` with feedback, revisions,
 sources, corrections records, breaking news and scheduled publishing.
 
 | Work item | Existing | Required changes | Dependencies | DB impact | Security impact | Acceptance criteria | Testing |
 |---|---|---|---|---|---|---|---|
-| Categories/regions/countries | Basic categories | Hierarchy, reorder/activate, region/country entities and `/world/...` pages with real content/indexability rules | Editorial taxonomy decisions | Additive collections/refs + safe migration | Public read filters | Pages show relevant published news; no thin auto-pages | URL/content tests |
+| Categories/regions/countries | Section tree (9 sections, 32 sub-sections) seeded idempotently at boot, `/section` and `/section/sub` pages, dropdown nav, legacy spellings collapsed at read time | Region/country entities and real content behind `/world/...`; indexability rules per page | Editorial taxonomy decisions | Additive collections/refs + safe migration | Public read filters | Pages show relevant published news; no thin auto-pages | URL/content tests |
 | RBAC expansion | Coarse roles | Roles/permissions model (Super Admin, Managing/News Editor, Journalist, SEO Editor, Social Manager, Ad Manager) enforced server-side | Product decisions | Additive | Critical | Unauthorized actions blocked API-side | Permission tests |
 | Editorial workflow | Basic statuses | Draft→Submitted→In Review→Approved/Changes Requested→Scheduled/Published→Updated/Correction/Archived, feedback, revision history, actor/timestamps | UI+API redesign | Additive (revisions/reviews) | Auditability | End-to-end flow; drafts private | Workflow tests |
 | Source verification | Missing | Source records per important story, verification status/review metadata | Editorial process | Additive | Integrity | Sources stored and reviewable | CRUD/validation tests |
@@ -67,17 +74,27 @@ sources, corrections records, breaking news and scheduled publishing.
 | Breaking news | Missing | Managed breaking items with priority/time window/approval/display | UI placement | Additive | Prevent misuse | Active items display correctly and expire | Scheduling/UI tests |
 | Scheduled publishing | Missing | Reliable UTC scheduler, idempotent publish, failure handling/manual recovery, hidden until published | Job runner/cron/queue choice on Render | Additive job/state fields | Prevent premature exposure | Scheduled posts publish once and safely | Time-based tests |
 
-## Release 3 — Global Trending Intelligence (High) — NOT STARTED
+## Release 3 — Global Trending Intelligence (High) — PARTIAL
 
-Nothing here exists yet: no provider adapter, no trend score, no review queue, no
-dashboard. The only "trending" surface today is the home carousel of the newest 24
-published stories, which is recency, not a signal — and it is labelled as such.
+Status 2026-11-13: one provider is live, and it is a real one. `backend/src/services/trendService.js`
+fetches Google's own daily feed (`https://trends.google.com/trending/rss?geo=XX`) per region, keeps
+exactly what Google printed — topic, traffic band as a label plus its number, the headline links
+attached to it, the feed URL and the fetch time — in the `trendtopics` collection for 21 days, and
+serves it to the admin radar with a per-region health reason (`NO_FEED_FOR_GEO`, `PROVIDER_ERROR`,
+`UNREADABLE_FEED`, `TIMEOUT`, `UNREACHABLE`, `EMPTY`) and a dated stale fallback. Rwanda is listed
+and reported honestly: Google serves no RSS for `RW`, so that chip says so instead of showing
+anything invented. GDELT is deliberately not wired — its public API answers 429 from this network,
+so there is no way to verify it here and no code pretending otherwise. The trend writer will only
+write a topic the server itself fetched (`evidenceFor()` returns nothing else, and the route 400s),
+so a story can never be seeded from a headline nobody saw. Reader `/trending` is still first-party
+engagement: search interest is an editorial input, never an auto-publish source.
+Missing: a transparent trend score, topic clustering and history views.
 
 | Work item | Existing | Required changes | Dependencies | DB impact | Security impact | Acceptance criteria | Testing |
 |---|---|---|---|---|---|---|---|
-| Provider architecture | None | Server-side adapters for Trends/GDELT/approved news APIs, config, secrets in env, caching, rate-limit/error handling, attribution/provenance | Owner API access/terms, compliant methods | Additive | Key protection | Integrations health-visible; no frontend secrets | Adapter/unit tests |
-| Ranking/clustering/queue | None | Transparent versioned trend score, topic clusters, evidence, editorial review/assignment queue (no auto-publish) | Algorithm/product tuning | Additive | Prevent misinformation automation | Scores explainable; editors control outcomes | Data/logic tests |
-| Dashboard | None | Real-data trend views/filters/history/refresh; honest unconfigured states | Above integrations | Read models | None | No fake/sample prod data | UI/integration tests |
+| Provider architecture | `trendService` + `trendRss` parser + `TrendTopic` provenance for Google Trends RSS, cached, timed out, pruned, provenance stored | More adapters only when the owner supplies keys/terms (news APIs); per-provider health page | Owner API access/terms, compliant methods | Additive (`trendtopics`) | Key protection, server-side only | Integrations health-visible; no frontend secrets | `tests/trends.test.js` (parser, provenance, each failure reason) |
+| Ranking/clustering/queue | Admin review queue for AI drafts (preview/edit/approve/reject/take down) and trending topics with evidence | Transparent versioned trend score, topic clusters, evidence, editorial review/assignment queue (no auto-publish) | Algorithm/product tuning | Additive | Prevent misinformation automation | Scores explainable; editors control outcomes | Data/logic tests |
+| Dashboard | Admin-only TrendRadar: region chips, live/stale/unreachable states, Google's own headline links, refresh, attribution and cache note, "write this story" into the AI newsroom | Real-data trend filters/history on top of the stored sightings | Above integrations | Read models | None | No fake/sample prod data | UI/integration tests |
 
 ## Release 4 — International distribution (Medium–High) — PARTIAL
 
@@ -133,6 +150,8 @@ them from the code:
 1. Land Release 0 docs + collaboration/CI + quick security hardening.  
 2. Implement Release 1 pages, SEO endpoints, consent/analytics config, and article/author metadata improvements.  
 3. Evolve data model and permissions for Release 2 workflow, then scheduling/corrections/sources.  
-4. Add provider adapters and trending queue (Release 3) behind configured integrations.  
+4. Add provider adapters and trending queue (Release 3) behind configured integrations. —
+   Google Trends adapter, its provenance store and the admin radar/queue landed 2026-11-13; the
+   remaining adapters wait on owner-supplied keys, and the trend score is still open.
 5. Expand to multilingual/newsletter/media/distribution (Release 4) with owner-provided services/credentials.  
 6. Execute readiness/growth items (Release 5) only after quality, policy, and technical gates pass.

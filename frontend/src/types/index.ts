@@ -30,6 +30,8 @@ export interface Article {
   title: string
   slug: string
   summary: string
+  /** Search-result description. Optional: pages fall back to the summary. */
+  metaDescription?: string
   content: string
   featuredImage?: string
   author: string | { _id: string; fullName: string; username: string; avatar?: string; bio?: string }

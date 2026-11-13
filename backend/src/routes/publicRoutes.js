@@ -5,7 +5,7 @@ const ContactMessage = require('../models/ContactMessage');
 const User = require('../models/User');
 const { optionalAuth } = require('../middleware/auth');
 const { withEngagement } = require('../services/engagementService');
-const { categoryIdsFor } = require('../utils/categoryGroups');
+const { categoryIdsFor, sectionTree, sectionDocFor, sectionPathFor } = require('../utils/categoryGroups');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { cleanText, plainText } = require('../utils/textFields');
 
@@ -106,7 +106,65 @@ router.get('/popular', async (req, res, next) => {
 router.get('/categories', async (req, res, next) => {
   try {
     const categories = await Category.find({ isActive: true }).sort({ name: 1 });
-    return successResponse(res, 200, 'Categories fetched', { categories });
+    return successResponse(res, 200, 'Categories fetched', { categories, sections: await sectionTree() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The header reads this on its own, without the whole category list.
+router.get('/sections', async (req, res, next) => {
+  try {
+    return successResponse(res, 200, 'Sections fetched', { sections: await sectionTree() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * A section page: /sports, or one sub-section of it: /sports/football.
+ * Asking for a section also asks for everything filed under it, so a story the
+ * writer put in Football appears on /sports as well as on its own page.
+ */
+router.get('/sections/:section/:child?', optionalAuth, async (req, res, next) => {
+  try {
+    const { page = 1, limit = 12, sort = 'latest' } = req.query;
+    const empty = { section: null, child: null, articles: [], total: 0, page: 1, limit: Number(limit) };
+    const wanted = String(req.params.section || '').toLowerCase();
+    const wantedChild = req.params.child ? String(req.params.child).toLowerCase() : null;
+
+    const tree = await sectionTree();
+    const section = tree.find((item) => item.slug === wanted);
+    const child = section && wantedChild ? section.children.find((item) => item.slug === wantedChild) : null;
+    if (!section || (wantedChild && !child)) {
+      return successResponse(res, 200, 'Section articles fetched', empty);
+    }
+
+    let sortOption = { publishedAt: -1 };
+    if (sort === 'trending') sortOption = { validViews: -1, likes: -1 };
+    else if (sort === 'popular') sortOption = { views: -1 };
+
+    const sectionIds = await categoryIdsFor(child ? child.slug : section.slug);
+    const filter = { category: { $in: sectionIds }, status: 'published' };
+    const [articles, total] = await Promise.all([
+      Article.find(filter)
+        .populate('author', 'fullName username avatar')
+        .populate('category', 'name slug')
+        .sort(sortOption)
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit)),
+      Article.countDocuments(filter),
+    ]);
+
+    return successResponse(res, 200, 'Section articles fetched', {
+      section,
+      child,
+      category: await sectionDocFor(child ? child.slug : section.slug),
+      articles: await withEngagement(req.user, articles),
+      total,
+      page: Number(page),
+      limit: Number(limit),
+    });
   } catch (error) {
     next(error);
   }
@@ -119,10 +177,9 @@ router.get('/categories/:slug', optionalAuth, async (req, res, next) => {
     // spelling disappears from this page, and a section only ever created in one
     // language still opens under its other name.
     const sectionIds = await categoryIdsFor(req.params.slug);
-    let category = await Category.findOne({ slug: req.params.slug, isActive: true });
-    if (!category && sectionIds.length) category = await Category.findOne({ _id: { $in: sectionIds }, isActive: true });
+    const category = await sectionDocFor(req.params.slug);
     if (!category) {
-      return successResponse(res, 200, 'Category articles fetched', { category: null, articles: [], total: 0, page: 1, limit });
+      return successResponse(res, 200, 'Category articles fetched', { category: null, sectionPath: null, articles: [], total: 0, page: 1, limit });
     }
 
     let sortOption = { publishedAt: -1 };
@@ -139,7 +196,9 @@ router.get('/categories/:slug', optionalAuth, async (req, res, next) => {
       .skip((Number(page) - 1) * Number(limit));
 
     const total = await Article.countDocuments(inSection);
-    return successResponse(res, 200, 'Category articles fetched', { category, articles: await withEngagement(req.user, articles), total, page: Number(page), limit: Number(limit) });
+    // The section address is the canonical one; this old /category/<slug> page
+    // still works, and tells the reader where the section moved to.
+    return successResponse(res, 200, 'Category articles fetched', { category, sectionPath: sectionPathFor(category.slug), articles: await withEngagement(req.user, articles), total, page: Number(page), limit: Number(limit) });
   } catch (error) {
     next(error);
   }

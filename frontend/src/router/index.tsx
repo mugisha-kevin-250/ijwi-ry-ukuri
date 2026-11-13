@@ -1,6 +1,7 @@
-import { createBrowserRouter, Navigate, Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, ScrollRestoration, useLocation, useParams } from 'react-router-dom'
 import { type ReactNode, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { sectionHrefFor } from '../data/sections'
 import { trackPageView } from '../utils/analytics'
 import RouteProgressBar from '../components/common/RouteProgressBar'
 import WriterAccessGate from '../components/auth/WriterAccessGate'
@@ -15,6 +16,7 @@ import CategoryPage from '../pages/public/CategoryPage'
 import HomePage from '../pages/public/HomePage'
 import LivePage from '../pages/public/LivePage'
 import SearchPage from '../pages/public/SearchPage'
+import SectionPage from '../pages/public/SectionPage'
 import AboutPage from '../pages/public/AboutPage'
 import AdvertisingPage from '../pages/public/AdvertisingPage'
 import ContactPage from '../pages/public/ContactPage'
@@ -71,6 +73,16 @@ function usePageViews() {
   }, [pathname, search])
 }
 
+// A topic link published before the section tree existed still works. The old
+// /category/<slug> address forwards to the section page when the spelling belongs
+// to the tree, and stays on the topic page when the admin made it themselves.
+function CategorySectionRoute() {
+  const { slug = '' } = useParams<{ slug: string }>()
+  const href = sectionHrefFor({ slug })
+  if (href) return <Navigate to={href} replace />
+  return <CategoryPage />
+}
+
 function RootLayout() {
   usePageViews()
   return (
@@ -98,7 +110,7 @@ export const router = createBrowserRouter([
           { path: 'categories', element: <CategoriesPage /> },
           { path: 'live', element: <LivePage /> },
           { path: 'live/:id', element: <LivePage /> },
-          { path: 'category/:slug', element: <CategoryPage /> },
+          { path: 'category/:slug', element: <CategorySectionRoute /> },
           { path: 'search', element: <SearchPage /> },
           { path: 'about', element: <AboutPage /> },
           { path: 'contact', element: <ContactPage /> },
@@ -110,6 +122,8 @@ export const router = createBrowserRouter([
           { path: 'disclaimer', element: <DisclaimerPage /> },
           { path: 'terms', element: <TermsPage /> },
           { path: 'user/:id', element: <UserProfilePage /> },
+          { path: ':section', element: <SectionPage /> },
+          { path: ':section/:sub', element: <SectionPage /> },
         ],
       },
       {

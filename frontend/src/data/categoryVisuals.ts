@@ -1,4 +1,5 @@
 import type { Category } from '../types'
+import { sectionHrefFor } from './sections'
 
 /**
  * The newsroom holds the same section twice, once in English and once in
@@ -21,7 +22,7 @@ export const CATEGORY_VISUALS: CategoryVisual[] = [
   { slug: 'world', aliases: ['world'], image: '/images/categories/world.png' },
   { slug: 'politik', aliases: ['politik', 'politics', 'politiki'], labelKey: 'category.politics', image: '/images/categories/politics.png' },
   { slug: 'business', aliases: ['business', 'ubucuruzi', 'economy'], labelKey: 'category.business', image: '/images/categories/business.png' },
-  { slug: 'technology', aliases: ['technology', 'teknolojia', 'teknolojiya', 'tekonolojiya', 'ikoranabuhanga'], labelKey: 'category.technology', image: '/images/categories/technology.png' },
+  { slug: 'technology', aliases: ['technology', 'tech', 'tehnologija', 'teknolojia', 'tekonolojiya', 'ikoranabuhanga'], labelKey: 'category.technology', image: '/images/categories/technology.png' },
   { slug: 'sports', aliases: ['sports', 'sport', 'amasport', 'amasports', 'imikino'], labelKey: 'category.sports', image: '/images/categories/sports.png' },
   { slug: 'entertainment', aliases: ['entertainment', 'ibisindi', 'amuseke'], labelKey: 'category.entertainment', image: '/images/categories/entertainment.png' },
   { slug: 'health', aliases: ['health', 'ubuzima', 'imirire'], labelKey: 'category.health', image: '/images/categories/health.png' },
@@ -56,6 +57,11 @@ function visualFor(category?: { slug?: string; name?: string } | null): Category
   return ALIAS_TO_VISUAL.get(normalize(category.slug || '')) || ALIAS_TO_VISUAL.get(normalize(category.name || ''))
 }
 
+/** The picture a section is printed with; sections outside the table get none. */
+export function categoryImage(category?: { slug?: string; name?: string } | null): string | undefined {
+  return visualFor(category)?.image || undefined
+}
+
 /**
  * The section name in the language the reader is reading in, so a category
  * stored as "Amasport" is offered as Sports, Imikino, Sport or Michezo.
@@ -82,10 +88,13 @@ export function categoryGroupSlugs(category: { slug?: string; name?: string } | 
 
 /**
  * Every reader link to a section goes to one address, so 'Sports' and 'Amasport'
- * never split their readers and their search ranking in two.
+ * never split their readers and their search ranking in two. A section that is
+ * part of the published tree gets its own short address (/sports, or
+ * /sports/football for a sub-section); anything outside it keeps the category
+ * page it has always had.
  */
 export function categoryHref(category: { slug?: string; name?: string } | null | undefined): string {
-  return `/category/${categoryGroupSlug(category)}`
+  return sectionHrefFor(category) || `/category/${categoryGroupSlug(category)}`
 }
 
 export interface ResolvedCategory {

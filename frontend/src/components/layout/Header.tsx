@@ -8,6 +8,7 @@ import RadarLogo from '../common/RadarLogo'
 import LanguageSelector from './LanguageSelector'
 import LiveButton from './LiveButton'
 import NotificationsBell from './NotificationsBell'
+import SectionNav from './SectionNav'
 
 interface HeaderProps {
   variant?: 'public' | 'writer' | 'editor' | 'admin'
@@ -23,8 +24,8 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
   const [isScrolled, setIsScrolled] = useState(false)
   const [searchValue, setSearchValue] = useState('')
 
+  // Sections live in SectionNav; these three sit after them.
   const navLinks = [
-    { href: '/', label: t('nav.home') },
     { href: '/articles', label: t('nav.articles') },
     { href: '/categories', label: t('nav.categories') },
     { href: '/search', label: t('nav.search') },
@@ -243,8 +244,8 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
 
         {variant === 'public' && (
           <div className="hidden items-center gap-1 pb-2 md:flex">
-            {navLinkItems}
-            <LiveButton className="ml-1" />
+            <SectionNav className="min-w-0 flex-1" extraLinks={navLinks} />
+            <LiveButton className="ml-1 shrink-0" />
           </div>
         )}
 
@@ -252,7 +253,12 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
           <div id="mobile-menu" className="md:hidden py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="space-y-2">
               <nav className="grid gap-1" aria-label="Site sections">
-                {currentNavLinks.map((link) => (
+                {variant === 'public' ? (
+                  <>
+                    <SectionNav layout="stack" extraLinks={navLinks} onNavigate={() => setIsMenuOpen(false)} />
+                    <LiveButton className="mt-1 self-start" />
+                  </>
+                ) : currentNavLinks.map((link) => (
                   <NavLink
                     key={link.href}
                     to={link.href}
@@ -268,7 +274,6 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                     {link.label}
                   </NavLink>
                 ))}
-                {variant === 'public' && <LiveButton className="mt-1 self-start" />}
               </nav>
               <LanguageSelector className="w-full [&>button]:w-full" />
               {token ? (

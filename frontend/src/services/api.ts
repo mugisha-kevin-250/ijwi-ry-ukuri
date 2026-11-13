@@ -15,6 +15,24 @@ interface ArticleResults {
   total: number
 }
 
+/** One node of the published section tree, as the backend seeds it. */
+export interface SectionRecord {
+  _id: string | null
+  slug: string
+  name: string
+  labelKey?: string
+  description?: string
+  href: string
+  aliases?: string[]
+  children: SectionRecord[]
+}
+
+export interface SectionResults extends ArticleResults {
+  section: SectionRecord | null
+  child: SectionRecord | null
+  category: Category | null
+}
+
 export interface AdminUserRecord extends User {
   articleCount: number
   publishedCount: number
@@ -78,6 +96,12 @@ export const publicAPI = {
 
   getCategoryArticles: (slug: string, page?: number, limit?: number, sort?: string) =>
     apiClient.get<ArticleResults>(`/categories/${slug}`, { page, limit, sort }),
+
+  getSections: () =>
+    apiClient.get<{ sections: SectionRecord[] }>('/sections'),
+
+  getSectionArticles: (section: string, child?: string, page?: number, limit?: number, sort?: string) =>
+    apiClient.get<SectionResults>(`/sections/${section}${child ? `/${child}` : ''}`, { page, limit, sort }),
 
   search: (query: string, page?: number, limit?: number) =>
     apiClient.get<any>('/search', { search: query, page, limit }),

@@ -7,7 +7,7 @@
  * cached shell — bump it here (and only here) or returning readers keep serving
  * the previous bundle forever.
  */
-const VERSION = 'radar-v15'
+const VERSION = 'radar-v16'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const PAGE_CACHE = `${VERSION}-pages`
@@ -28,6 +28,8 @@ const CACHEABLE_API = [
   /\/api\/articles\/[a-z0-9-]+(\/|$)/i,
   /\/api\/categories(\?|$)/,
   /\/api\/category\/[a-z0-9-]+/i,
+  /\/api\/sections(\?|$)/,
+  /\/api\/sections\/[a-z0-9-]+(\/[a-z0-9-]+)?/i,
   /\/api\/trending/,
   /\/uploads\//,
 ]

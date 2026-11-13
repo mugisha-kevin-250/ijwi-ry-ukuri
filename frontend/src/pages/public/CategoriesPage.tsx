@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { Category } from '../../types'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
-import { categoryGroupSlugs, categoryLabel, resolveCategories, type ResolvedCategory } from '../../data/categoryVisuals'
+import { categoryImage, categoryLabel, resolveCategories, type ResolvedCategory } from '../../data/categoryVisuals'
+import { SECTIONS, sectionHrefFor } from '../../data/sections'
 import CategoryCard from '../../components/news/CategoryCard'
 import { Loading } from '../../components/common/Loading'
 import EmptyState from '../../components/common/EmptyState'
@@ -33,16 +34,29 @@ export default function CategoriesPage() {
     fetchCategories()
   }, [])
 
-  const visible = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    if (!term) return resolved
-    return resolved.filter(({ category }) => {
-      // Readers search with either language, so every spelling of the section
-      // counts: 'amasport', 'sports' and 'imikino' all find the same card.
-      const names = [categoryLabel(category, t), category.name, category.slug, ...categoryGroupSlugs(category)]
+  const term = search.trim().toLowerCase()
+
+  // The published sections come from the site's own structure, so this page
+  // paints them without waiting for the server.
+  const visibleSections = useMemo(() => {
+    if (!term) return SECTIONS
+    return SECTIONS.filter((section) => {
+      const words = [t(section.labelKey), section.slug, ...section.aliases,
+        ...section.children.map((child) => `${t(child.labelKey)} ${child.slug}`)]
+      return words.some((value) => value.toLowerCase().includes(term))
+    })
+  }, [term, t])
+
+  // Anything the section tree does not publish — a topic an admin made up
+  // themselves — still gets a card here, on its long-standing /category page.
+  const visibleTopics = useMemo(() => {
+    const outsideTree = resolved.filter(({ category }) => !sectionHrefFor(category))
+    if (!term) return outsideTree
+    return outsideTree.filter(({ category }) => {
+      const names = [categoryLabel(category, t), category.name, category.slug]
       return names.some((value) => value.toLowerCase().includes(term)) || (category.description || '').toLowerCase().includes(term)
     })
-  }, [resolved, search, t])
+  }, [resolved, term, t])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,6 +78,8 @@ export default function CategoriesPage() {
       </div>
     )
   }
+
+  const nothingFound = visibleSections.length === 0 && visibleTopics.length === 0
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6">
@@ -87,23 +103,50 @@ export default function CategoriesPage() {
         </svg>
       </form>
 
-      {visible.length === 0 ? (
+      {nothingFound ? (
         <EmptyState
           icon={<svg className="mx-auto mb-4 h-12 w-12 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>}
-          title={resolved.length === 0 ? t('categories.emptyTitle') : t('categories.noResults')}
-          description={resolved.length === 0 ? t('categories.emptyDesc') : t('categories.helpDesc')}
+          title={t('categories.noResults')}
+          description={t('categories.helpDesc')}
         />
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {visible.map(({ category, visual }) => (
-            <CategoryCard
-              key={category._id}
-              category={category}
-              label={visual.labelKey ? t(visual.labelKey) : category.name}
-              image={visual.image}
-            />
-          ))}
-        </div>
+        <>
+          {visibleSections.length > 0 && (
+            <section aria-labelledby="sections-heading" className="space-y-4">
+              <h2 id="sections-heading" className="text-xl font-bold text-[var(--color-text)]">{t('categories.sectionsTitle')}</h2>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleSections.map((section) => (
+                  <CategoryCard
+                    key={section.slug}
+                    category={{ _id: section.slug, name: section.slug, slug: section.slug }}
+                    label={t(section.labelKey)}
+                    image={categoryImage({ slug: section.slug })}
+                    subsections={section.children.map((child) => ({
+                      label: t(child.labelKey),
+                      href: `/${section.slug}/${child.slug}`,
+                    }))}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {visibleTopics.length > 0 && (
+            <section aria-labelledby="topics-heading" className="space-y-4">
+              <h2 id="topics-heading" className="text-xl font-bold text-[var(--color-text)]">{t('categories.topicsTitle')}</h2>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {visibleTopics.map(({ category, visual }) => (
+                  <CategoryCard
+                    key={category._id}
+                    category={category}
+                    label={visual.labelKey ? t(visual.labelKey) : category.name}
+                    image={visual.image}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       <div className="mt-8 border-t border-[var(--color-border)] pt-12 text-center">

@@ -6,7 +6,9 @@
 //                            editorial-policy, corrections, advertising, privacy,
 //                            cookies, disclaimer, terms)
 //   sitemap-articles.xml     one URL per published story
-//   sitemap-categories.xml   one URL per category feed
+//   sitemap-categories.xml   one URL per category feed that the section tree
+//                            does not already publish at its own address
+//   sitemap-sections.xml     one URL per section and sub-section page
 //   sitemap-writers.xml      one URL per author profile page
 //   sitemap-news.xml         Google News sitemap: English stories from the last
 //                            two days (Google only reads that window)
@@ -217,6 +219,22 @@ async function main() {
   } catch (error) {
     console.warn(`sitemap: could not read categories (${error.message})`)
   }
+  let sections = []
+  try {
+    sections = (await json(`${base}/sections`))?.sections ?? []
+  } catch (error) {
+    console.warn(`sitemap: could not read the section tree (${error.message}); falling back to category feeds`)
+  }
+
+  // Every spelling the tree already claims, so a topic never appears twice.
+  const sectionSpellings = new Set()
+  const sectionHrefs = []
+  const collect = (node, href) => {
+    sectionHrefs.push(href)
+    ;[node.slug, ...(node.aliases || [])].forEach((value) => sectionSpellings.add(String(value).toLowerCase()))
+    ;(node.children || []).forEach((child) => collect(child, child.href || `${href}/${child.slug}`))
+  }
+  sections.forEach((section) => collect(section, section.href || `/${section.slug}`))
 
   const latestArticle = articles
     .map((a) => isoDate(a.publishedAt || a.createdAt))
@@ -260,11 +278,22 @@ async function main() {
     ),
   })
 
+  if (sectionHrefs.length) {
+    files.push({
+      name: 'sitemap-sections.xml',
+      xml: urlset(
+        sectionHrefs.map((href) => urlEntry(`${SITE_URL}${href}`, latestArticle, '0.7', 'daily'))
+      ),
+    })
+  }
+
+  // A topic outside the published tree keeps its own /category page; the ones the
+  // tree covers are already listed above at their canonical address.
   files.push({
     name: 'sitemap-categories.xml',
     xml: urlset(
       categories
-        .filter((c) => c?.slug)
+        .filter((c) => c?.slug && !sectionSpellings.has(String(c.slug).toLowerCase()))
         .map((c) => urlEntry(`${SITE_URL}/category/${c.slug}`, latestArticle, '0.6', 'daily'))
     ),
   })
@@ -312,7 +341,7 @@ ${written
   for (const { url } of written) console.log(`  -> ${url}`)
   console.log(`  -> ${feedUrl}`)
   console.log(
-    `${articles.length} articles, ${categories.length} categories, ${authors.size} writers, ` +
+    `${articles.length} articles, ${categories.length} categories, ${sectionHrefs.length} section pages, ${authors.size} writers, ` +
       `${5 + publisherPages.length} static pages, ${news.count} stories in the News sitemap, ` +
       `${Math.min(newest.length, 30)} stories in the feed`
   )

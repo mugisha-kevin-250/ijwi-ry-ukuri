@@ -5,7 +5,7 @@
     <link>https://ijwi-ry--ukuri.web.app</link>
     <description>News written by approved writers: world, politics, business, technology, sports, entertainment and health.</description>
     <language>en</language>
-    <lastBuildDate>Sat, 14 Nov 2026 12:38:26 GMT</lastBuildDate>
+    <lastBuildDate>Sat, 14 Nov 2026 13:50:08 GMT</lastBuildDate>
     <docs>https://www.rss.org/rss.xml</docs>
     <generator>RADAR build scripts</generator>
     <atom:link href="https://ijwi-ry--ukuri.web.app/feed.xml" rel="self" type="application/rss+xml" />
@@ -14,6 +14,20 @@
       <title>RADAR</title>
       <link>https://ijwi-ry--ukuri.web.app</link>
     </image>
+    <item>
+      <title>Kenya Defence Forces Upgrade Training and Readiness Against Regional Threats</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/kenya-defence-forces-upgrade-training-and-readiness-against-regional-threats-1794664260027</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/kenya-defence-forces-upgrade-training-and-readiness-against-regional-threats-1794664260027</guid>
+      <description>The Kenya Defence Forces are deploying specialized units for advanced international training and upgrading operational readiness to counter evolving security threats in the region.</description>
+      <pubDate>Sat, 14 Nov 2026 13:51:00 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Trending</category>
+      <category>kenya defence forces</category>
+      <category>military readiness</category>
+      <category>security threats</category>
+      <category>regional defense</category>
+      <media:content url="https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcQ6cA-1Y2o-8gGuNVlaTKqgB0LbUUOkf_LS4A6cUkkW08ECHk-dTM0mft6_DuM" medium="image" />
+    </item>
     <item>
       <title>Fast and Furious Franchise Prepares for 2026 Release</title>
       <link>https://ijwi-ry--ukuri.web.app/article/fast-and-furious-franchise-prepares-for-2026-release-1794573280773</link>
@@ -384,20 +398,6 @@
       <category>Mali</category>
       <category>IGIHE</category>
       <media:content url="https://studentnews-backend.onrender.com/uploads/1794066706829-58538401.webp" medium="image" />
-    </item>
-    <item>
-      <title>Chris Brown na Usher bavuzwe mu makimbirane nyuma y’igitaramo cyatinze</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/chris-brown-na-usher-bavuzwe-mu-makimbirane-nyuma-yigitaramo-cyatinze-1794065580673</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/chris-brown-na-usher-bavuzwe-mu-makimbirane-nyuma-yigitaramo-cyatinze-1794065580673</guid>
-      <description>IGIHE yatangaje amakuru y’uko Chris Brown na Usher bashwanye mu gihe igitaramo cyabo cyatangiye gitinze hafi amasaha atatu.</description>
-      <pubDate>Sat, 07 Nov 2026 14:36:50 GMT</pubDate>
-      <dc:creator>Shyakaclever Prince</dc:creator>
-      <category>Entertainment</category>
-      <category>Imyidagaduro</category>
-      <category>Chris Brown</category>
-      <category>Usher</category>
-      <category>IGIHE</category>
-      <media:content url="https://studentnews-backend.onrender.com/uploads/1794065576617-905299033.jpg" medium="image" />
     </item>
   </channel>
 </rss>

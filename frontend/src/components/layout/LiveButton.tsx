@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Radio } from 'lucide-react'
 import type { Live } from '../../types'
 import { liveAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
@@ -45,19 +44,21 @@ export default function LiveButton({ className }: { className?: string }) {
   return (
     <Link
       to="/live"
-      aria-label={isOnAir ? `${t('nav.live')} — ${t('live.onAirNow')}` : t('nav.live')}
+      aria-label={isOnAir ? `${t('nav.tv')} — ${t('live.onAirNow')}` : t('nav.tv')}
       className={cn(
         'inline-flex shrink-0 items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white transition hover:bg-red-700 sm:text-xs',
         isOnAir && 'animate-pulse shadow-[0_0_0_3px_rgba(239,68,68,0.3)]',
         className,
       )}
     >
+      {/* Two letters and one dot. The icon that used to sit here cost the
+          masthead row more room than the word it spelled, and the dot already
+          says what the picture said. */}
       <span className="relative flex h-2 w-2" aria-hidden="true">
         {isOnAir && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />}
         <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
       </span>
-      <Radio className="hidden h-3.5 w-3.5 sm:block" aria-hidden="true" />
-      {t('nav.live')}
+      {t('nav.tv')}
     </Link>
   )
 }

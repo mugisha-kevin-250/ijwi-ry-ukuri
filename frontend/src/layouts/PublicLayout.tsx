@@ -22,8 +22,9 @@ export default function PublicLayout() {
       {/* Desktop masthead: a 36px chrome bar and a 56px name line. Phone: a 64px
           name line and the 44px section strip that runs under it. */}
       <main className="flex-1 pt-[110px] md:pt-[92px]">
-        {/* The banner a reader sees first, straight under the masthead. It is
-            absent until AdSense is switched on - never an empty grey box. */}
+        {/* The banner a reader sees first, straight under the masthead. With no
+            advertiser in it, the newsroom sells the space to itself rather than
+            leave a hole in the page. */}
         <AdSlot name="leaderboard" className="mx-auto max-w-7xl px-4 pt-4 sm:px-6 lg:px-8" />
         <Outlet key={languageVersion} />
       </main>

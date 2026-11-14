@@ -45,6 +45,10 @@ const translations: Record<string, Translations> = {
     'lang.anytime': 'You can change it at any time.',
     'nav.settings': 'Settings',
     'nav.live': 'Live',
+    // The button in the header is a two-letter word, not the four-letter one it
+    // was: the masthead row is measured against the room it has, and every
+    // character taken back is room the section names get instead.
+    'nav.tv': 'TV',
     'nav.radio': 'Radio',
     'radio.kicker': 'RADAR Audio',
     'radio.title': 'News you can listen to',
@@ -542,9 +546,20 @@ const translations: Record<string, Translations> = {
     'articles.breadcrumb': 'Breadcrumb',
     'articles.updated': 'Updated',
     'ads.label': 'Advertisement',
+    // What the slot says when no advertiser has bought it. The headline is
+    // printed in capitals by the stylesheet, so it stays a sentence here.
+    'ads.houseHeadline': 'Free space to advertise',
+    'ads.houseNote': 'Put your brand in front of readers in Rwanda and the diaspora.',
+    'ads.houseCta': 'Book this space',
     'articles.posting': 'Posting...',
     'articles.toComment': 'to comment',
     'articles.unknownDate': 'Unknown date',
+    // The news page is laid out like a paper: one lead, a few near it, then the
+    // running order under a heading.
+    'articles.moreNews': 'More news',
+    'articles.empty': 'No stories match what you are looking for.',
+    'articles.clearFilters': 'Clear the filters',
+    'articles.browseSections': 'Browse sections',
     'pwa.installTitle': "Install RADAR on this device",
     'pwa.installBody': 'Get breaking news faster, with updates and offline reading.',
     'pwa.installAction': 'Install app',

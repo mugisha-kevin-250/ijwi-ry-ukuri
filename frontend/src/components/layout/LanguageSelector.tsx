@@ -15,9 +15,15 @@ import LanguageOptions from './LanguageOptions'
 interface LanguageSelectorProps {
   className?: string
   buttonClassName?: string
+  /**
+   * The language name beside the globe. The header hides it until there is room
+   * for it, because "Chinese (Traditional)" costs the masthead eighty pixels it
+   * needs for a section name.
+   */
+  labelClassName?: string
 }
 
-export default function LanguageSelector({ className, buttonClassName }: LanguageSelectorProps) {
+export default function LanguageSelector({ className, buttonClassName, labelClassName }: LanguageSelectorProps) {
   const { lang, t } = useI18n()
   const { languages } = useLanguageCatalog()
   const [isOpen, setIsOpen] = useState(false)
@@ -47,7 +53,7 @@ export default function LanguageSelector({ className, buttonClassName }: Languag
         )}
       >
         <Globe className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
-        <span className="max-w-[9rem] truncate">{label}</span>
+        <span className={cn('max-w-[9rem] truncate', labelClassName)}>{label}</span>
       </button>
 
       {isOpen && (

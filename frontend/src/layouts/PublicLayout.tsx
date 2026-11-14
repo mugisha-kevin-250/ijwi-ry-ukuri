@@ -19,8 +19,9 @@ export default function PublicLayout() {
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 pb-16 md:pb-0">
       <Header variant="public" />
-      {/* The masthead is two rows on desktop: a 36px bar and a 56px name line. */}
-      <main className="flex-1 pt-16 md:pt-[92px]">
+      {/* Desktop masthead: a 36px chrome bar and a 56px name line. Phone: a 64px
+          name line and the 44px section strip that runs under it. */}
+      <main className="flex-1 pt-[110px] md:pt-[92px]">
         {/* The banner a reader sees first, straight under the masthead. It is
             absent until AdSense is switched on - never an empty grey box. */}
         <AdSlot name="leaderboard" className="mx-auto max-w-7xl px-4 pt-4 sm:px-6 lg:px-8" />

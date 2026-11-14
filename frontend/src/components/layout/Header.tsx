@@ -171,17 +171,20 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             </div>
           )}
 
-          {/* Sections on the same line as the name, the way a masthead reads. */}
+          {/* Sections on the same line as the name, the way a masthead reads.
+              The row may not spill: SectionNav measures itself and scrolls when
+              the names do not fit, which is what used to draw them over the
+              radio, LIVE and language buttons. */}
           {variant === 'public' && (
-            <div className="hidden min-w-0 flex-1 items-center gap-1 md:flex">
+            <div className="hidden min-w-0 flex-1 items-center gap-2 md:flex">
               <SectionNav className="min-w-0 flex-1" extraLinks={navLinks} />
-              <RadioNewsButton className="ml-1 shrink-0" />
-              <LiveButton className="ml-1 shrink-0" />
+              <RadioNewsButton />
+              <LiveButton />
             </div>
           )}
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-3">
-            <LanguageSelector className="hidden sm:block" buttonClassName="border-gray-200 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" />
+            <LanguageSelector className="hidden sm:block" labelClassName="hidden lg:inline" buttonClassName="border-gray-200 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" />
 
             {variant === 'public' && <NotificationsBell />}
 
@@ -304,6 +307,23 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             </button>
           </div>
         </div>
+
+        {/*
+          On a phone the sections are not hidden behind the menu: they run past on
+          their own strip under the masthead, because nine names will never fit
+          across 360 pixels and a reader should not have to open anything to reach
+          Sport. It stops for a finger, and the menu still carries the same links
+          with their sub-sections.
+        */}
+        {variant === 'public' && (
+          <div className="h-11 border-t border-gray-100 dark:border-gray-800 md:hidden">
+            <SectionNav
+              layout="marquee"
+              extraLinks={navLinks}
+              trailing={[<RadioNewsButton key="radio" />, <LiveButton key="live" />]}
+            />
+          </div>
+        )}
 
         {isMenuOpen && (
           <div id="mobile-menu" className="md:hidden py-4 border-t border-gray-200 dark:border-gray-700">

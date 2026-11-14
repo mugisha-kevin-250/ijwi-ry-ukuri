@@ -18,6 +18,7 @@ const translations: Record<string, Translations> = {
     'nav.articles': 'News',
     'nav.categories': 'Categories',
     'nav.search': 'Search',
+    'nav.sections': 'Sections',
     'nav.write': 'Write Story',
     'nav.dashboard': 'Dashboard',
     'nav.profile': 'Profile',

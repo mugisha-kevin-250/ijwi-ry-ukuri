@@ -325,4 +325,78 @@ async function photoLinks({ topic, region } = {}) {
   };
 }
 
-module.exports = { isConfigured, activeModel, writeStory, chat, photoLinks };
+/**
+ * The words the radio desk reads before a bulletin.
+ *
+ * This is the one place the model is allowed to produce sentences that go
+ * straight out loud without an editor reading them first, so the job is kept as
+ * small as it can be: it is handed the headlines that are already published on
+ * this site and asked only to introduce them and sign off. It is not given the
+ * story bodies, not asked for background, and told plainly that it has no facts
+ * of its own here. What comes back is checked against that - a script that
+ * mentions nothing outside the list of headlines it was given is a script, and
+ * one that invents a development is a reason to fall back to the written line.
+ */
+function buildRadioPrompt({ slotName, at, dayName, stories }) {
+  return [
+    `You are writing the presenter's links for a ${slotName} news bulletin on RADAR radio, a Rwandan news site.`,
+    `The bulletin starts at ${at} on a ${dayName}. It carries these stories, in this order:`,
+    ...stories.map((story, index) => `${index + 1}. ${story.title}${story.summary ? ` — ${story.summary}` : ''}`),
+    '',
+    'Write two short passages of spoken English:',
+    '- "opening": two or three sentences. Name the programme and say that these are the stories RADAR has published. Then name the top two or three headlines in plain spoken language.',
+    '- "closing": one sentence that signs off and points readers to the site for the full stories.',
+    '',
+    'Hard rules:',
+    '- Use only what is in the list above. Add no fact, figure, name, place or development that is not written there.',
+    '- Do not summarise beyond what the headline says. Do not speculate about what happens next.',
+    '- No "good morning", no weather, no music cues, no emoji, no markdown, no stage directions. Sentences only.',
+    '- Nothing may read as a claim about the world that is not already published on this site.',
+    '',
+    'Return ONLY a JSON object: {"opening": string, "closing": string}'
+  ].join('\n');
+}
+
+async function radioScript({ slotName = 'news', at = '', dayName = '', stories = [] } = {}) {
+  const list = (Array.isArray(stories) ? stories : []).slice(0, 12);
+  if (!list.length) {
+    const error = new Error('There is nothing in the bulletin to introduce');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+
+  const text = await callGemini({
+    contents: [{ role: 'user', parts: [{ text: buildRadioPrompt({ slotName, at, dayName, stories: list }) }] }],
+    // Low, because the task is to repeat what is already written and nothing else.
+    temperature: 0.35,
+    topP: 0.9,
+    maxOutputTokens: 400,
+    responseMimeType: 'application/json',
+    timeoutMs: CHAT_TIMEOUT_MS
+  });
+
+  let opening = '';
+  let closing = '';
+  try {
+    const parsed = parseJson(text);
+    opening = String(parsed.opening || '').trim();
+    closing = String(parsed.closing || '').trim();
+  } catch (err) {
+    const error = new Error('Gemini returned something we could not read as a script');
+    error.code = 'AI_BAD_OUTPUT';
+    error.cause = err;
+    throw error;
+  }
+
+  // A script with no opening line is not a script, and one that ran long enough to
+  // be inventing is worse than none. Either is refused rather than read out.
+  if (!opening || opening.length > 700 || closing.length > 300) {
+    const error = new Error('Gemini did not return a usable bulletin script');
+    error.code = 'AI_BAD_OUTPUT';
+    throw error;
+  }
+
+  return { opening, closing, model: activeModel(), generatedAt: new Date().toISOString() };
+}
+
+module.exports = { isConfigured, activeModel, writeStory, chat, photoLinks, radioScript };

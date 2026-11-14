@@ -3,6 +3,7 @@ import { AlertTriangle, Bell, BellOff, KeyRound, Loader2, Send, ShieldCheck, Use
 import { useAuth } from '../../context/AuthContext'
 import { pushAPI } from '../../services/api'
 import { disablePushNotifications, enablePushNotifications, isSubscribedToPush, pushSupported } from '../../pwa/pushNotifications'
+import RadioTimetablePanel from '../../components/admin/RadioTimetablePanel'
 
 const MIN_PASSWORD = 8
 
@@ -223,12 +224,14 @@ export default function AdminSettingsPage() {
   const currentUsername = user?.username ?? ''
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <p className="text-sm font-semibold text-blue-700">Your account</p>
+        <p className="text-sm font-semibold text-blue-700">Admin</p>
         <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Update how you sign in to the admin portal.</p>
+        <p className="mt-1 text-sm text-slate-500">Newsroom controls, and how you sign in to the admin portal.</p>
       </div>
+
+      <RadioTimetablePanel />
 
       <NewsAlertsPanel />
 

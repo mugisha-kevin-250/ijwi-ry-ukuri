@@ -81,5 +81,10 @@ module.exports = {
   // sharing one database should set this to false so pay is not computed twice.
   ENABLE_SCHEDULER: process.env.ENABLE_SCHEDULER !== 'false',
   // Which zone "Monday just after midnight" means. Kigali time is the newsroom.
-  SCHEDULER_TZ: process.env.SCHEDULER_TZ || 'Africa/Kigali'
+  SCHEDULER_TZ: process.env.SCHEDULER_TZ || 'Africa/Kigali',
+  // Which clock the radio timetable is written on. Kept separate from the pay
+  // schedule's zone because they are two different human decisions: one is an
+  // accounting week, the other is when the newsreader starts talking. The
+  // timetable document can override this per station.
+  RADIO_TZ: process.env.RADIO_TZ || 'Africa/Kigali'
 };

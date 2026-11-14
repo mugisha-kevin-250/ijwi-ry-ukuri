@@ -5,7 +5,7 @@
     <link>https://ijwi-ry--ukuri.web.app</link>
     <description>News written by approved writers: world, politics, business, technology, sports, entertainment and health.</description>
     <language>en</language>
-    <lastBuildDate>Sat, 14 Nov 2026 16:17:39 GMT</lastBuildDate>
+    <lastBuildDate>Sat, 14 Nov 2026 17:00:32 GMT</lastBuildDate>
     <docs>https://www.rss.org/rss.xml</docs>
     <generator>RADAR build scripts</generator>
     <atom:link href="https://ijwi-ry--ukuri.web.app/feed.xml" rel="self" type="application/rss+xml" />
@@ -14,6 +14,34 @@
       <title>RADAR</title>
       <link>https://ijwi-ry--ukuri.web.app</link>
     </image>
+    <item>
+      <title>Imibereho myiza y&apos;abanyarwanda mu ncamake</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/imibereho-myiza-yabanyarwanda-mu-ncamake-1794679187510</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/imibereho-myiza-yabanyarwanda-mu-ncamake-1794679187510</guid>
+      <description>Raporo zerekana intambwe yatewe mu mibereho y&apos;abanyarwanda binyuze mu bikorwa remezo, ubuzima, na gahunda z&apos;ubukungu mu gihugu.</description>
+      <pubDate>Sat, 14 Nov 2026 17:59:47 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Trending</category>
+      <category>imibereho myiza</category>
+      <category>u rwanda</category>
+      <category>iterambere</category>
+      <category>ubukungu</category>
+    </item>
+    <item>
+      <title>Brighton and Liverpool Meet in Women&apos;s Super League Clash</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/brighton-and-liverpool-meet-in-womens-super-league-clash-1794678683155</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/brighton-and-liverpool-meet-in-womens-super-league-clash-1794678683155</guid>
+      <description>Brighton and Liverpool prepare for a competitive Women&apos;s Super League fixture, with broadcast details and confirmed team sheets announced for fans.</description>
+      <pubDate>Sat, 14 Nov 2026 17:51:23 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Trending</category>
+      <category>brighton</category>
+      <category>liverpool</category>
+      <category>wsl</category>
+      <category>football</category>
+      <category>soccer</category>
+      <media:content url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTxFHNkXJNd5eRuNNnZb5s-sRhUl4Da9V-U1mZU4Pdw-LuzITKvhgWkYOdob_s" medium="image" />
+    </item>
     <item>
       <title>Rwanda Faces Pressure to Withdraw Mushikiwabo from OIF Race</title>
       <link>https://ijwi-ry--ukuri.web.app/article/rwanda-faces-pressure-to-withdraw-mushikiwabo-from-oif-race-1794674090270</link>
@@ -371,34 +399,6 @@
       <category>imiryango</category>
       <category>IGIHE</category>
       <media:content url="https://studentnews-backend.onrender.com/uploads/1794066862339-730410508.jpg" medium="image" />
-    </item>
-    <item>
-      <title>AI ishobora guhindura imirimo: hari izazimira, izindi nshya zivuke</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/ai-ishobora-guhindura-imirimo-hari-izazimira-izindi-nshya-zivuke-1794066853545</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/ai-ishobora-guhindura-imirimo-hari-izazimira-izindi-nshya-zivuke-1794066853545</guid>
-      <description>IGIHE yagaragaje ko ubwenge buhangano bushobora kugabanya imwe mu mirimo ariko bugateza n’indi mishya ku isoko ry’umurimo mu Rwanda.</description>
-      <pubDate>Sat, 07 Nov 2026 14:47:50 GMT</pubDate>
-      <dc:creator>Shyakaclever Prince</dc:creator>
-      <category>Jobs</category>
-      <category>Akazi</category>
-      <category>AI</category>
-      <category>isoko ry’umurimo</category>
-      <category>IGIHE</category>
-      <media:content url="https://studentnews-backend.onrender.com/uploads/1794066848948-669846517.png" medium="image" />
-    </item>
-    <item>
-      <title>Coco na Pucker: ingagi ebyiri z’u Rwanda zororewe mu mahanga zapfuye nta rubyaro</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/coco-na-pucker-ingagi-ebyiri-zu-rwanda-zororewe-mu-mahanga-zapfuye-nta-rubyaro-1794066838227</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/coco-na-pucker-ingagi-ebyiri-zu-rwanda-zororewe-mu-mahanga-zapfuye-nta-rubyaro-1794066838227</guid>
-      <description>Ingagi Coco na Pucker zapfuye zidasize urubyaro, bituma gahunda yo kororera ingagi zo mu misozi mu mahanga ihagarara.</description>
-      <pubDate>Sat, 07 Nov 2026 14:47:39 GMT</pubDate>
-      <dc:creator>Shyakaclever Prince</dc:creator>
-      <category>Entertainment</category>
-      <category>Ingagi</category>
-      <category>ibidukikije</category>
-      <category>u Rwanda</category>
-      <category>IGIHE</category>
-      <media:content url="https://studentnews-backend.onrender.com/uploads/1794066834337-485913538.jpg" medium="image" />
     </item>
   </channel>
 </rss>

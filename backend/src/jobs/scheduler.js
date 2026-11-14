@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const Article = require('../models/Article');
 const workflow = require('../services/articleWorkflow');
 const rewardService = require('../services/rewardService');
+const radioService = require('../services/radioService');
 const env = require('../config/env');
 
 // Work the lifecycle has to finish on its own, because no person is standing
@@ -59,6 +60,22 @@ function startScheduler() {
     }
   }, options);
 
+  // The bulletin a reader hears is assembled the first time someone asks for it,
+  // so this is not what makes the radio work - it is what makes it work *promptly*.
+  // Without it the reader who arrives one minute after the six o'clock has to wait
+  // for a model call while the page sits there, and on a free host that sleeps
+  // between visits, that reader is the only thing that ever wakes it.
+  cron.schedule('* * * * *', async () => {
+    try {
+      const aired = await radioService.airDueBulletin();
+      if (aired) {
+        console.log(`Radio: ${aired.slotName} ${aired.occurrence} assembled with ${aired.stories} stor${aired.stories === 1 ? 'y' : 'ies'} (${aired.scriptSource}).`);
+      }
+    } catch (error) {
+      console.error('Radio bulletin run failed:', error?.message || error);
+    }
+  }, options);
+
   cron.schedule('10 0 * * 1', async () => {
     try {
       const week = await runWeeklyPay();
@@ -68,8 +85,8 @@ function startScheduler() {
     }
   }, options);
 
-  console.log('Scheduler started: story publishing every 5 minutes, weekly pay on Mondays.');
-  return { publishDueStories, runWeeklyPay };
+  console.log('Scheduler started: story publishing every 5 minutes, the radio bulletin on the minute, weekly pay on Mondays.');
+  return { publishDueStories, runWeeklyPay, airDueBulletin: radioService.airDueBulletin };
 }
 
 module.exports = { startScheduler, publishDueStories, runWeeklyPay };

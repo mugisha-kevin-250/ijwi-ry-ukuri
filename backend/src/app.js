@@ -17,6 +17,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const pushRoutes = require('./routes/pushRoutes');
 const liveRoutes = require('./routes/liveRoutes');
+const radioRoutes = require('./routes/radioRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const translateRoutes = require('./routes/translateRoutes');
 const uploadStore = require('./services/uploadStore');
@@ -180,6 +181,10 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/live', liveRoutes);
+// The radio timetable is read by every visitor, and building an edition is slow
+// enough on a cold database that it gets its own address rather than joining the
+// catch-all public story routes.
+app.use('/api/radio', radioRoutes);
 app.use('/api/newsletter', newsletterRoutes);
 app.use('/uploads', express.static(env.UPLOAD_DIR));
 // Render's disk is wiped on redeploy, so anything the cache lost is read back

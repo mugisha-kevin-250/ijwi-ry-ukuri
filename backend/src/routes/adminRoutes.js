@@ -13,6 +13,7 @@ const { successResponse, errorResponse } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
 const aiPhotoService = require('../services/aiPhotoService');
+const radioService = require('../services/radioService');
 const trendService = require('../services/trendService');
 const generateSlug = require('../utils/generateSlug');
 const lifecycle = require('../utils/articleLifecycle');
@@ -771,6 +772,87 @@ router.delete('/contact-messages/:id', authorize('ADMIN'), async (req, res, next
     const message = await ContactMessage.findByIdAndDelete(req.params.id);
     if (!message) return errorResponse(res, 404, 'Message not found');
     return successResponse(res, 200, 'Message deleted');
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * The radio timetable.
+ *
+ * What a programme is called, when it starts, which sections it draws on and
+ * whether the model writes its intro - the shape of the station, in other words.
+ * It is admin-only rather than editor-level because it decides what the site says
+ * out loud to every reader, on a schedule, with nobody pressing publish.
+ *
+ * Saving a timetable does not delete the editions already broadcast: they stay as
+ * a record of what was said under the old one.
+ */
+router.get('/radio/schedule', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const schedule = await radioService.getSchedule();
+    return successResponse(res, 200, 'Radio timetable', {
+      timezone: schedule.timezone,
+      updatedAt: schedule.updatedAt,
+      slots: schedule.toObject().slots,
+      // So the desk can show what is actually on air under this timetable without
+      // the admin guessing whether their times were read the way they meant. The
+      // edition is included because "who wrote the line the reader is hearing" is
+      // the question this panel exists to answer.
+      now: await radioService.timetable({ now: new Date() })
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/radio/schedule', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const result = await radioService.saveSchedule({
+      slots: req.body.slots,
+      timezone: req.body.timezone,
+      updatedBy: req.user._id
+    });
+    if (result.error) return errorResponse(res, 400, result.error);
+    const schedule = result.schedule;
+    return successResponse(res, 200, 'Radio timetable saved', {
+      timezone: schedule.timezone,
+      updatedAt: schedule.updatedAt,
+      slots: schedule.toObject().slots
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Make this edition again from what is published now.
+ *
+ * An edition is deliberately frozen, which is right for a reader and wrong after
+ * the newsroom pulls a story or rewrites a headline: the six o'clock programme
+ * would keep naming it. So the refresh exists as a button an admin presses rather
+ * than as something that happens whenever a page is opened.
+ */
+router.post('/radio/bulletin/refresh', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const { resolved } = await radioService.resolveNow(new Date());
+    if (!resolved.current) return errorResponse(res, 400, 'Nothing is scheduled to be on air at this minute');
+    const slotId = String(resolved.current.slot._id);
+    await radioService.dropBulletin({ slotId, occurrence: resolved.current.occurrenceKey });
+    const bulletin = await radioService.bulletinFor(resolved.current, { now: new Date(), awaitScript: true });
+    if (!bulletin) return errorResponse(res, 500, 'The edition could not be made');
+    return successResponse(res, 200, 'Edition rebuilt', {
+      bulletin: {
+        slotName: bulletin.slotName,
+        occurrence: bulletin.occurrence,
+        scriptSource: bulletin.scriptSource,
+        model: bulletin.model,
+        note: bulletin.note,
+        opening: bulletin.opening,
+        closing: bulletin.closing,
+        stories: bulletin.storyTitles
+      }
+    });
   } catch (error) {
     next(error);
   }

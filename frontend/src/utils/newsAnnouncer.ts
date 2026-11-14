@@ -128,6 +128,25 @@ export function voiceItems(articles: Article[]): AnnounceItem[] {
   return articles.map(voiceItem).filter((item): item is AnnounceItem => item !== null)
 }
 
+/**
+ * The presenter's own words, as a row in the playlist.
+ *
+ * A bulletin is not just headlines: the desk writes an opening line that says what
+ * programme is on air and a closing one, and the reader should hear those in the
+ * same press of one button rather than having them printed on the page and skipped.
+ */
+export function scriptItem(text: string, { id, title, href = '/radio' }: { id: string; title: string; href?: string }): AnnounceItem | null {
+  const chunks = chunksForSpeech(text)
+  if (!chunks.length) return null
+  return {
+    id,
+    title,
+    href,
+    chunks,
+    words: chunks.reduce((total, chunk) => total + wordCount(chunk), 0),
+  }
+}
+
 // The engine fires the callbacks of an utterance it has already been told to
 // throw away, so every start carries a number and a late callback is dropped.
 let generation = 0

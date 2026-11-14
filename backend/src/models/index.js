@@ -21,5 +21,7 @@ module.exports = {
   LiveComment: require('./LiveComment'),
   NewsletterSubscriber: require('./NewsletterSubscriber'),
   Translation: require('./Translation'),
-  AiResearchChat: require('./AiResearchChat')
+  AiResearchChat: require('./AiResearchChat'),
+  RadioSchedule: require('./RadioSchedule'),
+  RadioBulletin: require('./RadioBulletin')
 };

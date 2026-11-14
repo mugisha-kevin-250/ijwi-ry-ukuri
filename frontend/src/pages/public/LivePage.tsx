@@ -13,6 +13,7 @@ import { shareArticle } from '../../utils/shareArticle'
 import { requestSignIn } from '../../utils/signInPrompt'
 import { Loading } from '../../components/common/Loading'
 import { useSeo } from '../../utils/useSeo'
+import { serverMessage } from '../../services/apiClient'
 import MediaImage from '../../components/common/MediaImage'
 
 function hostIdOf(live: Live | null): string {
@@ -23,6 +24,13 @@ function hostIdOf(live: Live | null): string {
 function hostNameOf(live: Live | null): string {
   if (!live) return ''
   return typeof live.host === 'object' && live.host ? live.host.fullName || live.host.username || '' : ''
+}
+
+// Where an on-air video is actually being served from, in the reader's language.
+const SOURCE_LABEL: Record<string, string> = {
+  youtube: 'live.fromYouTube',
+  vimeo: 'live.fromVimeo',
+  file: 'live.fromFile',
 }
 
 export default function LivePage() {
@@ -44,6 +52,7 @@ export default function LivePage() {
   const [peerState, setPeerState] = useState<string>('new')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [videoUrl, setVideoUrl] = useState('')
   const [relayFrame, setRelayFrame] = useState<{ frame: string; at: number } | null>(null)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -63,6 +72,15 @@ export default function LivePage() {
   // because an object in React state got a new identity.
   const hostingAs = isAdmin && !!liveId && !!user && hostIdOf(live) === user._id
   const isHostBroadcaster = hostingAs
+
+  // A broadcast built from a link somebody pasted is carried by somebody else's
+  // servers. Nothing is captured, no peer call is dialled and no frame relay
+  // runs: the page embeds the player, and the socket stays only for the audience
+  // count and the chat. A file plays in a <video> tag; a YouTube or Vimeo address
+  // in an <iframe>, because the browser cannot mix the two.
+  const source = live?.source ?? 'camera'
+  const isVideoBroadcast = Boolean(isLive && live?.embedUrl && source !== 'camera')
+  const isCameraHost = hostingAs && !isVideoBroadcast
 
   useSeo({
     title: isLive && live ? `${live.title} — ${t('live.live')}` : t('live.title'),
@@ -139,7 +157,7 @@ export default function LivePage() {
     }
 
     const connect = async () => {
-      if (hostingAs) {
+      if (isCameraHost) {
         try {
           const stream = await openCamera()
           streamRef.current = stream
@@ -170,6 +188,9 @@ export default function LivePage() {
       }
       rejoinRef.current = watch
       watch()
+      // There is no browser holding a camera to connect to when the picture comes
+      // from a link, so joining the room is all a reader has to do.
+      if (isVideoBroadcast) return
       stopPeersRef.current = startViewer(
         socket,
         attachStream,
@@ -206,7 +227,7 @@ export default function LivePage() {
       socket.close()
       socketRef.current = null
     }
-  }, [liveId, hostingAs, token, load])
+  }, [liveId, isCameraHost, isVideoBroadcast, token, load])
 
   // A viewer on mobile data has no route into the broadcaster's browser, so when
   // no relay server is configured the picture is pushed through our own API
@@ -214,9 +235,9 @@ export default function LivePage() {
   // host twice.
   useEffect(() => {
     const socket = socketRef.current
-    if (!hostingAs || relayConfigured || !stats.viewers || !socket) return undefined
+    if (!isCameraHost || relayConfigured || !stats.viewers || !socket) return undefined
     return startFrameRelay(socket, previewRef.current)
-  }, [hostingAs, relayConfigured, stats.viewers, liveId])
+  }, [isCameraHost, relayConfigured, stats.viewers, liveId])
 
   useEffect(() => {
     if (!relayFrame) return undefined
@@ -236,13 +257,13 @@ export default function LivePage() {
   // A black player with no message is what made a stalled call look like a broken
   // feature, so say so after a reasonable grace period.
   useEffect(() => {
-    if (isHostBroadcaster || !isLive || remoteReady || relayFrame) {
+    if (isHostBroadcaster || isVideoBroadcast || !isLive || remoteReady || relayFrame) {
       setIsWaitingTooLong(false)
       return undefined
     }
     const timer = window.setTimeout(() => setIsWaitingTooLong(true), 9000)
     return () => window.clearTimeout(timer)
-  }, [isHostBroadcaster, isLive, remoteReady, relayFrame])
+  }, [isHostBroadcaster, isVideoBroadcast, isLive, remoteReady, relayFrame])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'nearest' })
@@ -274,13 +295,22 @@ export default function LivePage() {
     setIsStarting(true)
     setCameraError(null)
     try {
-      const response = await liveAPI.start({ title: title.trim(), description: description.trim() })
+      const response = await liveAPI.start({
+        title: title.trim(),
+        description: description.trim(),
+        // An empty link is the answer to "we are going live on the camera", which
+        // is why the field is optional rather than something to guess at.
+        videoUrl: videoUrl.trim(),
+      })
       setLive(response.data.data.live)
       setTitle('')
       setDescription('')
+      setVideoUrl('')
       toast.success(t('live.started'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('live.startFailed'))
+      // The backend refuses a link it cannot put on air and says why, and that
+      // reason is the only part of the failure an admin can act on.
+      toast.error(serverMessage(error, t('live.startFailed')))
     } finally {
       setIsStarting(false)
     }
@@ -326,7 +356,30 @@ export default function LivePage() {
         <div className="relative overflow-hidden rounded-xl bg-black">
           {isLive ? (
             <>
-              {isHostBroadcaster ? (
+              {isVideoBroadcast && live ? (
+                // The picture, the sound and the transport controls all belong to
+                // whoever hosts the video. What this page chooses is the address:
+                // the server rebuilt it from the video id alone and picked the
+                // player that sets no cookie before anyone presses play.
+                live.source === 'file' ? (
+                  <video
+                    src={live.embedUrl}
+                    className="aspect-video w-full bg-black"
+                    controls
+                    autoPlay
+                    playsInline
+                  />
+                ) : (
+                  <iframe
+                    src={live.embedUrl}
+                    title={live.title}
+                    className="aspect-video w-full border-0 bg-black"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
+                )
+              ) : isHostBroadcaster ? (
                 <video ref={previewRef} className="aspect-video w-full -scale-x-100 bg-black" autoPlay playsInline muted />
               ) : (
                 <video
@@ -358,7 +411,7 @@ export default function LivePage() {
                   <p className="text-xs text-slate-300">{t('live.cameraHint')}</p>
                 </div>
               )}
-              {!isHostBroadcaster && !cameraError && !remoteReady && !relayFrame && (
+              {!isVideoBroadcast && !isHostBroadcaster && !cameraError && !remoteReady && !relayFrame && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 px-6 text-center">
                   <Radio className="h-7 w-7 animate-pulse text-red-400" aria-hidden="true" />
                   <p className="text-sm font-semibold text-white">
@@ -421,6 +474,27 @@ export default function LivePage() {
           <div className="rounded-xl border border-[var(--color-border)] bg-white p-4">
             <h1 className="text-lg font-extrabold text-[var(--color-text)] sm:text-xl">{live.title}</h1>
             {live.description && <p className="mt-1 text-sm text-[var(--color-text-muted)]">{live.description}</p>}
+            {/* A video somebody else hosts is named as such, with a way to the
+                original. The credit is not decoration: a reader should know the
+                pictures on our TV did not come from our camera. */}
+            {isVideoBroadcast && live.source !== 'file' && (
+              <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+                {t(SOURCE_LABEL[live.source ?? ''] ?? 'live.fromFile')}
+                {live.watchUrl && (
+                  <>
+                    {' · '}
+                    <a
+                      href={live.watchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="font-semibold text-[var(--color-brand-text)] hover:underline"
+                    >
+                      {t('live.openOriginal')}
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
             <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[var(--color-text-muted)]">
               <span className="inline-flex items-center gap-2">
                 <MediaImage src={typeof live.host === 'object' ? live.host.avatar : null} alt="" className="h-7 w-7 rounded-full object-cover" />
@@ -460,7 +534,22 @@ export default function LivePage() {
               className="input-field"
               aria-label={t('live.descriptionLabel')}
             />
-            <p className="text-xs text-red-800/80">{t('live.startHint')}</p>
+            {/* One box for both ways of going on air. Left empty it is the camera;
+                filled, it is that video, played by the platform that hosts it and
+                needing nobody sitting at a browser. */}
+            <input
+              value={videoUrl}
+              onChange={(event) => setVideoUrl(event.target.value)}
+              placeholder={t('live.videoLabel')}
+              className="input-field"
+              aria-label={t('live.videoLabel')}
+              maxLength={500}
+              inputMode="url"
+              type="url"
+            />
+            <p className="text-xs text-red-800/80">
+              {videoUrl.trim() ? t('live.videoHint') : t('live.startHint')}
+            </p>
             <button
               type="submit"
               disabled={isStarting}
@@ -475,14 +564,14 @@ export default function LivePage() {
         {isHostBroadcaster && isLive && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4">
             <p className="text-sm text-[var(--color-text-muted)]">
-              {t('live.onAirHint')} <span className="font-semibold">{stats.viewers}</span> {t('live.watching')}
+              {isVideoBroadcast ? t('live.videoOnAirHint') : t('live.onAirHint')} <span className="font-semibold">{stats.viewers}</span> {t('live.watching')}
             </p>
-            {!relayConfigured && (
+            {!isVideoBroadcast && !relayConfigured && (
               <p className="w-full rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                 {t('live.noRelay')}
               </p>
             )}
-            {!relayConfigured && stats.viewers > 0 && (
+            {!isVideoBroadcast && !relayConfigured && stats.viewers > 0 && (
               <p className="w-full rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                 {t('live.relayOn')}
               </p>

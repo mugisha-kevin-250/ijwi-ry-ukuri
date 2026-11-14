@@ -741,6 +741,41 @@ export const adminAPI = {
     }
   },
 
+  /**
+   * The radio timetable, as the admin set it.
+   *
+   * Saving replaces the whole list rather than patching one row: a timetable with
+   * two programmes at 18:00 and no way to say which one won is exactly the sort of
+   * state the desk must not be allowed to reach, so the server is handed the whole
+   * day and refuses it or accepts it as one piece.
+   */
+  getRadioSchedule: async (): Promise<RadioScheduleResponse> => {
+    const response = await apiClient.get<RadioScheduleResponse>('/admin/radio/schedule')
+    return normaliseSchedule(response.data.data)
+  },
+
+  saveRadioSchedule: async (input: { timezone: string; slots: Omit<RadioSlot, '_id'>[] }): Promise<RadioScheduleResponse> => {
+    const response = await apiClient.put<RadioScheduleResponse>('/admin/radio/schedule', input)
+    return normaliseSchedule(response.data.data)
+  },
+
+  /** Make the edition that is on air right now again, from what is published now. */
+  refreshRadioBulletin: async (): Promise<RadioRebuiltEdition | null> => {
+    const response = await apiClient.post<{ bulletin: Partial<RadioRebuiltEdition> }>('/admin/radio/bulletin/refresh')
+    const built = response.data.data?.bulletin
+    if (!built) return null
+    return {
+      slotName: String(built.slotName || ''),
+      occurrence: String(built.occurrence || ''),
+      scriptSource: built.scriptSource === 'ai' ? 'ai' : 'desk',
+      model: String(built.model || ''),
+      note: String(built.note || ''),
+      opening: String(built.opening || ''),
+      closing: String(built.closing || ''),
+      storyTitles: Array.isArray(built.storyTitles) ? built.storyTitles.map(String) : [],
+    }
+  },
+
   /** What Google reports people searching, read by the server. */
   getTrends: async (refresh = false): Promise<TrendRadar> => {
     const response = await apiClient.get('/admin/trends', refresh ? { refresh: '1' } : undefined)
@@ -807,7 +842,7 @@ export const liveAPI = {
   list: () =>
     apiClient.get<{ lives: Live[] }>('/live', { params: { limit: 10 } }),
 
-  start: (payload: { title: string; description?: string }) =>
+  start: (payload: { title: string; description?: string; videoUrl?: string }) =>
     apiClient.post<{ live: Live }>('/live', payload),
 
   end: (id: string) =>
@@ -815,6 +850,167 @@ export const liveAPI = {
 
   getComments: (id: string) =>
     apiClient.get<{ comments: LiveComment[] }>(`/live/${id}/comments`),
+}
+
+/** One programme in the radio timetable. */
+export interface RadioSlot {
+  _id: string
+  name: string
+  /** Wall-clock start the admin wrote, 24-hour "HH:mm", on the timetable's own clock. */
+  at: string
+  /** 0 = Sunday. Empty means every day. */
+  days: number[]
+  storyCount: number
+  categories: string[]
+  useAiScript: boolean
+  enabled: boolean
+}
+
+export interface RadioEdition {
+  _id: string
+  opening: string
+  closing: string
+  /** Whether the words being read were written by the model or by the desk. */
+  scriptSource: 'ai' | 'desk'
+  model: string
+  note: string
+  startedAt: string
+  occurrence: string
+  stories: Article[]
+}
+
+/**
+ * What the desk gets back after pressing "rebuild": the edition as the server made
+ * it, with the headlines rather than whole stories, because the point is to check
+ * the running order and who wrote the intro.
+ */
+export interface RadioRebuiltEdition {
+  slotName: string
+  occurrence: string
+  scriptSource: 'ai' | 'desk'
+  model: string
+  note: string
+  opening: string
+  closing: string
+  storyTitles: string[]
+}
+
+/** What is on air, what follows, and what this edition carries. */
+export interface RadioTimetable {
+  timezone: string
+  now: string
+  slots: RadioSlot[]
+  current: RadioProgramme | null
+  next: RadioProgramme | null
+  bulletin?: RadioEdition
+}
+
+/** One occurrence of a programme: when it starts on the wall and as a real instant. */
+export interface RadioProgramme {
+  _id: string
+  name: string
+  at: string
+  startsAt: string
+  occurrence: string
+}
+
+/**
+ * The radio reads its own timetable from the server.
+ *
+ * Nothing here is invented when a field is missing. A reader who is told "the
+ * seven o'clock is on air" because the fetch returned a shape we did not expect is
+ * being lied to about the station, so an unreadable answer comes back as "nothing
+ * is scheduled" and the page says so.
+ */
+export const radioAPI = {
+  getTimetable: async (): Promise<RadioTimetable> => {
+    const response = await apiClient.get<Partial<RadioTimetable>>('/radio/timetable')
+    const payload = response.data.data as Partial<RadioTimetable> | null
+    const programme = (value: RadioProgramme | null | undefined): RadioProgramme | null =>
+      value && typeof value.at === 'string' && typeof value.startsAt === 'string'
+        ? { _id: String(value._id || ''), name: String(value.name || ''), at: value.at, startsAt: value.startsAt, occurrence: String(value.occurrence || '') }
+        : null
+    return {
+      timezone: String(payload?.timezone || ''),
+      now: String(payload?.now || ''),
+      slots: Array.isArray(payload?.slots) ? payload.slots.map(knownSlot) : [],
+      current: programme(payload?.current),
+      next: programme(payload?.next),
+      bulletin: normaliseEdition(payload?.bulletin) ?? undefined,
+    }
+  },
+}
+
+/**
+ * What the admin portal gets back: the timetable it wrote, plus what is actually
+ * on air under it. The second half is there so a person who has just typed in four
+ * programme times can see the server agree, rather than trusting that "18:00" was
+ * read as six in the evening in Kigali and not six in the evening somewhere else.
+ */
+export interface RadioScheduleResponse {
+  timezone: string
+  updatedAt?: string
+  slots: RadioSlot[]
+  now?: RadioTimetable | null
+}
+
+// Category ids arrive from Mongoose as strings, and a slot that never had any set
+// is missing rather than empty; the editor wants one shape to render.
+function knownSlot(value: unknown): RadioSlot {
+  const slot = (value || {}) as Partial<RadioSlot>
+  return {
+    _id: String(slot._id || ''),
+    name: String(slot.name || ''),
+    at: String(slot.at || '12:00'),
+    days: (Array.isArray(slot.days) ? slot.days : []).map(Number).filter(Number.isInteger),
+    storyCount: Math.min(Math.max(Number(slot.storyCount) || 8, 1), 25),
+    categories: (Array.isArray(slot.categories) ? slot.categories : []).map(String),
+    useAiScript: slot.useAiScript !== false,
+    enabled: slot.enabled !== false,
+  }
+}
+
+function normaliseEdition(value: unknown): RadioEdition | null {
+  if (!value) return null
+  const edition = value as Partial<RadioEdition>
+  if (typeof edition.opening !== 'string') return null
+  return {
+    _id: String(edition._id || ''),
+    opening: edition.opening,
+    closing: String(edition.closing || ''),
+    scriptSource: edition.scriptSource === 'ai' ? 'ai' : 'desk',
+    model: String(edition.model || ''),
+    note: String(edition.note || ''),
+    startedAt: String(edition.startedAt || ''),
+    occurrence: String(edition.occurrence || ''),
+    stories: Array.isArray(edition.stories) ? edition.stories : [],
+  }
+}
+
+function normaliseSchedule(value: Partial<RadioScheduleResponse> | null): RadioScheduleResponse {
+  return {
+    timezone: String(value?.timezone || 'Africa/Kigali'),
+    updatedAt: value?.updatedAt ? String(value.updatedAt) : undefined,
+    slots: Array.isArray(value?.slots) ? value.slots.map(knownSlot) : [],
+    now: normaliseTimetable(value?.now),
+  }
+}
+
+function normaliseTimetable(value: unknown): RadioTimetable | null {
+  if (!value) return null
+  const timetable = value as Partial<RadioTimetable>
+  const programme = (entry: RadioProgramme | null | undefined): RadioProgramme | null =>
+    entry && typeof entry.at === 'string' && typeof entry.startsAt === 'string'
+      ? { _id: String(entry._id || ''), name: String(entry.name || ''), at: entry.at, startsAt: entry.startsAt, occurrence: String(entry.occurrence || '') }
+      : null
+  return {
+    timezone: String(timetable.timezone || ''),
+    now: String(timetable.now || ''),
+    slots: Array.isArray(timetable.slots) ? timetable.slots.map(knownSlot) : [],
+    current: programme(timetable.current),
+    next: programme(timetable.next),
+    bulletin: normaliseEdition(timetable.bulletin) || undefined,
+  }
 }
 
 export interface TranslateLanguage {

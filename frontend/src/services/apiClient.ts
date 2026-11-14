@@ -36,6 +36,21 @@ function absolutizeUploads(node: unknown): unknown {
 // instead of the browser's broken-image icon.
 export const PLACEHOLDER_IMAGE = '/placeholder-article.svg'
 
+/**
+ * The sentence the API actually wrote back.
+ *
+ * An AxiosError's own message is "Request failed with status code 400", which
+ * tells a reader nothing. The backend puts the real reason in the body, so a
+ * refusal like "that address is inside a private network" reaches the person who
+ * has to act on it instead of dying in the console.
+ */
+export function serverMessage(error: unknown, fallback: string): string {
+  const body = (error as AxiosError<ApiResponse<unknown>> | undefined)?.response?.data
+  const message = typeof body?.message === 'string' ? body.message.trim() : ''
+  if (message && !/^request failed with status/i.test(message)) return message
+  return fallback
+}
+
 // Every media field the API returns is either a backend-relative /uploads path
 // or an absolute URL, and localStorage keeps whatever was saved before the
 // interceptor existed. Display sites call this so all three forms render.

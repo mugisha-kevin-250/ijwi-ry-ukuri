@@ -5,6 +5,7 @@ const { protect, authorize } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { notifyLiveEnded } = require('../sockets/liveSocket');
 const { plainText, cleanText } = require('../utils/textFields');
+const videoService = require('../services/videoService');
 
 const router = express.Router();
 
@@ -56,11 +57,22 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-// Only the admin can put a camera on air, and only one broadcast can be live.
+// Only the admin can put a camera or a video on air, and only one broadcast can
+// be live.
+//
+// The link is read before anything is touched. A wrong address must not be able
+// to end the programme that is actually running.
 router.post('/', protect, authorize('ADMIN'), async (req, res, next) => {
   try {
     const title = String(req.body.title || '').trim();
     if (!title) return errorResponse(res, 400, 'A live needs a title');
+
+    const pasted = String(req.body.videoUrl || '').trim();
+    let video = null;
+    if (pasted) {
+      video = videoService.describe(pasted);
+      if (!video.ok) return errorResponse(res, 400, `That video cannot go on air — ${video.reason}`);
+    }
 
     const running = await Live.findOne({ status: 'active' });
     if (running) {
@@ -74,7 +86,13 @@ router.post('/', protect, authorize('ADMIN'), async (req, res, next) => {
     const live = await Live.create({
       title: plainText(title, { maxLength: 140 }),
       description: cleanText(req.body.description, { maxLength: 500 }),
-      host: req.user._id
+      host: req.user._id,
+      // With no link the broadcast is the one this model was built for: the
+      // admin's camera, carried peer-to-peer to every reader.
+      source: video ? video.source : 'camera',
+      videoUrl: video ? pasted.slice(0, 500) : '',
+      watchUrl: video ? video.watchUrl : '',
+      embedUrl: video ? video.embedUrl : ''
     });
     return successResponse(res, 201, 'Live started', { live: await shape(live) });
   } catch (error) {

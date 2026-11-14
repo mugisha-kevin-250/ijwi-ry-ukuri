@@ -138,6 +138,12 @@ export interface Live {
   views: number
   viewers: number
   peakViewers: number
+  // 'camera' is carried peer-to-peer from the host's browser; the other three are
+  // a link the admin put on air, which the page embeds instead of dialling.
+  source?: 'camera' | 'youtube' | 'vimeo' | 'file'
+  videoUrl?: string
+  watchUrl?: string
+  embedUrl?: string
   sharePath?: string
 }
 

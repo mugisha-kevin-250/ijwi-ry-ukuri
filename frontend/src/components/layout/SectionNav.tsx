@@ -6,7 +6,7 @@ import { useI18n } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
 import { SECTIONS, type SectionNode } from '../../data/sections'
 
-const DESKTOP_DROPDOWNS_QUERY = '(min-width: 1280px)'
+const DESKTOP_DROPDOWNS_QUERY = '(min-width: 1024px)'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 /** How fast the phone strip drifts, how long it rests at each end, and how long
@@ -27,10 +27,11 @@ function useMediaQuery(query: string) {
   return matches
 }
 
-// The masthead carries every section name on the same line as the logo. Below
-// xl the row has to scroll to fit them, and a hover panel would be clipped by
-// the scroll container, so the dropdowns only open once the row has room for
-// everything.
+// The sections get a line of their own under the masthead, which is what gives
+// ten names and their sub-section panels room to sit side by side. The row is
+// still measured before a panel is allowed to open, because a hover menu cannot
+// escape a scroller - below the width where everything fits, the strip scrolls
+// and the arrows stay hidden rather than promising a panel that gets clipped.
 function useAllowsDropdowns() {
   return useMediaQuery(DESKTOP_DROPDOWNS_QUERY)
 }

@@ -5,7 +5,7 @@
     <link>https://ijwi-ry--ukuri.web.app</link>
     <description>News written by approved writers: world, politics, business, technology, sports, entertainment and health.</description>
     <language>en</language>
-    <lastBuildDate>Sat, 14 Nov 2026 13:50:08 GMT</lastBuildDate>
+    <lastBuildDate>Sat, 14 Nov 2026 16:17:39 GMT</lastBuildDate>
     <docs>https://www.rss.org/rss.xml</docs>
     <generator>RADAR build scripts</generator>
     <atom:link href="https://ijwi-ry--ukuri.web.app/feed.xml" rel="self" type="application/rss+xml" />
@@ -14,6 +14,21 @@
       <title>RADAR</title>
       <link>https://ijwi-ry--ukuri.web.app</link>
     </image>
+    <item>
+      <title>Rwanda Faces Pressure to Withdraw Mushikiwabo from OIF Race</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/rwanda-faces-pressure-to-withdraw-mushikiwabo-from-oif-race-1794674090270</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/rwanda-faces-pressure-to-withdraw-mushikiwabo-from-oif-race-1794674090270</guid>
+      <description>Rwanda faces growing international pressure regarding Louise Mushikiwabo&apos;s candidacy for the leadership of the Organisation Internationale de la Francophonie.</description>
+      <pubDate>Sat, 14 Nov 2026 16:34:52 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Rwanda</category>
+      <category>rwanda</category>
+      <category>oif</category>
+      <category>mushikiwabo</category>
+      <category>francophonie</category>
+      <category>diplomacy</category>
+      <media:content url="https://studentnews-backend.onrender.com/uploads/1794674059612-835269915.jpeg" medium="image" />
+    </item>
     <item>
       <title>Kenya Defence Forces Upgrade Training and Readiness Against Regional Threats</title>
       <link>https://ijwi-ry--ukuri.web.app/article/kenya-defence-forces-upgrade-training-and-readiness-against-regional-threats-1794664260027</link>
@@ -384,20 +399,6 @@
       <category>u Rwanda</category>
       <category>IGIHE</category>
       <media:content url="https://studentnews-backend.onrender.com/uploads/1794066834337-485913538.jpg" medium="image" />
-    </item>
-    <item>
-      <title>Ibuye ry’imyaka miliyari 4,1 ryaturutse kuri Mars ryabonetse muri Mali</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/ibuye-ryimyaka-miliyari-41-ryaturutse-kuri-mars-ryabonetse-muri-mali-1794066710345</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/ibuye-ryimyaka-miliyari-41-ryaturutse-kuri-mars-ryabonetse-muri-mali-1794066710345</guid>
-      <description>Ibuye rya Teghaza 001, ryaturutse kuri Mars, ryavumbuwe mu butayu bwa Sahara kandi rishobora gufasha abashakashatsi kumenya amateka y’uyu mubumbe.</description>
-      <pubDate>Sat, 07 Nov 2026 14:47:28 GMT</pubDate>
-      <dc:creator>Shyakaclever Prince</dc:creator>
-      <category>Ibindi</category>
-      <category>Mars</category>
-      <category>siyansi</category>
-      <category>Mali</category>
-      <category>IGIHE</category>
-      <media:content url="https://studentnews-backend.onrender.com/uploads/1794066706829-58538401.webp" medium="image" />
     </item>
   </channel>
 </rss>

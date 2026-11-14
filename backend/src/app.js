@@ -87,6 +87,18 @@ const aiLimiter = rateLimit({
   message: tooMany('The AI writer is limited to 10 stories an hour, please try again later.')
 });
 
+// Research is a conversation, so it gets a wider ceiling than story-writing:
+// thirty questions an hour is a working session, and the answers are only ever
+// leads an admin still has to check.
+const aiChatLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('The research desk has answered enough questions for this hour, please try again later.')
+});
+
 // An open form is the one place on a news site where a stranger can write into the
 // database, so it gets both the honeypot in the page and this ceiling.
 const contactLimiter = rateLimit({
@@ -114,6 +126,8 @@ app.use('/api/upload', uploadLimiter);
 app.post('/api/admin/ai/generate', aiLimiter);
 app.post('/api/admin/ai/trends', aiLimiter);
 app.post('/api/admin/ai/articles', aiLimiter);
+app.post('/api/admin/ai/chat', aiChatLimiter);
+app.post('/api/admin/ai/photos', aiLimiter);
 app.post('/api/contact', contactLimiter);
 // Subscribing costs an email, so it shares the open form's ceiling. The
 // confirm and unsubscribe links are GETs a reader opens from an old mail and

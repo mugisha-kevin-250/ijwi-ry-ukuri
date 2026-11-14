@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Menu, X, User, Bookmark, LogOut, LayoutDashboard, Settings, Search } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
@@ -18,7 +18,7 @@ interface HeaderProps {
 
 export default function Header({ variant = 'public', sidebarCollapsed = false }: HeaderProps) {
   const { user, logout, token } = useAuth()
-  const { t, lang } = useI18n()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
@@ -71,14 +71,6 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
   const currentNavLinks = getCurrentNavLinks()
   const canWrite = user?.role === 'WRITER' || user?.role === 'ADMIN'
 
-  // A newspaper puts today's date on the masthead. It is printed in the language
-  // the reader is reading in, and Intl falls back on its own for a locale the
-  // device has no data for.
-  const today = useMemo(
-    () => new Intl.DateTimeFormat(lang, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()),
-    [lang],
-  )
-
   const navLinkItems = currentNavLinks.map((link) => (
     <NavLink
       key={link.href}
@@ -119,50 +111,15 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     >
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
         {/*
-          The date and the way in (search, sign in) sit on a slim bar of their own
-          so the row under it can hold the name and every section on one line.
-          Under md that second line of chrome is dropped; the menu carries the same.
+          The name is the first thing on the page, and the sections get a line of
+          their own underneath it. They used to share the masthead row, which left
+          them too narrow to hold ten names and their sub-section panels, so the
+          dropdowns switched themselves off and a reader on a laptop could not
+          reach Middle East or Football without opening a menu.
         */}
-        {variant === 'public' && (
-          <div className="hidden h-9 items-center justify-between gap-4 border-b border-gray-100 text-xs dark:border-gray-800 md:flex">
-            <p className="flex min-w-0 items-center gap-2 text-gray-500 dark:text-gray-400">
-              <span className="truncate font-semibold uppercase tracking-wide">{today}</span>
-              <span className="hidden truncate lg:inline">{t('app.tagline')}</span>
-            </p>
-            <div className="flex shrink-0 items-center gap-3">
-              <form onSubmit={handleSearch} className="relative">
-                <label htmlFor="site-search" className="sr-only">{t('search.placeholder')}</label>
-                <input
-                  id="site-search"
-                  value={searchValue}
-                  onChange={(event) => setSearchValue(event.target.value)}
-                  placeholder={t('search.placeholder')}
-                  className="w-56 rounded-full border border-slate-200 bg-slate-50 py-1.5 pl-3.5 pr-8 text-xs text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                />
-                <button type="submit" aria-label={t('nav.search')} className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-500 hover:text-blue-700">
-                  <Search className="h-3.5 w-3.5" />
-                </button>
-              </form>
-              {!token && (
-                <>
-                  <Link to="/login" className="font-bold text-gray-600 transition hover:text-brand-600 dark:text-gray-300 dark:hover:text-brand-400">
-                    {t('nav.login')}
-                  </Link>
-                  <Link
-                    to="/register"
-                    className="rounded-full bg-[#062b52] px-3 py-1 font-semibold text-white transition hover:bg-[#041f3a] dark:bg-blue-600 dark:hover:bg-blue-500"
-                  >
-                    {t('nav.register')}
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
         <div className="flex h-16 items-center justify-between gap-4 md:h-14">
           <Link to="/" className="flex shrink-0 items-center gap-2 text-xl font-extrabold tracking-tight text-[#062b52] dark:text-blue-300" aria-label="RADAR Home">
-            <RadarLogo size={30} wordmark hideWordmarkOnSmallScreens />
+            <RadarLogo size={34} wordmark hideWordmarkOnSmallScreens />
           </Link>
 
           {variant !== 'public' && (
@@ -171,20 +128,33 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             </div>
           )}
 
-          {/* Sections on the same line as the name, the way a masthead reads.
-              The row may not spill: SectionNav measures itself and scrolls when
-              the names do not fit, which is what used to draw them over the
-              radio, LIVE and language buttons. */}
-          {variant === 'public' && (
-            <div className="hidden min-w-0 flex-1 items-center gap-2 md:flex">
-              <SectionNav className="min-w-0 flex-1" extraLinks={navLinks} />
-              <RadioNewsButton />
-              <LiveButton />
-            </div>
-          )}
+          <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-3">
+            {/* Below md the search lives in the menu; it is the one thing on this
+                row that gives its width back rather than pushing the name out. */}
+            {variant === 'public' && (
+              <form onSubmit={handleSearch} className="relative hidden md:block md:w-40 lg:w-56" role="search">
+                <label htmlFor="site-search" className="sr-only">{t('search.placeholder')}</label>
+                <input
+                  id="site-search"
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  placeholder={t('search.placeholder')}
+                  className="w-full rounded-full border border-slate-200 bg-slate-50 py-1.5 pl-3.5 pr-8 text-xs text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                />
+                <button type="submit" aria-label={t('nav.search')} className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-500 hover:text-blue-700">
+                  <Search className="h-3.5 w-3.5" />
+                </button>
+              </form>
+            )}
 
-          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
-            <LanguageSelector className="hidden sm:block" labelClassName="hidden lg:inline" buttonClassName="border-gray-200 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" />
+            {variant === 'public' && (
+              <>
+                <RadioNewsButton />
+                <LiveButton />
+              </>
+            )}
+
+            <LanguageSelector className="hidden sm:block" labelClassName="hidden xl:inline" buttonClassName="border-gray-200 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" />
 
             {variant === 'public' && <NotificationsBell />}
 
@@ -280,7 +250,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                 )}
               </div>
             ) : (
-              <div className={`items-center gap-3 ${variant === 'public' ? 'flex md:hidden' : 'hidden md:flex'}`}>
+              <div className={`items-center gap-2 sm:gap-3 ${variant === 'public' ? 'flex' : 'hidden md:flex'}`}>
                 <Link
                   to="/login"
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
@@ -307,6 +277,18 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             </button>
           </div>
         </div>
+
+        {/*
+          Every section on its own line under the name, and it has the whole width
+          to itself: this is what lets a reader hover World and get Middle East, or
+          Sport and get Football, on a normal laptop rather than only on a
+          27-inch monitor.
+        */}
+        {variant === 'public' && (
+          <div className="hidden h-11 items-center border-t border-gray-100 dark:border-gray-800 md:flex">
+            <SectionNav className="min-w-0 flex-1" extraLinks={navLinks} />
+          </div>
+        )}
 
         {/*
           On a phone the sections are not hidden behind the menu: they run past on

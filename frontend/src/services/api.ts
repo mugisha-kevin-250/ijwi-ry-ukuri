@@ -481,6 +481,55 @@ export interface AiDraftResult {
   destination?: string
 }
 
+/**
+ * One turn of the research desk conversation.
+ *
+ * The thread is kept on the server against the admin's own account so a second
+ * tab, or a phone, picks up the same questions rather than starting cold.
+ */
+export interface AiChatTurn {
+  role: 'user' | 'assistant'
+  text: string
+  model?: string
+  at?: string
+}
+
+export interface AiChatThread {
+  configured: boolean
+  model: string
+  turns: AiChatTurn[]
+}
+
+/**
+ * A photograph the server actually fetched before offering it here.
+ *
+ * `width`/`height` are read off the bytes of the picture, and `served` says
+ * whether that is the file's own size or a rendition the host made on request,
+ * so a picker never shows a thumbnail as though it were a 4K original.
+ */
+export interface VerifiedPhoto {
+  url: string
+  originalUrl: string
+  /** The page the licence and the contributor are written on, when the host has one. */
+  pageUrl: string
+  credit: string
+  source: string
+  why: string
+  width: number
+  height: number
+  bytes: number
+  served: string
+  atUhd: boolean
+}
+
+export interface PhotoSearchResult {
+  photos: VerifiedPhoto[]
+  dropped: { url: string; credit?: string; reason: string }[]
+  asked: number
+  model: string
+  note?: string
+}
+
 /** One search Google reported as trending, with the headlines it credited. */
 export interface TrendTopicRecord {
   topic: string
@@ -649,6 +698,47 @@ export const adminAPI = {
     const response = await apiClient.get('/admin/ai/articles')
     const payload = response.data.data as { articles?: Article[]; pendingReview?: number }
     return { articles: payload?.articles ?? [], pendingReview: payload?.pendingReview ?? 0 }
+  },
+
+  // The research desk. Questions and answers stay in the admin's own thread on
+  // the server, and nothing here is ever a story - it is leads to check.
+  getAiChat: async (): Promise<AiChatThread> => {
+    const response = await apiClient.get('/admin/ai/chat')
+    const payload = response.data.data as Partial<AiChatThread> | undefined
+    return {
+      configured: payload?.configured === true,
+      model: payload?.model || '',
+      turns: Array.isArray(payload?.turns) ? payload.turns : [],
+    }
+  },
+
+  askAiChat: async (message: string): Promise<AiChatThread> => {
+    const response = await apiClient.post('/admin/ai/chat', { message })
+    const payload = response.data.data as Partial<AiChatThread> | undefined
+    return {
+      configured: true,
+      model: payload?.model || '',
+      turns: Array.isArray(payload?.turns) ? payload.turns : [],
+    }
+  },
+
+  clearAiChat: () => apiClient.delete('/admin/ai/chat'),
+
+  /**
+   * Pictures a story could carry, each one already fetched and measured by the
+   * server. A link that did not load is returned in `dropped` with the reason,
+   * so the panel can say what is missing instead of showing fewer boxes.
+   */
+  searchAiPhotos: async (input: { topic: string; region?: string }): Promise<PhotoSearchResult> => {
+    const response = await apiClient.post('/admin/ai/photos', input)
+    const payload = response.data.data as Partial<PhotoSearchResult> | undefined
+    return {
+      photos: Array.isArray(payload?.photos) ? payload.photos : [],
+      dropped: Array.isArray(payload?.dropped) ? payload.dropped : [],
+      asked: Number(payload?.asked ?? 0),
+      model: payload?.model || '',
+      note: payload?.note || '',
+    }
   },
 
   /** What Google reports people searching, read by the server. */

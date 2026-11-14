@@ -8,6 +8,8 @@ import { useI18n } from '../../context/I18nContext'
 import { canonicalCategoryId, resolveCategories } from '../../data/categoryVisuals'
 import { sectionHrefFor } from '../../data/sections'
 import AiReviewQueue from '../../components/admin/AiReviewQueue'
+import AiPhotoPicker from '../../components/admin/AiPhotoPicker'
+import AiResearchChat from '../../components/admin/AiResearchChat'
 import TrendRadar from '../../components/admin/TrendRadar'
 
 /** The section tree as the server sends it, with the stored document behind each node. */
@@ -340,6 +342,20 @@ export default function AdminAiWriterPage() {
     topicField.current?.focus()
   }
 
+  /**
+   * A question asked at the research desk, moved up into the writer.
+   *
+   * Deliberately only fills the topic box: the admin still presses the button,
+   * so a chat answer can never become a published story by itself.
+   */
+  const takeToWriter = (value: string) => {
+    setTrend(null)
+    setTopic(value.slice(0, 300))
+    setNotice('The research question is in the topic box. Check it reads as a story before writing it.')
+    topicField.current?.focus()
+    topicField.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   const toggleAutoPublish = async () => {
     if (!status) return
     const next = !status.autoPublish
@@ -469,6 +485,8 @@ export default function AdminAiWriterPage() {
             )}
           </section>
 
+          <AiResearchChat onUseTopic={takeToWriter} />
+
           {draft && (
             <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="font-bold text-slate-900">{savedId ? 'Now live — check it reads well' : 'Read it before anyone does'}</h2>
@@ -520,7 +538,7 @@ export default function AdminAiWriterPage() {
                   <label className="mt-3 flex items-start gap-2 text-xs text-slate-700">
                     <input
                       type="checkbox"
-                      checked={Boolean(image)}
+                      checked={image === (draft.photo?.url || '') && Boolean(image)}
                       onChange={(event) => {
                         setImage(event.target.checked ? draft.photo?.url || '' : '')
                         setImageCredit(event.target.checked ? draft.photo?.source || '' : '')
@@ -532,6 +550,26 @@ export default function AdminAiWriterPage() {
                   </label>
                 </div>
               )}
+
+              {/* A machine wrote the story, so the picture underneath it has to be
+                  one a person chose and whose owner is named. */}
+              <div className="mt-4">
+                <AiPhotoPicker
+                  topic={topic || title}
+                  attached={image ? { url: image, credit: imageCredit, sourceUrl: imageSourceUrl } : null}
+                  onAttach={(photo) => {
+                    setImage(photo.url)
+                    setImageCredit(photo.credit)
+                    setImageSourceUrl(photo.sourceUrl)
+                    setError('')
+                  }}
+                  onDetach={() => {
+                    setImage('')
+                    setImageCredit('')
+                    setImageSourceUrl('')
+                  }}
+                />
+              </div>
 
               <div className="mt-4 space-y-4">
                 <Field id="aiTitle" label="Headline" hint="Also used as the search-result title." value={title} onChange={setTitle} counter={90} />

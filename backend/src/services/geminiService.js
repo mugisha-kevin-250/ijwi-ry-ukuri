@@ -3,8 +3,10 @@ const env = require('../config/env');
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 // A story takes longer than a chat reply, and Render's free tier kills slow
-// responses at ten seconds, so the request gets its own generous timeout.
+// responses at ten seconds, so each kind of call gets its own ceiling and is
+// cut off cleanly instead of hanging the request.
 const TIMEOUT_MS = Number(env.GEMINI_TIMEOUT_MS || 90000);
+const CHAT_TIMEOUT_MS = Number(env.GEMINI_CHAT_TIMEOUT_MS || 45000);
 
 function isConfigured() {
   return Boolean(env.GEMINI_API_KEY);
@@ -12,6 +14,118 @@ function isConfigured() {
 
 function activeModel() {
   return env.GEMINI_MODEL || DEFAULT_MODEL;
+}
+
+/**
+ * One call to Gemini, whatever it is being asked for.
+ *
+ * Everything the newsroom wants from the model - a story, a research answer, a
+ * list of picture links - goes through here, so the timeout, the error codes and
+ * the "did it actually finish" check are written once instead of drifting apart
+ * in three places. It answers with the model's own words; reading those words as
+ * a story or a photo list is the caller's business.
+ */
+async function callGemini({
+  contents,
+  systemInstruction,
+  temperature = 0.55,
+  topP = 0.95,
+  maxOutputTokens = 1600,
+  responseMimeType,
+  timeoutMs = TIMEOUT_MS
+}) {
+  if (!isConfigured()) {
+    const error = new Error('Gemini is not configured on the server');
+    error.code = 'AI_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetch(`${ENDPOINT}/${activeModel()}:generateContent`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-goog-api-key': env.GEMINI_API_KEY
+      },
+      body: JSON.stringify({
+        contents,
+        ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
+        generationConfig: {
+          temperature,
+          topP,
+          maxOutputTokens,
+          ...(responseMimeType ? { responseMimeType } : {})
+        }
+      }),
+      signal: controller.signal
+    });
+  } catch (err) {
+    const error = new Error(err.name === 'AbortError' ? 'Gemini took too long to answer' : 'Gemini could not be reached');
+    error.code = 'AI_UNREACHABLE';
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    // The status is the part that matters. Gemini's own error text can describe
+    // the request that made it, so it is kept short and never carries a key.
+    const detail = payload?.error?.message || `Gemini answered with ${response.status}`;
+    const error = new Error(String(detail).slice(0, 200));
+    error.code = response.status === 401 || response.status === 403 ? 'AI_BAD_KEY' : response.status === 429 ? 'AI_RATE_LIMIT' : 'AI_REQUEST_FAILED';
+    error.status = response.status;
+    throw error;
+  }
+
+  const candidate = payload?.candidates?.[0];
+  const finish = candidate?.finishReason;
+  if (finish && finish !== 'STOP') {
+    const error = new Error(finish === 'MAX_TOKENS' ? 'Gemini stopped before finishing the answer' : `Gemini declined this request (${finish})`);
+    error.code = 'AI_BLOCKED';
+    throw error;
+  }
+
+  const text = readText(candidate);
+  if (!text) {
+    const error = new Error('Gemini returned an empty answer');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+  return text;
+}
+
+/**
+ * The thread the admin's browser holds, in the shape the API expects.
+ *
+ * Gemini calls the answering side "model", refuses a thread that opens with the
+ * assistant, and charges for every turn, so the oldest turns fall off rather
+ * than the newest ones and each stored string is capped before it is sent.
+ */
+function toContents(history) {
+  const turns = (Array.isArray(history) ? history : [])
+    .filter((turn) => turn && typeof turn.text === 'string' && turn.text.trim())
+    .slice(-12)
+    .map((turn) => ({
+      role: turn.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: String(turn.text).slice(0, 8000) }]
+    }));
+  // A replayed or half-saved thread can open with the model's own answer.
+  while (turns.length && turns[0].role === 'model') turns.shift();
+  return turns;
+}
+
+// A model told to answer in JSON sometimes wraps it in a fence anyway, so the
+// fence comes off before the braces are looked for.
+function parseJson(text) {
+  const cleaned = String(text || '').replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end < start) throw new Error('Gemini replied without something we could read');
+  return JSON.parse(cleaned.slice(start, end + 1));
 }
 
 function buildPrompt({ topic, angle, audience, evidence, region }) {
@@ -57,11 +171,7 @@ function readText(candidate) {
 }
 
 function parseStory(text) {
-  const cleaned = text.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end < start) throw new Error('Gemini replied without a story');
-  const parsed = JSON.parse(cleaned.slice(start, end + 1));
+  const parsed = parseJson(text);
   const paragraphs = Array.isArray(parsed.paragraphs)
     ? parsed.paragraphs.map((line) => String(line).trim()).filter(Boolean)
     : [];
@@ -75,61 +185,15 @@ function parseStory(text) {
 }
 
 async function writeStory({ topic, angle, audience = 'rwanda', evidence, region } = {}) {
-  if (!isConfigured()) {
-    const error = new Error('Gemini is not configured on the server');
-    error.code = 'AI_NOT_CONFIGURED';
-    throw error;
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let response;
-  try {
-    response = await fetch(`${ENDPOINT}/${activeModel()}:generateContent`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-goog-api-key': env.GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: buildPrompt({ topic, angle, audience, evidence, region }) }] }],
-        generationConfig: {
-          temperature: 0.55,
-          topP: 0.95,
-          maxOutputTokens: 1600,
-          responseMimeType: 'application/json'
-        }
-      }),
-      signal: controller.signal
-    });
-  } catch (err) {
-    const error = new Error(err.name === 'AbortError' ? 'Gemini took too long to answer' : 'Gemini could not be reached');
-    error.code = 'AI_UNREACHABLE';
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    const detail = payload?.error?.message || `Gemini answered with ${response.status}`;
-    const error = new Error(detail);
-    error.code = response.status === 401 || response.status === 403 ? 'AI_BAD_KEY' : response.status === 429 ? 'AI_RATE_LIMIT' : 'AI_REQUEST_FAILED';
-    error.status = response.status;
-    throw error;
-  }
-
-  const candidate = payload?.candidates?.[0];
-  const finish = candidate?.finishReason;
-  if (finish && finish !== 'STOP') {
-    const error = new Error(finish === 'MAX_TOKENS' ? 'Gemini stopped before finishing the story' : `Gemini declined this topic (${finish})`);
-    error.code = 'AI_BLOCKED';
-    throw error;
-  }
+  const text = await callGemini({
+    contents: [{ role: 'user', parts: [{ text: buildPrompt({ topic, angle, audience, evidence, region }) }] }],
+    maxOutputTokens: 1600,
+    responseMimeType: 'application/json'
+  });
 
   let story;
   try {
-    story = parseStory(readText(candidate));
+    story = parseStory(text);
   } catch (err) {
     const error = new Error('Gemini returned something we could not read as a story');
     error.code = 'AI_BAD_OUTPUT';
@@ -151,4 +215,114 @@ async function writeStory({ topic, angle, audience = 'rwanda', evidence, region 
   };
 }
 
-module.exports = { isConfigured, activeModel, writeStory };
+/**
+ * The research desk.
+ *
+ * An admin asks it what to look into before a story is written: who to call,
+ * what document to ask for, which figures need checking. It is deliberately not
+ * a second writer - a chat answer that reads like publishable prose is the
+ * fastest way to put something online that nobody verified. So the instruction
+ * says plainly that the model is not the source, and every answer has to hand
+ * the editor something they can go and confirm for themselves.
+ */
+const RESEARCH_SYSTEM = [
+  'You are the research desk inside the newsroom of RADAR, a Rwandan news site with readers across the region and the diaspora.',
+  'The person writing to you is an editor preparing to report a story. They are not asking you to report it for them.',
+  '',
+  'How to answer:',
+  '- Be direct and short: two to five short paragraphs, or a list of concrete leads when a list is what is wanted.',
+  '- Give the editor things they can go and verify - named institutions, named offices, public documents to request, official bodies that publish the figure, searches to run, questions to ask on the phone.',
+  '- Say which parts you are confident about and which are leads that have to be checked. Mark anything you are unsure of as unverified rather than letting it read like a fact.',
+  '- Never write a sentence that could be pasted straight into a published story. Never invent a quote, a name, a figure, a date or a document.',
+  '- If something is after your knowledge, or too small and local for you to genuinely know, say you do not know and say what to check instead. That is a useful answer here.',
+  '- Answer in English. Plainly, with no preamble and no summary of your own answer at the end.'
+].join('\n');
+
+async function chat(question, history = []) {
+  const asked = String(question || '').trim().slice(0, 4000);
+  if (!asked) {
+    const error = new Error('Ask the research desk something first');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+  const contents = toContents([...(Array.isArray(history) ? history : []), { role: 'user', text: asked }]);
+  if (!contents.length) {
+    const error = new Error('Ask the research desk something first');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+
+  const reply = await callGemini({
+    contents,
+    systemInstruction: RESEARCH_SYSTEM,
+    temperature: 0.7,
+    topP: 0.95,
+    maxOutputTokens: 1200,
+    timeoutMs: CHAT_TIMEOUT_MS
+  });
+
+  return { reply, model: activeModel(), generatedAt: new Date().toISOString() };
+}
+
+/**
+ * Pictures for a story the newsroom has not taken.
+ *
+ * The model is asked for links to photographs that already exist and are public.
+ * Every link it returns is then fetched by this server before an admin ever sees
+ * it (see verifyPhotos in aiPhotoService), so nothing that does not load reaches
+ * the page as a broken thumbnail. An empty list is an honest answer: there is no
+ * picture here that we can stand behind, so someone has to find or take one.
+ */
+function buildPhotoPrompt({ topic, region }) {
+  return [
+    `Find photograph links that could run with a news story about: ${topic}`,
+    region ? `The story is filed for readers in/around ${region}.` : '',
+    '',
+    'Rules:',
+    "- Only links you are confident exist and are public: a news agency's own article image, a government or organisation press page image, a Wikimedia Commons file.",
+    '- Give direct image links ending in .jpg, .jpeg, .png or .webp, or a Wikimedia Commons file page.',
+    '- Never invent a URL and never guess a path. If you are not sure a link exists, leave it out.',
+    '- Prefer the largest clean version you know of, and say who owns the picture.',
+    '',
+    'Return ONLY a JSON object:',
+    '{"photos": [{"url": string, "credit": string, "source": string, "why": string}]}',
+    'Up to eight entries. If you have nothing you are confident about, return {"photos": []}.'
+  ].join('\n');
+}
+
+async function photoLinks({ topic, region } = {}) {
+  const text = await callGemini({
+    contents: [{ role: 'user', parts: [{ text: buildPhotoPrompt({ topic, region }) }] }],
+    temperature: 0.4,
+    maxOutputTokens: 1200,
+    responseMimeType: 'application/json',
+    timeoutMs: CHAT_TIMEOUT_MS
+  });
+
+  let list = [];
+  try {
+    const parsed = parseJson(text);
+    list = Array.isArray(parsed.photos) ? parsed.photos : [];
+  } catch (err) {
+    const error = new Error('Gemini returned something we could not read as photo links');
+    error.code = 'AI_BAD_OUTPUT';
+    error.cause = err;
+    throw error;
+  }
+
+  return {
+    photos: list
+      .map((photo) => ({
+        url: String(photo?.url || '').trim(),
+        credit: String(photo?.credit || '').trim().slice(0, 160),
+        source: String(photo?.source || '').trim().slice(0, 120),
+        why: String(photo?.why || '').trim().slice(0, 200)
+      }))
+      .filter((photo) => /^https:\/\/[^\s"'<>]{6,500}$/i.test(photo.url))
+      .slice(0, 8),
+    model: activeModel(),
+    generatedAt: new Date().toISOString()
+  };
+}
+
+module.exports = { isConfigured, activeModel, writeStory, chat, photoLinks };

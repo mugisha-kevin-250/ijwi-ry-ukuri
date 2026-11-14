@@ -42,6 +42,9 @@ module.exports = {
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
   GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-flash-lite-latest',
   GEMINI_TIMEOUT_MS: Number(process.env.GEMINI_TIMEOUT_MS || 90000),
+  // A research answer is shorter than a story, so it waits for less time. The
+  // chat is the one AI call an admin can make many times in a sitting.
+  GEMINI_CHAT_TIMEOUT_MS: Number(process.env.GEMINI_CHAT_TIMEOUT_MS || 45000),
   // What readers are searching for right now, read from Google's own feed on the
   // server. No secret is involved and nothing is sent to the browser.
   TREND_GEOS: process.env.TREND_GEOS || '',

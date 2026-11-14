@@ -20,5 +20,6 @@ module.exports = {
   Live: require('./Live'),
   LiveComment: require('./LiveComment'),
   NewsletterSubscriber: require('./NewsletterSubscriber'),
-  Translation: require('./Translation')
+  Translation: require('./Translation'),
+  AiResearchChat: require('./AiResearchChat')
 };

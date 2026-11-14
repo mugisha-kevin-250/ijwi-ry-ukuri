@@ -7,10 +7,12 @@ const Category = require('../models/Category');
 const ContactMessage = require('../models/ContactMessage');
 const WriterProfile = require('../models/WriterProfile');
 const PlatformSetting = require('../models/PlatformSetting');
+const AiResearchChat = require('../models/AiResearchChat');
 const { protect, authorize } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
+const aiPhotoService = require('../services/aiPhotoService');
 const trendService = require('../services/trendService');
 const generateSlug = require('../utils/generateSlug');
 const lifecycle = require('../utils/articleLifecycle');
@@ -499,6 +501,125 @@ router.post('/ai/trends', authorize('ADMIN'), async (req, res, next) => {
       evidence,
       photo: trendService.photoCreditFor(evidence),
       destination: '/trending'
+    });
+  } catch (error) {
+    if (error.code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, error.message);
+    if (String(error.code || '').startsWith('AI_')) return errorResponse(res, 502, error.message);
+    next(error);
+  }
+});
+
+/**
+ * The research desk an admin talks to.
+ *
+ * This is the one place on the site where a machine is allowed to answer
+ * questions rather than draft a story, and it is kept apart from publishing on
+ * purpose: nothing said here can become an article without a person writing it
+ * out. The thread is stored on the server so the questions survive a closed
+ * laptop, and so the model is sent the earlier turns instead of answering a
+ * follow-up as if it were the first one.
+ */
+const CHAT_TURNS_KEPT = 40;
+
+router.get('/ai/chat', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const thread = await AiResearchChat.findOne({ owner: req.user._id });
+    return successResponse(res, 200, 'Research thread', {
+      configured: geminiService.isConfigured(),
+      model: geminiService.activeModel(),
+      turns: thread?.turns || []
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/ai/chat', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const question = plainText(req.body?.message, { maxLength: 4000 });
+    if (question.trim().length < 3) return errorResponse(res, 400, 'Ask the research desk a question first');
+
+    const thread = (await AiResearchChat.findOne({ owner: req.user._id })) || new AiResearchChat({ owner: req.user._id });
+    const answer = await geminiService.chat(question, thread.turns);
+
+    thread.turns = [...thread.turns, { role: 'user', text: question, at: new Date() }, { role: 'assistant', text: answer.reply, model: answer.model, at: new Date() }]
+      .slice(-CHAT_TURNS_KEPT);
+    await thread.save();
+
+    return successResponse(res, 200, 'Research desk answered', {
+      reply: answer.reply,
+      model: answer.model,
+      generatedAt: answer.generatedAt,
+      turns: thread.turns
+    });
+  } catch (error) {
+    if (error.code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, error.message);
+    if (String(error.code || '').startsWith('AI_')) return errorResponse(res, 502, error.message);
+    next(error);
+  }
+});
+
+// Clears the thread. It stays a document with no turns rather than being
+// deleted, because "start again" and "this never existed" are different things
+// to know when the same admin comes back tomorrow.
+router.delete('/ai/chat', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    await AiResearchChat.findOneAndUpdate({ owner: req.user._id }, { $set: { turns: [] } }, { upsert: true, new: true });
+    return successResponse(res, 200, 'Research thread cleared', { turns: [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Photographs for a story, only if they really load.
+ *
+ * Two sources, deliberately: Commons' own search, which can only return files
+ * that exist there, and the links Gemini names - every one of those is then
+ * fetched here, sized from the bytes of the picture itself, and thrown away if
+ * it does not answer. What reaches the admin is a strip of pictures that exist,
+ * each with its real dimensions and the largest version its source is willing
+ * to serve - up to 4K on the long side, never claimed beyond what the file
+ * actually holds. Either source failing is a reported gap rather than an empty
+ * panel; the newsroom still gets pictures from the other.
+ */
+router.post('/ai/photos', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const topic = plainText(req.body?.topic, { maxLength: 400 });
+    if (topic.trim().length < 6) return errorResponse(res, 400, 'Say what the picture should show');
+    const region = req.body?.region ? plainText(req.body.region, { maxLength: 160 }) : '';
+
+    const [library, named] = await Promise.all([
+      aiPhotoService.search(topic, { limit: 8 }).catch((error) => ({ photos: [], note: `Commons could not be searched: ${String(error.message || error).slice(0, 120)}` })),
+      geminiService.photoLinks({ topic, region })
+        .then((answer) => ({ answer, model: answer.model }))
+        .catch((error) => {
+          if (error.code === 'AI_NOT_CONFIGURED' || String(error.code || '').startsWith('AI_')) {
+            return { answer: { photos: [] }, model: '', note: error.message };
+          }
+          throw error;
+        })
+    ]);
+
+    const { photos: fetched, dropped } = await aiPhotoService.verify(named.answer.photos, { limit: 8 });
+    // The model's own picks come first - it was told what the story is about, so
+    // its reason for each picture is worth more than a title match - and the
+    // repository's results fill the rest of the strip.
+    const seen = new Set();
+    const photos = [...fetched, ...library.photos].filter((photo) => {
+      const key = String(photo.originalUrl || photo.url).split('/').pop() || photo.url;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 12);
+
+    const note = [library.note, named.note].filter(Boolean).join(' ');
+    return successResponse(res, 200, photos.length ? `${photos.length} picture${photos.length === 1 ? '' : 's'} you can use` : 'No picture could be fetched for that topic', {
+      photos,
+      dropped,
+      asked: named.answer.photos.length,
+      model: named.model,
+      note
     });
   } catch (error) {
     if (error.code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, error.message);

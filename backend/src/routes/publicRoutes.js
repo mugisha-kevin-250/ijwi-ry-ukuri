@@ -3,8 +3,11 @@ const Category = require('../models/Category');
 const Article = require('../models/Article');
 const ContactMessage = require('../models/ContactMessage');
 const User = require('../models/User');
+const Follow = require('../models/Follow');
+const WriterProfile = require('../models/WriterProfile');
 const { optionalAuth } = require('../middleware/auth');
 const { withEngagement } = require('../services/engagementService');
+const translate = require('../services/translateService');
 const { categoryIdsFor, sectionTree, sectionDocFor, sectionPathFor } = require('../utils/categoryGroups');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { cleanText, plainText } = require('../utils/textFields');
@@ -21,11 +24,18 @@ function searchPattern(value) {
 
 router.get('/articles', optionalAuth, async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, search, category, sort = 'latest' } = req.query;
+    const { page = 1, limit = 20, search, category, sort = 'latest', language } = req.query;
     const filter = { status: 'published' };
     if (search) {
       const pattern = searchPattern(search);
       filter.$or = [{ title: pattern }, { summary: pattern }, { tags: { $in: [pattern] } }];
+    }
+    // The audio desk reads English stories only, and a story typed before the
+    // language field existed IS an English story - it is the language the site
+    // was written in - so a missing field has to count as a match.
+    if (language) {
+      const code = plainText(language).slice(0, 8).toLowerCase();
+      filter.$and = [{ $or: [{ language: code }, { language: { $exists: false } }, { language: null }] }];
     }
     // A section asked for by slug has to include the copies stored under the
     // other language, otherwise "Sports" and "Amasport" each hide half the news.
@@ -48,7 +58,8 @@ router.get('/articles', optionalAuth, async (req, res, next) => {
       .skip((Number(page) - 1) * Number(limit));
 
     const total = await Article.countDocuments(filter);
-    return successResponse(res, 200, 'Articles fetched', { articles: await withEngagement(req.user, articles), total, page: Number(page), limit: Number(limit) });
+    const decorated = await withEngagement(req.user, articles);
+    return successResponse(res, 200, 'Articles fetched', { articles: await translate.forRequest(req, decorated), total, page: Number(page), limit: Number(limit) });
   } catch (error) {
     next(error);
   }
@@ -61,7 +72,8 @@ router.get('/articles/:slug', optionalAuth, async (req, res, next) => {
       .populate('category', 'name slug');
     if (!article) return errorResponse(res, 404, 'Article not found');
     const [decorated] = await withEngagement(req.user, [article]);
-    return successResponse(res, 200, 'Article fetched', { article: decorated });
+    const [inLanguage] = await translate.forRequest(req, [decorated]);
+    return successResponse(res, 200, 'Article fetched', { article: inLanguage });
   } catch (error) {
     next(error);
   }
@@ -73,7 +85,7 @@ router.get('/latest', async (req, res, next) => {
       .populate('category', 'name slug')
       .sort({ publishedAt: -1 })
       .limit(10);
-    return successResponse(res, 200, 'Latest articles', { articles });
+    return successResponse(res, 200, 'Latest articles', { articles: await translate.forRequest(req, articles) });
   } catch (error) {
     next(error);
   }
@@ -85,7 +97,7 @@ router.get('/trending', async (req, res, next) => {
       .populate('category', 'name slug')
       .sort({ validViews: -1, likes: -1 })
       .limit(10);
-    return successResponse(res, 200, 'Trending articles', { articles });
+    return successResponse(res, 200, 'Trending articles', { articles: await translate.forRequest(req, articles) });
   } catch (error) {
     next(error);
   }
@@ -97,7 +109,7 @@ router.get('/popular', async (req, res, next) => {
       .populate('category', 'name slug')
       .sort({ views: -1 })
       .limit(10);
-    return successResponse(res, 200, 'Popular articles', { articles });
+    return successResponse(res, 200, 'Popular articles', { articles: await translate.forRequest(req, articles) });
   } catch (error) {
     next(error);
   }
@@ -160,7 +172,7 @@ router.get('/sections/:section/:child?', optionalAuth, async (req, res, next) =>
       section,
       child,
       category: await sectionDocFor(child ? child.slug : section.slug),
-      articles: await withEngagement(req.user, articles),
+      articles: await translate.forRequest(req, await withEngagement(req.user, articles)),
       total,
       page: Number(page),
       limit: Number(limit),
@@ -198,7 +210,7 @@ router.get('/categories/:slug', optionalAuth, async (req, res, next) => {
     const total = await Article.countDocuments(inSection);
     // The section address is the canonical one; this old /category/<slug> page
     // still works, and tells the reader where the section moved to.
-    return successResponse(res, 200, 'Category articles fetched', { category, sectionPath: sectionPathFor(category.slug), articles: await withEngagement(req.user, articles), total, page: Number(page), limit: Number(limit) });
+    return successResponse(res, 200, 'Category articles fetched', { category, sectionPath: sectionPathFor(category.slug), articles: await translate.forRequest(req, await withEngagement(req.user, articles)), total, page: Number(page), limit: Number(limit) });
   } catch (error) {
     next(error);
   }
@@ -224,7 +236,44 @@ router.get('/search', async (req, res, next) => {
         { bio: regex }
       ]
     }).select('fullName username avatar bio role').limit(10);
-    return successResponse(res, 200, 'Search results', { articles, authors });
+    return successResponse(res, 200, 'Search results', { articles: await translate.forRequest(req, articles), authors });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * The writers readers actually follow, counted from the Follow rows rather than
+ * from any cached number, so the shelf cannot claim a following nobody gave.
+ * A writer whose account is gone or who is no longer approved is left out.
+ */
+router.get('/writers/top', async (req, res, next) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 6, 1), 12);
+    const ranked = await Follow.aggregate([
+      { $group: { _id: '$writer', followers: { $sum: 1 } } },
+      { $sort: { followers: -1, _id: 1 } },
+      { $limit: limit },
+    ]);
+    const profiles = await WriterProfile.find({ _id: { $in: ranked.map((row) => row._id) }, status: 'approved' })
+      .populate('user', 'fullName username bio avatar');
+    const byProfile = new Map(profiles.map((profile) => [String(profile._id), profile]));
+    const writers = ranked
+      .map((row) => {
+        const profile = byProfile.get(String(row._id));
+        const account = profile && profile.user;
+        if (!account) return null;
+        return {
+          _id: String(account._id),
+          fullName: account.fullName || profile.fullName,
+          username: account.username || profile.username,
+          bio: profile.bio || account.bio || '',
+          avatar: profile.profileImage || account.avatar || '',
+          followers: row.followers,
+        };
+      })
+      .filter(Boolean);
+    return successResponse(res, 200, 'Top writers fetched', { writers });
   } catch (error) {
     next(error);
   }
@@ -237,7 +286,7 @@ router.get('/writers/:id', async (req, res, next) => {
   try {
     const writer = await User.findById(req.params.id).select('fullName username bio avatar country language');
     const articles = await Article.find({ author: writer?._id, status: 'published' }).sort({ publishedAt: -1 });
-    return successResponse(res, 200, 'Writer details', { writer, articles });
+    return successResponse(res, 200, 'Writer details', { writer, articles: await translate.forRequest(req, articles) });
   } catch (error) {
     next(error);
   }

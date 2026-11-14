@@ -8,6 +8,8 @@ interface ArticleQuery {
   category?: string
   tag?: string
   sort?: string
+  /** One language code. The audio desk asks for 'en' and nothing else. */
+  language?: string
 }
 
 interface ArticleResults {
@@ -31,6 +33,16 @@ export interface SectionResults extends ArticleResults {
   section: SectionRecord | null
   child: SectionRecord | null
   category: Category | null
+}
+
+/** A writer on the "most followed" shelf, counted by the API from Follow rows. */
+export interface TopWriter {
+  _id: string
+  fullName: string
+  username: string
+  bio: string
+  avatar: string
+  followers: number
 }
 
 export interface AdminUserRecord extends User {
@@ -109,6 +121,11 @@ export const publicAPI = {
   getWriter: (id: string) =>
     apiClient.get(`/writers/${id}`),
 
+  // Writers counted from real Follow rows, for the home shelf that says
+  // "most followed" instead of borrowing the most-read stories.
+  getTopWriters: (limit = 6) =>
+    apiClient.get<{ writers: TopWriter[] }>('/writers/top', { limit }),
+
   sendContact: (data: { name: string; email: string; topic: string; message: string; website?: string }) =>
     apiClient.post('/contact', data),
 }
@@ -123,8 +140,26 @@ export const writerAPI = {
   createArticle: (data: any) =>
     apiClient.post('/writers/articles', data),
 
-  getMyArticles: () =>
-    apiClient.get<Article[] | ArticleResults>('/writers/articles'),
+  getMyArticles: (query: WriterStoriesQuery = {}) =>
+    apiClient.get<Article[]>('/writers/articles', query),
+
+  // The same shelf, but each row carries the traffic measured from real
+  // ArticleView rows. Both lists come back wrapped, so the unwrapping that
+  // crashed the earnings page happens once here instead of at every call site.
+  getStoryMetrics: async (query: WriterStoriesQuery = {}): Promise<WriterMetricPage> => {
+    const response = await apiClient.get('/writers/me/analytics', query)
+    const payload = response.data.data as { articles?: WriterStoryMetric[]; total?: number; page?: number; limit?: number; totalPages?: number } | null
+    return {
+      stories: Array.isArray(payload?.articles) ? payload.articles : [],
+      total: Number(payload?.total ?? 0),
+      page: Number(payload?.page ?? query.page ?? 1),
+      limit: Number(payload?.limit ?? 20),
+      totalPages: Number(payload?.totalPages ?? 1),
+    }
+  },
+
+  getWeeklyStats: () =>
+    apiClient.get('/writers/me/weekly-stats'),
 
   getArticle: (id: string) =>
     apiClient.get(`/writers/articles/${id}`),
@@ -137,6 +172,12 @@ export const writerAPI = {
 
   publishArticle: (id: string) =>
     apiClient.post(`/writers/articles/${id}/publish`),
+
+  submitArticle: (id: string) =>
+    apiClient.post(`/writers/articles/${id}/submit`),
+
+  withdrawArticle: (id: string) =>
+    apiClient.post(`/writers/articles/${id}/unpublish`),
 
   getEarnings: () =>
     apiClient.get('/writers/me/earnings'),
@@ -159,10 +200,15 @@ export const writerAPI = {
 
 export const articleAPI = {
   getComments: (id: string) =>
-    apiClient.get<Comment[]>(`/articles/${id}/comments`),
+    apiClient.get<{ comments: Comment[] }>(`/articles/${id}/comments`),
 
   addComment: (id: string, data: { content: string }) =>
-    apiClient.post<Comment>(`/articles/${id}/comments`, data),
+    apiClient.post<{ comment: Comment }>(`/articles/${id}/comments`, data),
+
+  // Asking the newsroom to look at a comment. It changes nothing the readers can
+  // see: the comment stays on the page and waits for a human decision.
+  reportComment: (commentId: string, reason?: string) =>
+    apiClient.post<{ comment: Comment }>(`/articles/comments/${commentId}/report`, { reason }),
 
   updateComment: (commentId: string, data: { content: string }) =>
     apiClient.put(`/comments/${commentId}`, data),
@@ -218,24 +264,171 @@ export const notificationAPI = {
     apiClient.put('/notifications/read-all'),
 }
 
+/** How a story is written, so a queue never has to guess which copy to show. */
+export type StoryState = 'draft' | 'pending_review' | 'approved' | 'rejected' | 'published' | 'archived'
+
+// One of the writer's own stories with the traffic measured from real ArticleView
+// rows. hasViewData is false when nobody has opened it yet, which is different
+// from an average read time of zero; the UI only prints a number when it is true.
+// The verbs the API says this author may run on this story. The shelf renders
+// its buttons straight from this list, so it can never offer a call the backend
+// is going to refuse.
+export type StoryAction = 'submit' | 'publish' | 'withdraw' | 'delete'
+
+export interface WriterStoryMetric {
+  _id: string
+  title: string
+  slug: string
+  summary: string
+  featuredImage: string | null
+  status: StoryState
+  actions: StoryAction[]
+  publishedAt: string | null
+  views: number
+  validViews: number
+  uniqueViews: number
+  likes: number
+  commentsCount: number
+  readingTime: number
+  viewRows: number
+  hasViewData: boolean
+  traffic: { day: string; validViews: number }[]
+  averageReadingDurationSeconds: number | null
+}
+
+export interface WriterMetricPage {
+  stories: WriterStoryMetric[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export interface WriterStoriesQuery {
+  status?: StoryState | ''
+  page?: number
+  limit?: number
+  sort?: 'newest' | 'oldest' | 'views' | 'likes'
+  search?: string
+}
+
+export interface StoryQueueResult {
+  articles: Article[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+  status: StoryState
+  pendingCount: number
+}
+
+export type CommentState = 'active' | 'reported' | 'hidden' | 'deleted'
+
+// A comment as the moderation desk sees it: the words, who wrote them, the story
+// they sit under, and how many readers asked for a look. `reports` is a count on
+// purpose - the people behind it stay unnamed.
+export interface ModeratedComment {
+  _id: string
+  content: string
+  status: CommentState
+  reports: number
+  reportReason?: string
+  moderationNote?: string
+  createdAt?: string
+  updatedAt?: string
+  moderatedAt?: string | null
+  user?: { _id: string; fullName?: string; username?: string; role?: string } | null
+  article?: { _id: string; title?: string; slug?: string; status?: string } | null
+  moderatedBy?: { _id: string; fullName?: string; username?: string; role?: string } | null
+}
+
+export interface CommentQueueResult {
+  comments: ModeratedComment[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+  status: CommentState
+  counts: Record<CommentState, number>
+}
+
 export const editorAPI = {
+  // The queue an editor works from. An empty list is a real answer, so the
+  // caller never has to tell "nobody submitted anything" from "the request
+  // failed" - that distinction is what keeps the UI honest.
+  getQueue: async (status: StoryState = 'pending_review', page = 1, search = ''): Promise<StoryQueueResult> => {
+    const response = await apiClient.get('/editor/articles', { status, page, search })
+    const payload = response.data.data as Partial<StoryQueueResult> | null
+    return {
+      articles: Array.isArray(payload?.articles) ? payload.articles : [],
+      total: Number(payload?.total ?? 0),
+      page: Number(payload?.page ?? page),
+      limit: Number(payload?.limit ?? 20),
+      totalPages: Number(payload?.totalPages ?? 1),
+      status: (payload?.status as StoryState) || status,
+      pendingCount: Number(payload?.pendingCount ?? 0),
+    }
+  },
+
   getPendingArticles: () =>
     apiClient.get('/editor/articles/pending'),
 
-  approveArticle: (id: string) =>
-    apiClient.put(`/editor/articles/${id}/approve`),
+  getArticle: (id: string) =>
+    apiClient.get(`/editor/articles/${id}`),
 
-  rejectArticle: (id: string) =>
-    apiClient.put(`/editor/articles/${id}/reject`),
+  getHistory: (id: string) =>
+    apiClient.get(`/editor/articles/${id}/history`),
 
-  requestCorrection: (id: string) =>
-    apiClient.put(`/editor/articles/${id}/request-correction`),
+  getStats: () =>
+    apiClient.get('/editor/stats'),
+
+  approveArticle: (id: string, note?: string) =>
+    apiClient.put(`/editor/articles/${id}/approve`, { note }),
+
+  rejectArticle: (id: string, note?: string) =>
+    apiClient.put(`/editor/articles/${id}/reject`, { note }),
+
+  requestCorrection: (id: string, note?: string) =>
+    apiClient.put(`/editor/articles/${id}/request-correction`, { note }),
 
   publishArticle: (id: string) =>
     apiClient.put(`/editor/articles/${id}/publish`),
 
   unpublishArticle: (id: string) =>
     apiClient.put(`/editor/articles/${id}/unpublish`),
+
+  restoreArticle: (id: string) =>
+    apiClient.put(`/editor/articles/${id}/restore`),
+
+  archiveArticle: (id: string) =>
+    apiClient.put(`/editor/articles/${id}/archive`),
+
+  scheduleArticle: (id: string, scheduledAt?: string) =>
+    apiClient.put(`/editor/articles/${id}/schedule`, { scheduledAt }),
+
+  // The comment queue. How many readers flagged a comment is returned, never
+  // which ones.
+  getComments: async (status: CommentState = 'reported', page = 1, search = ''): Promise<CommentQueueResult> => {
+    const response = await apiClient.get('/editor/comments', { status, page, search })
+    const payload = response.data.data as Partial<CommentQueueResult> | null
+    return {
+      comments: Array.isArray(payload?.comments) ? payload.comments : [],
+      total: Number(payload?.total ?? 0),
+      page: Number(payload?.page ?? page),
+      limit: Number(payload?.limit ?? 25),
+      totalPages: Number(payload?.totalPages ?? 1),
+      status: (payload?.status as CommentState) || status,
+      counts: {
+        active: Number(payload?.counts?.active ?? 0),
+        reported: Number(payload?.counts?.reported ?? 0),
+        hidden: Number(payload?.counts?.hidden ?? 0),
+        deleted: Number(payload?.counts?.deleted ?? 0),
+      },
+    }
+  },
+
+  moderateComment: (id: string, action: 'hide' | 'restore' | 'delete', note?: string) =>
+    apiClient.put(`/editor/comments/${id}/moderate`, { action, note }),
 }
 
 export interface WriterApplicationRecord {
@@ -281,8 +474,10 @@ export interface AiDraftResult {
     approxTraffic: number | null
     sourceUrl: string
     fetchedAt: string
-    headlines: { title: string; url: string; source: string }[]
+    headlines: { title: string; url: string; source: string; picture?: string }[]
   }
+  /** The picture and publisher the feed printed beside the trend, if any. */
+  photo?: { url: string; source: string; articleUrl: string; caption: string } | null
   destination?: string
 }
 
@@ -441,6 +636,9 @@ export const adminAPI = {
     content: string
     category: string
     tags: string[]
+    featuredImage?: string
+    imageCredit?: string
+    imageSourceUrl?: string
     publish: boolean
   }): Promise<Article> => {
     const response = await apiClient.post('/admin/ai/articles', payload)
@@ -478,6 +676,37 @@ export const pushAPI = {  getStatus: () =>
     apiClient.post<{ sent: number; failed: number; expired: number; total: number }>('/push/broadcast', payload),
 }
 
+export interface NewsletterSubscribeResult {
+  delivered: boolean
+  needsConfirmation: boolean
+  configured: boolean
+  message: string
+}
+
+export const newsletterAPI = {
+  // The server admits whether a mail sender exists at all, so the page can say
+  // "nothing will arrive yet" instead of pretending a mail was sent.
+  getStatus: async (): Promise<{ configured: boolean; reason: string | null }> => {
+    const response = await apiClient.get('/newsletter/status')
+    const payload = (response.data?.data || {}) as { configured?: boolean; reason?: string | null }
+    return { configured: payload.configured === true, reason: payload.reason || null }
+  },
+
+  subscribe: async (
+    email: string,
+    source = 'home',
+  ): Promise<NewsletterSubscribeResult> => {
+    const response = await apiClient.post('/newsletter/subscribe', { email, source })
+    const payload = (response.data?.data || {}) as { delivered?: boolean; needsConfirmation?: boolean; configured?: boolean }
+    return {
+      delivered: payload.delivered === true,
+      needsConfirmation: payload.needsConfirmation === true,
+      configured: payload.configured === true,
+      message: response.data?.message || '',
+    }
+  },
+}
+
 export const liveAPI = {
   getCurrent: () =>
     apiClient.get<{ live: Live | null }>('/live/current'),
@@ -496,4 +725,49 @@ export const liveAPI = {
 
   getComments: (id: string) =>
     apiClient.get<{ comments: LiveComment[] }>(`/live/${id}/comments`),
+}
+
+export interface TranslateLanguage {
+  code: string
+  name: string
+}
+
+export interface TranslateStatus {
+  configured: boolean
+  defaultLanguage: string
+  reason: string | null
+}
+
+/**
+ * The reader's language. The key stays on the server; the browser only ever
+ * asks for a language and gets words back.
+ */
+export const translateAPI = {
+  getLanguages: async (): Promise<{ languages: TranslateLanguage[] } & TranslateStatus> => {
+    const response = await apiClient.get('/translate/languages')
+    const payload = (response.data?.data || {}) as Partial<{ languages: TranslateLanguage[] } & TranslateStatus>
+    return {
+      languages: Array.isArray(payload.languages) ? payload.languages : [],
+      configured: payload.configured === true,
+      defaultLanguage: payload.defaultLanguage || 'en',
+      reason: payload.reason ?? null,
+    }
+  },
+
+  // The site's own buttons and labels, as one set, bought once and cached by
+  // both the server and this browser.
+  translateChrome: async (
+    lang: string,
+    strings: Record<string, string>,
+  ): Promise<{ translated: boolean; strings: Record<string, string>; reason: string | null } & TranslateStatus> => {
+    const response = await apiClient.post('/translate/chrome', { lang, strings })
+    const payload = (response.data?.data || {}) as Record<string, unknown>
+    return {
+      translated: payload.translated === true,
+      strings: payload.strings && typeof payload.strings === 'object' ? (payload.strings as Record<string, string>) : {},
+      reason: typeof payload.reason === 'string' ? payload.reason : null,
+      configured: payload.configured === true,
+      defaultLanguage: (payload.defaultLanguage as string) || 'en',
+    }
+  },
 }

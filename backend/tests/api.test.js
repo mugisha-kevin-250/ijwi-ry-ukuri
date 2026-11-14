@@ -9,6 +9,9 @@ const request = require('supertest');
 const app = require('../src/app');
 const mongoose = require('mongoose');
 const Category = require('../src/models/Category');
+const User = require('../src/models/User');
+const Article = require('../src/models/Article');
+const WriterProfile = require('../src/models/WriterProfile');
 const { connectDatabase, disconnectDatabase } = require('../src/config/database');
 
 let token;
@@ -221,17 +224,59 @@ test('article approval and publish', async () => {
   await mongoose.connection.collection('users').updateOne({ _id: admin._id }, { $set: { role: 'ADMIN' } });
   editorToken = jwtTokenFor(admin._id, 'ADMIN');
 
+  // This desk only ever sees stories an author handed over, so the test submits
+  // its own rather than reusing the one the writer already put on the site.
+  const category = await Category.findOne({ slug: 'general' });
+  const created = await request(app)
+    .post('/api/writers/articles')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'Story For Review', summary: 'A summary', content: 'Full body text for the review desk', category: category._id });
+  assert.equal(created.status, 201);
+  const reviewId = created.body.data.article._id;
+
+  const submitted = await request(app)
+    .post(`/api/writers/articles/${reviewId}/submit`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(submitted.status, 200);
+
   const approveResponse = await request(app)
-    .put(`/api/editor/articles/${articleId}/approve`)
+    .put(`/api/editor/articles/${reviewId}/approve`)
     .set('Authorization', `Bearer ${editorToken}`);
 
   assert.equal(approveResponse.status, 200);
 
   const publishResponse = await request(app)
-    .put(`/api/editor/articles/${articleId}/publish`)
+    .put(`/api/editor/articles/${reviewId}/publish`)
     .set('Authorization', `Bearer ${editorToken}`);
 
   assert.equal(publishResponse.status, 200);
+});
+
+// An author who has not been looked at yet can pull their story out of the
+// queue; once an editor signs it, the desk owns it and the take-back is refused.
+test('an author takes a story back only while nobody has reviewed it', async () => {
+  const category = await Category.findOne({ slug: 'general' });
+  const created = await request(app)
+    .post('/api/writers/articles')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'Story To Withdraw', summary: 'A summary', content: 'Body text that will be pulled back', category: category._id });
+  const withdrawId = created.body.data.article._id;
+
+  await request(app).post(`/api/writers/articles/${withdrawId}/submit`).set('Authorization', `Bearer ${token}`);
+
+  const takenBack = await request(app)
+    .post(`/api/writers/articles/${withdrawId}/unpublish`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(takenBack.status, 200);
+  assert.equal(takenBack.body.data.article.status, 'draft');
+
+  await request(app).post(`/api/writers/articles/${withdrawId}/submit`).set('Authorization', `Bearer ${token}`);
+  await request(app).put(`/api/editor/articles/${withdrawId}/approve`).set('Authorization', `Bearer ${editorToken}`);
+
+  const refused = await request(app)
+    .post(`/api/writers/articles/${withdrawId}/unpublish`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(refused.status, 409);
 });
 
 test('view tracking and duplicate prevention', async () => {
@@ -351,6 +396,129 @@ test('article access reports the reader state', async () => {
 
   const anon = await request(app).get(`/api/articles/${articleSlug}`);
   assert.equal(anon.body.data.article.liked, undefined);
+});
+
+test('the reader library reads the same shelf the reader page shows', async () => {
+  const category = await Category.findOne({ slug: 'general' }).select('_id').lean();
+  const author = await User.create({
+    fullName: 'Shelf Author', username: 'shelfauthor', email: 'shelf@example.com', password: 'Password123!', role: 'WRITER',
+  });
+  const profile = await WriterProfile.create({
+    user: author._id, fullName: 'Shelf Author', username: 'shelfauthor', status: 'approved',
+  });
+  const takenDown = await Article.create({
+    title: 'Taken down story', slug: `taken-${Date.now()}`, summary: 'Archived.', content: 'Body text.',
+    author: author._id, category: category._id, status: 'archived',
+  });
+
+  await request(app).post(`/api/articles/${articleId}/bookmark`).set('Authorization', `Bearer ${token}`);
+  await request(app).post(`/api/articles/${takenDown._id}/bookmark`).set('Authorization', `Bearer ${token}`);
+  const follow = await request(app).post(`/api/writers/${profile._id}/follow`).set('Authorization', `Bearer ${token}`);
+  assert.equal(follow.status, 201);
+
+  const bookmarks = await request(app).get('/api/users/me/bookmarks').set('Authorization', `Bearer ${token}`);
+  assert.equal(bookmarks.status, 200);
+  // A story that was taken down stays off the shelf but is still counted, so
+  // nothing the reader saved disappears without a word.
+  const savedIds = bookmarks.body.data.bookmarks.map((row) => String(row.article._id));
+  assert.ok(savedIds.includes(String(articleId)));
+  assert.ok(!savedIds.includes(String(takenDown._id)));
+  assert.equal(bookmarks.body.data.unavailable, 1);
+
+  const following = await request(app).get('/api/users/me/following').set('Authorization', `Bearer ${token}`);
+  assert.equal(following.status, 200);
+  assert.ok(following.body.data.follows.some((row) => String(row.writer.user._id) === String(author._id)));
+
+  const ranked = await request(app).get('/api/writers/top').query({ limit: 6 });
+  assert.equal(ranked.status, 200);
+  const counted = ranked.body.data.writers.find((writer) => writer.username === 'shelfauthor');
+  assert.equal(counted.followers, 1);
+  // The shelf links to the account page, so it hands back the account id.
+  assert.equal(String(counted._id), String(author._id));
+
+  const drop = await request(app).delete(`/api/articles/${articleId}/bookmark`).set('Authorization', `Bearer ${token}`);
+  assert.equal(drop.status, 200);
+  const unfollow = await request(app).delete(`/api/writers/${profile._id}/follow`).set('Authorization', `Bearer ${token}`);
+  assert.equal(unfollow.status, 200);
+});
+
+test('a reported comment waits for a human and only staff can take it away', async () => {
+  const before = await Article.findById(articleId).select('commentsCount').lean();
+  const posted = await request(app)
+    .post(`/api/articles/${articleId}/comments`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ content: 'A comment that needs a second look' });
+  assert.equal(posted.status, 201);
+  const commentId = posted.body.data.comment._id;
+
+  // The thread's counter is recounted from the rows, so it cannot drift upward
+  // forever the way a plain increment does once anything is taken down.
+  const afterPost = await Article.findById(articleId).select('commentsCount').lean();
+  assert.equal(afterPost.commentsCount, Number(before.commentsCount || 0) + 1);
+
+  const forbidden = await request(app)
+    .get('/api/editor/comments')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(forbidden.status, 403);
+
+  // Reporting is only a request that a human look, so the words stay readable.
+  const reported = await request(app)
+    .post(`/api/articles/comments/${commentId}/report`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ reason: 'Feels like an advertisement' });
+  assert.equal(reported.status, 200);
+  assert.equal(reported.body.data.comment.status, 'reported');
+
+  const readable = await request(app).get(`/api/articles/${articleId}/comments`);
+  assert.equal(readable.status, 200);
+  const visible = readable.body.data.comments.find((row) => String(row._id) === String(commentId));
+  assert.ok(visible, 'a reported comment disappeared from readers');
+  // The reader who flagged it learns that they did; nobody learns who flagged it.
+  const asFlagger = await request(app)
+    .get(`/api/articles/${articleId}/comments`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(asFlagger.body.data.comments.find((row) => String(row._id) === String(commentId)).reported, true);
+  assert.equal(visible.reported, false);
+  assert.equal(visible.reportedBy, undefined);
+
+  const queue = await request(app)
+    .get('/api/editor/comments')
+    .query({ status: 'reported' })
+    .set('Authorization', `Bearer ${editorToken}`);
+  assert.equal(queue.status, 200);
+  const queued = queue.body.data.comments.find((row) => String(row._id) === String(commentId));
+  assert.equal(queued.reports, 1);
+  assert.equal(queued.reportedBy, undefined);
+  assert.equal(queued.reportReason, 'Feels like an advertisement');
+
+  const hidden = await request(app)
+    .put(`/api/editor/comments/${commentId}/moderate`)
+    .set('Authorization', `Bearer ${editorToken}`)
+    .send({ action: 'hide', note: 'Promotional link' });
+  assert.equal(hidden.status, 200);
+  assert.equal(hidden.body.data.comment.status, 'hidden');
+  assert.ok(hidden.body.data.comment.moderatedBy, 'the takedown recorded nobody');
+  assert.equal(hidden.body.data.comment.moderationNote, 'Promotional link');
+
+  const afterHide = await request(app).get(`/api/articles/${articleId}/comments`);
+  assert.ok(!afterHide.body.data.comments.some((row) => String(row._id) === String(commentId)));
+  const afterHideStory = await Article.findById(articleId).select('commentsCount').lean();
+  assert.equal(afterHideStory.commentsCount, Number(before.commentsCount || 0));
+
+  const restored = await request(app)
+    .put(`/api/editor/comments/${commentId}/moderate`)
+    .set('Authorization', `Bearer ${editorToken}`)
+    .send({ action: 'restore' });
+  assert.equal(restored.status, 200);
+  assert.equal(restored.body.data.comment.status, 'active');
+  const back = await request(app).get(`/api/articles/${articleId}/comments`);
+  assert.ok(back.body.data.comments.some((row) => String(row._id) === String(commentId)));
+
+  const nonsense = await request(app)
+    .put(`/api/editor/comments/${commentId}/moderate`)
+    .set('Authorization', `Bearer ${editorToken}`)
+    .send({ action: 'erase' });
+  assert.equal(nonsense.status, 400);
 });
 
 test('writer stats and payout approval', async () => {

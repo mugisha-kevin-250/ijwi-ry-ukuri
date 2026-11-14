@@ -1,0 +1,303 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Check, Clock, Loader2, Megaphone, RefreshCw, Send, Undo2, X } from 'lucide-react'
+import { editorAPI, type StoryState } from '../../services/api'
+import { useI18n } from '../../context/I18nContext'
+import Avatar from '../../components/common/Avatar'
+import MediaImage from '../../components/common/MediaImage'
+import { useAuth } from '../../context/AuthContext'
+import { sanitizeHtml } from '../../utils/sanitizeHtml'
+import { looksLikeHtml, splitParagraphs } from '../../utils/storyBody'
+
+interface ReviewEvent {
+  from?: string
+  to?: string
+  note?: string
+  at?: string
+  by?: { fullName?: string; username?: string; role?: string } | null
+}
+
+function whoHandled(event: ReviewEvent): string {
+  if (!event.by) return 'the automated schedule'
+  return event.by.fullName || event.by.username || 'a staff member'
+}
+
+export default function EditorReviewPage() {
+  const { id = '' } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { t } = useI18n()
+  const { user } = useAuth()
+
+  const [article, setArticle] = useState<any>(null)
+  const [events, setEvents] = useState<ReviewEvent[]>([])
+  const [nextStates, setNextStates] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [busy, setBusy] = useState('')
+  const [note, setNote] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const [storyRes, historyRes] = await Promise.all([
+        editorAPI.getArticle(id),
+        editorAPI.getHistory(id),
+      ])
+      const story = (storyRes.data.data as any)?.article
+      if (!story) throw new Error('missing')
+      setArticle(story)
+      setNextStates((storyRes.data.data as any)?.nextStates || [])
+      setEvents((historyRes.data.data as any)?.events || [])
+    } catch (err: any) {
+      // 404 here means the story was deleted or this account cannot see it;
+      // either way the editor needs to be told, not left on a blank page.
+      setError(
+        err?.response?.status === 404
+          ? 'This story is no longer in the queue. It may have been deleted.'
+          : err?.response?.data?.message || 'We could not open this story for review.'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const act = async (label: 'approve' | 'reject' | 'correction' | 'publish' | 'unpublish' | 'restore') => {
+    setBusy(label)
+    setActionError('')
+    try {
+      const body = note || undefined
+      switch (label) {
+        case 'approve': await editorAPI.approveArticle(id, body); break
+        case 'reject': await editorAPI.rejectArticle(id, body); break
+        case 'correction': await editorAPI.requestCorrection(id, body); break
+        case 'publish': await editorAPI.publishArticle(id); break
+        case 'unpublish': await editorAPI.unpublishArticle(id); break
+        case 'restore': await editorAPI.restoreArticle(id); break
+      }
+      setNote('')
+      await load()
+    } catch (err: any) {
+      // The lifecycle answers with a sentence a person can act on; show it.
+      setActionError(err?.response?.data?.message || 'That decision was refused. Reload and try again.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        {[1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl border border-slate-200 bg-white" />)}
+      </div>
+    )
+  }
+
+  if (error || !article) {
+    return (
+      <div className="mx-auto max-w-3xl rounded-xl border border-red-200 bg-red-50 p-8 text-center">
+        <p className="text-sm font-semibold text-red-700">{error}</p>
+        <Link to="/editor/pending" className="mt-4 inline-block text-sm font-bold text-blue-700 hover:underline">
+          {t('editor.review.backToQueue')}
+        </Link>
+      </div>
+    )
+  }
+
+  const status = article.status as StoryState
+  const isStaff = user?.role === 'EDITOR' || user?.role === 'ADMIN'
+  const can = (state: string) => nextStates.includes(state)
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div className="flex items-center justify-between">
+        <Link to="/editor/pending" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900">
+          <ArrowLeft className="h-4 w-4" /> {t('editor.review.backToQueue')}
+        </Link>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+        >
+          <RefreshCw className="h-3.5 w-3.5" /> {t('editor.queue.refresh')}
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-bold capitalize text-slate-700">{status.replace('_', ' ')}</span>
+          {article.aiGenerated && (
+            <span className="rounded-full bg-violet-50 px-2.5 py-1 font-bold text-violet-700">{t('editor.queue.aiWritten')}</span>
+          )}
+          <span className="text-slate-500">{article.readingTime || 1} {t('editor.review.minutes')}</span>
+        </div>
+
+        <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900">{article.title}</h1>
+        <p className="mt-2 text-sm font-medium text-slate-600">{article.summary}</p>
+
+        <div className="mt-4 flex items-center gap-3 border-t border-slate-100 pt-4">
+          <Avatar
+            name={article.author?.fullName || 'Writer'}
+            src={article.author?.profileImage || article.author?.avatar}
+            className="h-9 w-9 bg-slate-100 text-sm font-bold text-slate-600"
+          />
+          <div className="text-sm">
+            <p className="font-semibold text-slate-800">{article.author?.fullName || 'Unknown writer'}</p>
+            <p className="text-xs text-slate-500">
+              {article.category?.name || 'No section'} · {new Date(article.createdAt).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+
+        {article.featuredImage && (
+          <MediaImage src={article.featuredImage} alt="" className="mt-4 aspect-video w-full rounded-lg object-cover" />
+        )}
+        {article.imageCredit && (
+          <p className="mt-1 text-xs text-slate-500">{t('articles.imageCredit')}: {article.imageCredit}</p>
+        )}
+
+        <div className="prose prose-slate mt-4 max-w-none text-sm text-slate-700">
+          {looksLikeHtml(article.content) ? (
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.content) }} />
+          ) : (
+            splitParagraphs(article.content).map((block, index) => <p key={index}>{block}</p>)
+          )}
+        </div>
+      </div>
+
+      {isStaff && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <p className="text-sm font-bold text-slate-900">{t('editor.review.decide')}</p>
+          <p className="mt-1 text-xs text-slate-500">{t('editor.review.decideHint')}</p>
+
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder={t('editor.review.notePlaceholder')}
+            rows={3}
+            className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+
+          {actionError && (
+            <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+              {actionError}
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {can('approved') && (
+              <button
+                type="button"
+                onClick={() => void act('approve')}
+                disabled={busy !== ''}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {busy === 'approve' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                {t('editor.review.approve')}
+              </button>
+            )}
+
+            {can('published') && (
+              <button
+                type="button"
+                onClick={() => void act('publish')}
+                disabled={busy !== ''}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {busy === 'publish' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
+                {t('editor.review.publish')}
+              </button>
+            )}
+
+            {can('rejected') && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void act('correction')}
+                  disabled={busy !== ''}
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  {busy === 'correction' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {t('editor.review.correction')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void act('reject')}
+                  disabled={busy !== ''}
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {busy === 'reject' ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                  {t('editor.review.reject')}
+                </button>
+              </>
+            )}
+
+            {can('archived') && (
+              <button
+                type="button"
+                onClick={() => void act('unpublish')}
+                disabled={busy !== ''}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {busy === 'unpublish' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                {t('editor.review.takeDown')}
+              </button>
+            )}
+
+            {can('published') && status === 'archived' && (
+              <button
+                type="button"
+                onClick={() => void act('restore')}
+                disabled={busy !== ''}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+              >
+                {busy === 'restore' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                {t('editor.review.putBack')}
+              </button>
+            )}
+
+            {nextStates.length === 0 && (
+              <p className="text-sm text-slate-500">{t('editor.review.nothingLeft')}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <p className="text-sm font-bold text-slate-900">{t('editor.review.history')}</p>
+        {events.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">{t('editor.review.noHistory')}</p>
+        ) : (
+          <ol className="mt-3 space-y-3">
+            {events.map((event, index) => (
+              <li key={`${event.at || index}-${index}`} className="flex gap-3 text-sm">
+                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                <div>
+                  <p className="font-medium text-slate-800">
+                    {event.from ? `${event.from} → ` : ''}{event.to}
+                    {event.by ? ` · ${whoHandled(event)}` : ''}
+                  </p>
+                  <p className="text-xs text-slate-500">{event.at ? new Date(event.at).toLocaleString() : ''}</p>
+                  {event.note && <p className="mt-1 text-xs italic text-slate-600">“{event.note}”</p>}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => navigate('/editor/pending')}
+        className="text-sm font-semibold text-blue-700 hover:underline"
+      >
+        {t('editor.review.backToQueue')}
+      </button>
+    </div>
+  )
+}

@@ -142,6 +142,19 @@ export function useAuthorFollow(writerId?: string | null, serverFollowing?: bool
   return { following, toggle }
 }
 
+/**
+ * A page that changed a bookmark or a follow by calling the API itself (the
+ * reader's library) reports the result here, so every open card and every other
+ * tab paints the same state instead of waiting for a reload.
+ */
+export function setBookmarkState(id: string, state: boolean) {
+  publish({ kind: 'bookmark', id, state })
+}
+
+export function setFollowState(id: string, state: boolean) {
+  publish({ kind: 'follow', id, state })
+}
+
 export function useArticleBookmark(article?: { _id?: string; bookmarked?: boolean } | null) {
   const { user } = useAuth()
   const id = article?._id

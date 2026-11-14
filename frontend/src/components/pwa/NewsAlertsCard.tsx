@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Bell, BellOff, Loader2 } from 'lucide-react'
+import { Bell, BellOff, Loader2, Mail } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
-import { pushAPI } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
+import { newsletterAPI, pushAPI } from '../../services/api'
 import { isStandalone } from '../../pwa/serviceWorker'
 import {
   disablePushNotifications,
@@ -15,15 +16,23 @@ import {
  * The reader's switch for real background alerts. Push is delivered by the
  * operating system, so a message still arrives while the phone sleeps or the
  * tab is closed - but only once this device has subscribed.
+ *
+ * A signed-in reader can ask for the same news by email as well. That is a
+ * second channel, and it only switches on after the reader taps the link in
+ * the mail we send, so the card reports which of the three things happened
+ * rather than claiming a subscription that does not exist yet.
  */
 export default function NewsAlertsCard() {
   const { t } = useI18n()
+  const { user } = useAuth()
   const [supported, setSupported] = useState(false)
   const [subscribed, setSubscribed] = useState(false)
   const [serverReady, setServerReady] = useState(false)
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [emailBusy, setEmailBusy] = useState(false)
+  const [emailNote, setEmailNote] = useState('')
 
   useEffect(() => {
     let active = true
@@ -43,6 +52,25 @@ export default function NewsAlertsCard() {
       active = false
     }
   }, [])
+
+  const askForEmailAlerts = async () => {
+    if (!user?.email) return
+    setEmailBusy(true)
+    setEmailNote('')
+    setError('')
+    try {
+      const result = await newsletterAPI.subscribe(user.email, 'account')
+      // The server's own answer decides the words: a mail left this server, or
+      // it could not, or the address was already on the list.
+      if (!result.needsConfirmation) setEmailNote(t('home.newsletterAlready'))
+      else if (result.delivered) setEmailNote(t('home.newsletterMailed'))
+      else setEmailNote(t('home.newsletterNotMailing'))
+    } catch (err: any) {
+      setError(err?.response?.data?.message || t('home.newsletterFailed'))
+    } finally {
+      setEmailBusy(false)
+    }
+  }
 
   const toggle = async () => {
     setError('')
@@ -107,6 +135,28 @@ export default function NewsAlertsCard() {
             </p>
           )}
           {error && <p role="alert" className="mt-2 text-xs font-semibold text-red-700">{error}</p>}
+
+          {user?.email && (
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => void askForEmailAlerts()}
+                disabled={emailBusy}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                {emailBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                {t('alerts.emailButton')}
+              </button>
+              <p className="mt-1 text-xs text-slate-400" translate="no">{user.email}</p>
+              {emailNote && (
+                <p role="status" className="mt-1 text-xs font-semibold text-slate-600">{emailNote}</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

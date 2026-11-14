@@ -8,12 +8,22 @@ const ArticleView = require('../models/ArticleView');
 const Bookmark = require('../models/Bookmark');
 const Follow = require('../models/Follow');
 const WriterEarning = require('../models/WriterEarning');
+const WriterWeeklyStat = require('../models/WriterWeeklyStat');
 const Payout = require('../models/Payout');
 const { protect, authorize } = require('../middleware/auth');
 const notificationService = require('../services/notificationService');
+const workflow = require('../services/articleWorkflow');
+const lifecycle = require('../utils/articleLifecycle');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const generateSlug = require('../utils/generateSlug');
-const { getWeekBounds } = require('../services/rewardService');
+const { getWeekBounds, getWriterEarningsSummary } = require('../services/rewardService');
+const {
+  pagination,
+  sortOption,
+  articleFilter,
+  buildArticleAnalytics,
+  topPublishedArticle,
+} = require('../utils/writerAnalytics');
 const { plainText, cleanText, cleanTags, safeMediaUrl } = require('../utils/textFields');
 
 const router = express.Router();
@@ -113,10 +123,23 @@ router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async 
   }
 });
 
+// The writer's own shelf: paginated, filterable, searchable - and always fenced
+// to author: req.user._id, so no listing can surface another author's story.
 router.get('/articles', protect, async (req, res, next) => {
   try {
-    const articles = await Article.find({ author: req.user._id }).sort({ createdAt: -1 });
-    return successResponse(res, 200, 'Writer articles fetched', { articles });
+    const { page, limit, skip } = pagination(req.query);
+    const filter = articleFilter(req.user._id, { status: req.query.status, search: req.query.search });
+    const [articles, total] = await Promise.all([
+      Article.find(filter).sort(sortOption(req.query.sort)).skip(skip).limit(limit).lean(),
+      Article.countDocuments(filter),
+    ]);
+    return successResponse(res, 200, 'Writer articles fetched', {
+      articles: articles.map((article) => ({ ...article, actions: workflow.authorActions(article, req.user) })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
     next(error);
   }
@@ -126,7 +149,10 @@ router.get('/articles/:id', protect, async (req, res, next) => {
   try {
     const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
     if (!article) return errorResponse(res, 404, 'Article not found');
-    return successResponse(res, 200, 'Article fetched', { article });
+    return successResponse(res, 200, 'Article fetched', {
+      article,
+      actions: workflow.authorActions(article, req.user),
+    });
   } catch (error) {
     next(error);
   }
@@ -157,7 +183,13 @@ router.put('/articles/:id', protect, async (req, res, next) => {
   try {
     const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
     if (!article) return errorResponse(res, 404, 'Article not found');
-    const wasPublished = article.status === 'published';
+    // A story in an editor's hands cannot be rewritten underneath them: the
+    // version they are judging has to be the version they sign off. Staff
+    // accounts are their own editors, so the lock does not apply to them.
+    const staff = ['EDITOR', 'ADMIN'].includes(req.user.role);
+    if (!staff && ['pending_review', 'approved'].includes(article.status)) {
+      return errorResponse(res, 409, 'This story is in review and cannot be edited. Ask an editor to send it back first.');
+    }
 
     const changes = {};
     for (const field of WRITER_EDITABLE_FIELDS) {
@@ -175,8 +207,14 @@ router.put('/articles/:id', protect, async (req, res, next) => {
     }
     article.updatedAt = new Date();
     await article.save();
-    if (!wasPublished && article.status === 'published') {
-      await notificationService.announceArticlePublished(article);
+
+    // An editor asked for something specific. The next save means the author has
+    // answered it, so the story goes back to the queue by itself rather than
+    // sitting rejected until the writer finds a button.
+    if (article.status === 'rejected') {
+      const result = await workflow.moveStory({ article, to: 'pending_review', by: req.user });
+      if (result.error) return errorResponse(res, result.status, result.error);
+      return successResponse(res, 200, 'Article updated and sent back for review', { article: result.article });
     }
     return successResponse(res, 200, 'Article updated', { article });
   } catch (error) {
@@ -184,10 +222,16 @@ router.put('/articles/:id', protect, async (req, res, next) => {
   }
 });
 
+// Deleting a story the site has already served would leave a dead link in every
+// feed and search result that carried it, so a live or in-review story has to be
+// taken down by an editor instead.
 router.delete('/articles/:id', protect, async (req, res, next) => {
   try {
     const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
     if (!article) return errorResponse(res, 404, 'Article not found');
+    if (!workflow.DELETABLE_STATES.includes(article.status)) {
+      return errorResponse(res, 409, 'A story that is live or in review cannot be deleted. Unpublish it first.');
+    }
     await article.deleteOne();
     return successResponse(res, 200, 'Article deleted');
   } catch (error) {
@@ -195,36 +239,65 @@ router.delete('/articles/:id', protect, async (req, res, next) => {
   }
 });
 
+// The author's side of the lifecycle. A writer may send a story to review, take
+// back something that has not been read yet, and (for staff accounts) publish
+// directly. What they may not do is jump a story that is sitting in front of an
+// editor, so that rule lives in the lifecycle, not in the UI.
 router.post('/articles/:id/publish', protect, async (req, res, next) => {
   try {
-    const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
+    const article = await workflow.loadOwnStory(req.params.id, req.user._id);
     if (!article) return errorResponse(res, 404, 'Article not found');
-    const firstPublish = !article.publishedAt;
-    article.status = 'published';
-    if (firstPublish) {
-      article.publishedAt = new Date();
+    const staff = ['EDITOR', 'ADMIN'].includes(req.user.role);
+    if (!staff && article.status !== 'draft') {
+      return errorResponse(res, 409, lifecycle.reason(article.status, 'published'));
     }
-    await article.save();
-    if (firstPublish) await notificationService.announceArticlePublished(article);
-    return successResponse(res, 200, 'Article published', { article });
+    const result = await workflow.moveStory({ article, to: 'published', by: req.user });
+    if (result.error) return errorResponse(res, result.status, result.error);
+    return successResponse(res, 200, result.firstPublish ? 'Article published' : 'Article republished', { article: result.article });
   } catch (error) {
     next(error);
   }
 });
 
+// Hand the story to an editor instead of putting it on the site yourself.
+router.post('/articles/:id/submit', protect, async (req, res, next) => {
+  try {
+    const article = await workflow.loadOwnStory(req.params.id, req.user._id);
+    if (!article) return errorResponse(res, 404, 'Article not found');
+    const notReady = lifecycle.publishable(article);
+    if (notReady) return errorResponse(res, 422, `This story is not ready to submit: ${notReady}`);
+    const result = await workflow.moveStory({ article, to: 'pending_review', by: req.user });
+    if (result.error) return errorResponse(res, result.status, result.error);
+    return successResponse(res, 200, 'Article submitted for review', { article: result.article });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Only a story nobody has judged yet can be pulled back; once an editor has
+// opened it, taking it away would silently empty their queue.
 router.post('/articles/:id/unpublish', protect, async (req, res, next) => {
   try {
-    const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
+    const article = await workflow.loadOwnStory(req.params.id, req.user._id);
     if (!article) return errorResponse(res, 404, 'Article not found');
-    article.status = 'draft';
-    await article.save();
-    return successResponse(res, 200, 'Article unpublished', { article });
+    if (article.status === 'pending_review') {
+      if (workflow.reviewedBySomeoneElse(article, req.user._id)) {
+        return errorResponse(res, 409, 'An editor is already reviewing this story, so it cannot be taken back');
+      }
+    }
+    const to = article.status === 'published' ? 'archived' : 'draft';
+    const result = await workflow.moveStory({ article, to, by: req.user });
+    if (result.error) return errorResponse(res, result.status, result.error);
+    return successResponse(res, 200, to === 'archived' ? 'Article unpublished' : 'Article returned to drafts', { article: result.article });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/me/earnings', protect, authorize('WRITER'), async (req, res, next) => {
+// Writers, editors and admins all publish, so all of them have a pay ledger to
+// read. These were previously WRITER-only, which made the earnings page throw a
+// 403 for staff accounts and leave the UI showing fabricated zeroes.
+router.get('/me/earnings', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
   try {
     const earnings = await WriterEarning.find({ writerId: req.user._id }).sort({ weekStart: -1 });
     return successResponse(res, 200, 'Writer earnings', { earnings });
@@ -233,7 +306,7 @@ router.get('/me/earnings', protect, authorize('WRITER'), async (req, res, next) 
   }
 });
 
-router.get('/me/payouts', protect, authorize('WRITER'), async (req, res, next) => {
+router.get('/me/payouts', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
   try {
     const payouts = await Payout.find({ writerId: req.user._id }).sort({ requestedAt: -1 });
     return successResponse(res, 200, 'Writer payouts', { payouts });
@@ -242,7 +315,7 @@ router.get('/me/payouts', protect, authorize('WRITER'), async (req, res, next) =
   }
 });
 
-router.get('/me/dashboard', protect, authorize('WRITER'), async (req, res, next) => {
+router.get('/me/dashboard', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
   try {
     const totalArticles = await Article.countDocuments({ author: req.user._id });
     const publishedArticles = await Article.countDocuments({ author: req.user._id, status: 'published' });
@@ -253,7 +326,11 @@ router.get('/me/dashboard', protect, authorize('WRITER'), async (req, res, next)
       { $match: { author: req.user._id, publishedAt: { $gte: thisWeek.weekStart, $lte: thisWeek.weekEnd } } },
       { $group: { _id: null, total: { $sum: '$validViews' } } }
     ]);
-    const earnings = await WriterEarning.find({ writerId: req.user._id }).sort({ weekStart: -1 }).limit(5);
+    // Money and the top story come from real records, never a summed placeholder.
+    const [earnings, topPerformingArticle] = await Promise.all([
+      getWriterEarningsSummary(req.user._id),
+      topPublishedArticle(req.user._id),
+    ]);
     // Follow.writer references a WriterProfile, not the User account.
     const writerProfile = await WriterProfile.findOne({ user: req.user._id }).select('_id');
     const followersCount = writerProfile ? await Follow.countDocuments({ writer: writerProfile._id }) : 0;
@@ -263,11 +340,68 @@ router.get('/me/dashboard', protect, authorize('WRITER'), async (req, res, next)
       pendingArticles,
       totalValidViews: totalValidViews[0]?.total || 0,
       viewsThisWeek: weeklyViews[0]?.total || 0,
-      currentEarnings: earnings.reduce((sum, item) => sum + Number(item.calculatedAmount || 0), 0),
-      previousWeeklyEarnings: earnings.slice(1).reduce((sum, item) => sum + Number(item.calculatedAmount || 0), 0),
-      topPerformingArticle: null,
+      currentEarnings: earnings.currentEarnings,
+      previousWeeklyEarnings: earnings.previousWeeklyEarnings,
+      totalEarnings: earnings.totalEarnings,
+      // null until the pay job has run at least once - the UI reads this to tell
+      // "you earned nothing" apart from "the ledger never computed a week".
+      lastComputedWeek: earnings.lastComputedWeek,
+      rewardRate: earnings.rewardRate,
+      minimumPayout: earnings.minimumPayout,
+      topPerformingArticle,
       followersCount
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Weekly pay history the reward job has already written but nothing exposed:
+// one row per computed week, newest first, straight from WriterWeeklyStat.
+router.get('/me/weekly-stats', protect, authorize('WRITER'), async (req, res, next) => {
+  try {
+    const stats = await WriterWeeklyStat.find({ writerId: req.user._id }).sort({ weekStart: -1 }).lean();
+    return successResponse(res, 200, 'Writer weekly stats', { stats });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Traffic for the writer's own stories, measured from ArticleView rows. An
+// unread article returns an empty series and a null average rather than a zero.
+router.get('/me/analytics', protect, async (req, res, next) => {
+  try {
+    const { page, limit, skip } = pagination(req.query);
+    const filter = articleFilter(req.user._id, { status: req.query.status, search: req.query.search });
+    const sort = req.query.sort ? sortOption(req.query.sort) : { validViews: -1, createdAt: -1 };
+    const [articles, total] = await Promise.all([
+      Article.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+      Article.countDocuments(filter),
+    ]);
+    const analytics = await buildArticleAnalytics(articles);
+    // The actions live on the story rows, not on a separate call: the shelf
+    // would otherwise have to ask per row what it is allowed to offer.
+    const byId = new Map(articles.map((article) => [String(article._id), article]));
+    return successResponse(res, 200, 'Writer article analytics fetched', {
+      articles: analytics.map((row) => ({ ...row, actions: workflow.authorActions(byId.get(String(row._id)), req.user) })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Same measurement for one story in the detail view. Ownership is checked in the
+// query, so another author's id simply does not exist here.
+router.get('/me/analytics/:articleId', protect, async (req, res, next) => {
+  try {
+    const article = await Article.findOne({ _id: req.params.articleId, author: req.user._id }).lean();
+    if (!article) return errorResponse(res, 404, 'Article not found');
+    const [analytics] = await buildArticleAnalytics([article]);
+    return successResponse(res, 200, 'Writer article analytics fetched', { analytics });
   } catch (error) {
     next(error);
   }

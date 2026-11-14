@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox } from 'lucide-react'
+import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, MessageSquare } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../common/Avatar'
@@ -24,12 +24,21 @@ const navigation = {
     editor: [
       { href: '/editor/dashboard', label: t('nav.editor.dashboard'), icon: LayoutDashboard },
       { href: '/editor/pending', label: t('nav.editor.pending'), icon: List },
+      { href: '/editor/comments', label: t('nav.editor.comments'), icon: MessageSquare },
+      // Editors write stories too, and their own shelf is a different thing
+      // from the queue of everyone else's.
+      { href: '/editor/articles', label: t('nav.writer.myArticles'), icon: PenTool },
+      { href: '/editor/earnings', label: t('nav.writer.earnings'), icon: DollarSign },
+      { href: '/editor/profile', label: t('nav.writer.profile'), icon: User },
     ],
     admin: [
       { href: '/mugishaimekevin/dashboard', label: t('nav.admin.dashboard'), icon: LayoutDashboard },
       { href: '/mugishaimekevin/users', label: t('nav.admin.users'), icon: Users },
       { href: '/mugishaimekevin/writers', label: t('nav.admin.writers'), icon: PenTool },
       { href: '/mugishaimekevin/articles', label: t('nav.admin.news'), icon: List },
+      // The moderation desk is the same screen the editors use: one queue, two
+      // staff roles allowed to decide what readers see.
+      { href: '/editor/comments', label: t('nav.editor.comments'), icon: MessageSquare },
       { href: '/mugishaimekevin/ai-writer', label: t('nav.admin.aiWriter'), icon: Sparkles },
       { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts'), icon: DollarSign },
       { href: '/mugishaimekevin/messages', label: t('nav.admin.messages'), icon: Inbox },

@@ -23,7 +23,7 @@ export default function ContactPage() {
               '@type': 'ContactPoint',
               contactType: 'customer support',
               email: contactEmail,
-              availableLanguage: ['rw', 'en', 'fr', 'sw'],
+              availableLanguage: ['en', 'rw'],
             },
           },
         }

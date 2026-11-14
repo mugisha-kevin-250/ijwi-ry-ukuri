@@ -50,10 +50,23 @@ router.put('/me', protect, async (req, res, next) => {
   }
 });
 
+// The reader's own shelf. Stories that were deleted or taken down are left out
+// of the list but counted, so the page can say so instead of quietly losing
+// them, and only the fields a shelf row shows travel back to the browser.
 router.get('/me/bookmarks', protect, async (req, res, next) => {
   try {
-    const bookmarks = await Bookmark.find({ user: req.user._id }).populate('article');
-    return successResponse(res, 200, 'Bookmarks', { bookmarks });
+    const rows = await Bookmark.find({ user: req.user._id })
+      .sort({ createdAt: -1 })
+      .populate({
+        path: 'article',
+        select: 'title slug summary featuredImage readingTime publishedAt status author',
+        populate: { path: 'author', select: 'fullName username' },
+      });
+    const bookmarks = rows.filter((row) => row.article && row.article.status === 'published');
+    return successResponse(res, 200, 'Bookmarks', {
+      bookmarks: bookmarks.map((row) => ({ _id: row._id, savedAt: row.createdAt, article: row.article })),
+      unavailable: rows.length - bookmarks.length,
+    });
   } catch (error) {
     next(error);
   }
@@ -61,8 +74,14 @@ router.get('/me/bookmarks', protect, async (req, res, next) => {
 
 router.get('/me/following', protect, async (req, res, next) => {
   try {
-    const follows = await Follow.find({ follower: req.user._id }).populate('writer');
-    return successResponse(res, 200, 'Following list', { follows });
+    const rows = await Follow.find({ follower: req.user._id })
+      .sort({ createdAt: -1 })
+      .populate({ path: 'writer', populate: { path: 'user', select: 'fullName username avatar bio' } });
+    const follows = rows.filter((row) => row.writer && row.writer.user);
+    return successResponse(res, 200, 'Following list', {
+      follows,
+      unavailable: rows.length - follows.length,
+    });
   } catch (error) {
     next(error);
   }

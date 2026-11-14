@@ -15,6 +15,8 @@ import CategoriesPage from '../pages/public/CategoriesPage'
 import CategoryPage from '../pages/public/CategoryPage'
 import HomePage from '../pages/public/HomePage'
 import LivePage from '../pages/public/LivePage'
+import MyLibraryPage from '../pages/public/MyLibraryPage'
+import RadioPage from '../pages/public/RadioPage'
 import SearchPage from '../pages/public/SearchPage'
 import SectionPage from '../pages/public/SectionPage'
 import AboutPage from '../pages/public/AboutPage'
@@ -31,6 +33,10 @@ import WriterDashboardPage from '../pages/writer/WriterDashboardPage'
 import WriterArticlesPage from '../pages/writer/WriterArticlesPage'
 import WriterArticleEditorPage from '../pages/writer/WriterArticleEditorPage'
 import WriterEarningsPage from '../pages/writer/WriterEarningsPage'
+import EditorDashboardPage from '../pages/editor/EditorDashboardPage'
+import EditorQueuePage from '../pages/editor/EditorQueuePage'
+import EditorCommentsPage from '../pages/editor/EditorCommentsPage'
+import EditorReviewPage from '../pages/editor/EditorReviewPage'
 import DashboardPage from '../pages/dashboard/DashboardPage'
 import AdminLoginPage from '../pages/admin/AdminLoginPage'
 import AdminUsersPage from '../pages/admin/AdminUsersPage'
@@ -58,6 +64,19 @@ function RequireAdmin({ children }: { children: ReactNode }) {
   if (loading) return <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">Restoring your session…</div>
   if (!user) return <Navigate to="/mugishaimekevin/login" replace />
   if (user.role !== 'ADMIN') return <Navigate to={user.role === 'WRITER' ? '/writer/dashboard' : '/'} replace />
+  return children
+}
+
+// The review desk is for the two roles that are allowed to decide what readers
+// see. A READER or an unapproved WRITER is sent to their own area instead of a
+// blank page, and the API refuses the same request independently of this gate.
+function RequireStaff({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth()
+  if (loading) return <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">Restoring your session…</div>
+  if (!user) return <Navigate to="/login" replace />
+  if (user.role !== 'EDITOR' && user.role !== 'ADMIN') {
+    return <Navigate to={user.role === 'WRITER' ? '/writer/dashboard' : '/'} replace />
+  }
   return children
 }
 
@@ -110,8 +129,11 @@ export const router = createBrowserRouter([
           { path: 'categories', element: <CategoriesPage /> },
           { path: 'live', element: <LivePage /> },
           { path: 'live/:id', element: <LivePage /> },
+          // RADAR Audio: the stories read aloud. A page, not a fake station.
+          { path: 'radio', element: <RadioPage /> },
           { path: 'category/:slug', element: <CategorySectionRoute /> },
           { path: 'search', element: <SearchPage /> },
+          { path: 'library', element: <MyLibraryPage /> },
           { path: 'about', element: <AboutPage /> },
           { path: 'contact', element: <ContactPage /> },
           { path: 'editorial-policy', element: <EditorialPolicyPage /> },
@@ -137,6 +159,24 @@ export const router = createBrowserRouter([
           { path: 'articles/:id/edit', element: <RequireRole role="WRITER"><WriterArticleEditorPage /></RequireRole> },
           { path: 'earnings', element: <RequireRole role="WRITER"><WriterEarningsPage /></RequireRole> },
           { path: 'profile', element: <RequireRole role="WRITER"><UserProfilePage /></RequireRole> },
+        ],
+      },
+      {
+        path: '/editor',
+        element: <WriterLayout variant="editor" />,
+        children: [
+          { index: true, element: <Navigate to="dashboard" replace /> },
+          { path: 'dashboard', element: <RequireStaff><EditorDashboardPage /></RequireStaff> },
+          { path: 'pending', element: <RequireStaff><EditorQueuePage /></RequireStaff> },
+          { path: 'comments', element: <RequireStaff><EditorCommentsPage /></RequireStaff> },
+          { path: 'articles/:id', element: <RequireStaff><EditorReviewPage /></RequireStaff> },
+          // An editor writes too, and their own shelf is the same screen a
+          // writer uses; only the review desk above is a separate address.
+          { path: 'articles', element: <RequireStaff><WriterArticlesPage /></RequireStaff> },
+          { path: 'articles/new', element: <RequireStaff><WriterArticleEditorPage /></RequireStaff> },
+          { path: 'articles/:id/edit', element: <RequireStaff><WriterArticleEditorPage /></RequireStaff> },
+          { path: 'earnings', element: <RequireStaff><WriterEarningsPage /></RequireStaff> },
+          { path: 'profile', element: <RequireStaff><UserProfilePage /></RequireStaff> },
         ],
       },
       {

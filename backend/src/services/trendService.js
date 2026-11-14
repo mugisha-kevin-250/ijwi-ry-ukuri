@@ -86,7 +86,8 @@ function present(topic, geo) {
     approxTraffic: Number.isFinite(topic.approxTraffic) ? topic.approxTraffic : null,
     seenAt: seenAt && !Number.isNaN(seenAt.getTime()) ? seenAt.toISOString() : null,
     sourceUrl: feedUrl(topic.geo || geo),
-    headlines: headlines.map((item) => ({ title: item.title, url: item.url, source: item.source })),
+    picture: topic.picture || headlines[0]?.picture || '',
+    headlines: headlines.map((item) => ({ title: item.title, url: item.url, source: item.source, picture: item.picture || '' })),
   };
 }
 
@@ -111,10 +112,12 @@ async function record(geo, topics) {
           seenAt: Number.isNaN(seenAt) ? fetchedAt : new Date(seenAt),
           lastSeenAt: fetchedAt,
           sourceUrl,
+          picture: topic.picture || '',
           newsItems: (topic.newsItems || []).slice(0, 5).map((item) => ({
             title: String(item.title || '').slice(0, 300),
             url: String(item.url || '').slice(0, 600),
             source: String(item.source || '').slice(0, 120),
+            picture: String(item.picture || '').slice(0, 600),
           })),
         },
         $setOnInsert: { provider: 'google-trends', firstSeenAt: fetchedAt },
@@ -249,8 +252,30 @@ async function evidenceFor(geo, topic) {
     approxTraffic: Number.isFinite(doc.approxTraffic) ? doc.approxTraffic : null,
     sourceUrl: doc.sourceUrl,
     fetchedAt: doc.lastSeenAt,
-    headlines: (doc.newsItems || []).slice(0, 5).map((item) => ({ title: item.title, url: item.url, source: item.source })),
+    picture: doc.picture || (doc.newsItems || [])[0]?.picture || '',
+    headlines: (doc.newsItems || []).slice(0, 5).map((item) => ({
+      title: item.title,
+      url: item.url,
+      source: item.source,
+      picture: item.picture || '',
+    })),
   };
 }
 
-module.exports = { radar, fetchGeo, watchList, geoName, record, storedTopics, evidenceFor, feedUrl };
+/**
+ * The picture and the publisher behind one trend, taken from the headline the
+ * feed actually credited. Nothing here is chosen by a machine: it is the image
+ * Google printed and the source Google named, or nothing at all.
+ */
+function photoCreditFor(evidence) {
+  const withPhoto = (evidence.headlines || []).find((item) => item.picture);
+  if (!withPhoto) return null;
+  return {
+    url: withPhoto.picture,
+    source: withPhoto.source || '',
+    articleUrl: withPhoto.url || '',
+    caption: withPhoto.title || '',
+  };
+}
+
+module.exports = { radar, fetchGeo, watchList, geoName, record, storedTopics, evidenceFor, photoCreditFor, feedUrl };

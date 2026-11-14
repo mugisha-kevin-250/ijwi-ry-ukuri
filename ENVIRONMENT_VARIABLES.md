@@ -31,6 +31,10 @@ table and that file cannot drift apart. `backend/.env.example` lists all of it.
 | `GEMINI_API_KEY` | empty | The only place this key exists. The browser never receives it; the admin portal calls the model through the server. | The AI writer stays hidden in Admin and `/api/admin/ai/generate` answers 503. |
 | `GEMINI_MODEL` | `gemini-flash-lite-latest` | Which Gemini text model writes a draft. | — |
 | `GEMINI_TIMEOUT_MS` | `90000` | How long the server waits for a draft before giving up. | — |
+| `GOOGLE_TRANSLATE_API_KEY` | empty | The reader-language translator. The browser never receives it; every translation is asked for by the server and stored, so a sentence is bought once for all readers. See "Reader languages" below. | The site is English for everyone, the language picker still lists every language, and every page says plainly that translation is not available. No story is ever lost to it. |
+| `TRANSLATE_TIMEOUT_MS` | `12000` | How long one Google call may take before it is abandoned. | A slow answer is dropped and the reader gets the English original with the reason. |
+| `TRANSLATE_CHUNK_CHARS` | `4000` | How much text goes into one Google call. | — |
+| `TRANSLATE_MAX_CHARS` | `60000` | The most text one request may translate. | — |
 | `TREND_GEOS` | `RW,UG,KE,TZ,NG,ZA,US` | The regions the trending radar asks Google for. Each one is a `https://trends.google.com/trending/rss?geo=XX` feed. | The radar shows no regions; the portal says so instead of inventing topics. |
 | `TREND_CACHE_MINUTES` | `15` | How long one region's fetched list is kept, so the admin portal does not hammer Google on every page open. | — |
 | `TREND_TIMEOUT_MS` | `15000` | How long one region's feed may take before that region is marked unreachable. | — |
@@ -47,15 +51,77 @@ Outside production, boot also creates four role logins (`kevin`, `editor`, `writ
 passwords are generated on the spot and printed once in the boot log; none of them are
 created when `NODE_ENV=production`, and no password for any of them is in the repository.
 
-`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` are listed in
-`backend/.env.example` and read by **no code**: this project has no mailer, so a
-correction, a rejection or a payout notice is an in-app notification. They are in
-the example only because email is the obvious next step.
+### Email alerts
+
+The newsletter mailer is the only code that sends mail, and it reads these six
+names. Nothing here is secret except `SMTP_PASSWORD`.
+
+| Variable | Default | What it does | Without it |
+| --- | --- | --- | --- |
+| `SMTP_HOST` | empty | The relay the newsletter mailer sends through. Also the switch: no host means no mail is attempted anywhere. | `GET /api/newsletter/status` reports `configured: false`, the subscribe box says the alerts are not live, and publishing a story mails nobody. Nothing fails. |
+| `SMTP_PORT` | `587` | Port for that relay. | — |
+| `SMTP_USER` / `SMTP_PASSWORD` | empty | Login for a relay that needs one. A host that allows anonymous sending works with both empty. | The relay refuses the mail and the send is reported as failed, one redacted line in the log. |
+| `SMTP_SECURE` | `false` | `true` only for an implicit-TLS port (465). Leave `false` for 587, which upgrades with STARTTLS. | A 465 relay never completes its handshake. |
+| `MAIL_FROM_EMAIL` | empty | The address the alert mail comes from; a second switch, because a mail with no sender cannot be sent. | Same honest "not configured" answer as a missing host. |
+| `MAIL_FROM_NAME` | empty | Display name readers see before that address. | The address alone is the display name. |
+
+Email is the second alert channel and it is confirm-first: an address is stored
+as `pending`, the confirmation link in the mail is what makes it `confirmed`,
+and only confirmed addresses receive a story. The link a mail points at is built
+from `PUBLIC_URL` (then the first entry of `CLIENT_URL`), so on Render set
+`PUBLIC_URL` to the site address or the mailed links go to `localhost`. A story
+that goes live is announced once — republishing a story that was taken down does
+not mail anybody again. Confirmation and unsubscribe links are the same token,
+stored only as a sha256 hash, and `GET /api/newsletter/unsubscribe?token=…` is
+what the link inside a mail opens.
+
+Owner action: none of these six values exist on Render yet, so email alerts are
+off on the live site. Add `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`,
+`SMTP_SECURE`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME` to the Render service (and to
+`.env.render` for local runs against production data) with the credentials from
+whichever relay you choose, then restart. `render.yaml` deliberately does not
+declare them: adding a Blueprint variable you have not filled in would publish an
+empty `SMTP_HOST`, which counts as configured to nothing but is still a value you
+have to clear by hand.
 
 `JWT_REFRESH_SECRET` no longer exists anywhere — there is no refresh endpoint, so
 the value in the Render dashboard is dead. Delete it there when convenient;
 `render.yaml` was left alone on purpose, because removing a Blueprint variable
 would delete it from the live service the next time the Blueprint is applied.
+
+### Reader languages
+
+A reader picks any language and the news, the section names and the site's own
+labels arrive in it. Everything below is read by `src/services/translateService.js`
+and nothing here reaches the browser — the key never leaves the server, and the
+translation is asked for by the server on the reader's behalf.
+
+| Variable | Default | What it does | Without it |
+| --- | --- | --- | --- |
+| `GOOGLE_TRANSLATE_API_KEY` | empty | The Cloud Translation v2 key. Also the switch: no key means no Google call is attempted. | `GET /api/translate/languages` reports `configured: false`, every story is served in English, and the site says so on the page instead of pretending. |
+| `TRANSLATE_TIMEOUT_MS` | `12000` | How long one Google call may take before it is abandoned. | A slow Google answer is dropped; the reader gets the English original with the reason printed. |
+| `TRANSLATE_CHUNK_CHARS` | `4000` | How much text goes into one call. Paragraphs are kept apart, so a long story is cut between sentences and rebuilt exactly. | — |
+| `TRANSLATE_MAX_CHARS` | `60000` | The most text one request may translate. | A request over the ceiling is refused and the page stays English. |
+
+The cost rule is that a sentence is bought once. Every translation is stored in
+the `translations` collection under its language and its English hash, so the
+second reader to open that story in Luganda pays nothing, and a newsroom
+correction changes the hash and forces a fresh call rather than serving a stale
+sentence. `GET /api/articles?lang=…` and `GET /api/articles/:slug?lang=…`
+translate the story fields; `POST /api/translate/chrome` translates the site's
+own labels as one set, which the reader's browser then mirrors.
+
+A request with no `lang` is answered exactly as it always was, which is what
+keeps the crawler, the RSS feed and every editor and writer screen on the
+English original. `render.yaml` deliberately does not declare these four names:
+an empty Blueprint `GOOGLE_TRANSLATE_API_KEY` is a value to clear by hand, and
+the site already behaves honestly without the key.
+
+Owner action: add `GOOGLE_TRANSLATE_API_KEY` to the Render service (and to
+`.env.render` for local runs against production data) with a key from Cloud
+Console restricted to the Cloud Translation API, then restart.
+`TRANSLATE_TIMEOUT_MS`, `TRANSLATE_CHUNK_CHARS` and `TRANSLATE_MAX_CHARS` are
+fine at their defaults.
 
 ## Frontend
 

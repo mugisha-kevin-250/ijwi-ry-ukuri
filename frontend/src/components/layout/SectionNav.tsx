@@ -5,10 +5,12 @@ import { useI18n } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
 import { SECTIONS, type SectionNode } from '../../data/sections'
 
-const DESKTOP_DROPDOWNS_QUERY = '(min-width: 1024px)'
+const DESKTOP_DROPDOWNS_QUERY = '(min-width: 1280px)'
 
-// Below this the row is a scrollable strip, so a hover panel would be clipped by
-// it. On lg and up the row has room and the panels are allowed to overflow.
+// The masthead carries every section name on the same line as the logo. Below
+// xl the row has to scroll to fit them, and a hover panel would be clipped by
+// the scroll container, so the dropdowns only open once the row has room for
+// everything.
 function useAllowsDropdowns() {
   const [allowed, setAllowed] = useState(false)
   useEffect(() => {
@@ -159,7 +161,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
     <div
       ref={rootRef}
       className={cn(
-        'md:overflow-x-auto lg:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        'md:overflow-x-auto xl:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         className,
       )}
     >

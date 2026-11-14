@@ -1,6 +1,7 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const pushService = require('../utils/pushService');
+const mailer = require('./mailerService');
 
 function authorIdOf(article) {
   if (!article.author) return '';
@@ -41,15 +42,54 @@ async function announceInApp(article) {
 }
 
 // Publishing must never fail because the notification hop is slow or broken.
+// The mail is the same announcement the app and the push channel already make,
+// sent only to readers who confirmed an address, and it is allowed to say "no
+// mail server here" without stopping the story from going live.
 async function announceArticlePublished(article) {
-  const [inApp, push] = await Promise.all([
+  const [inApp, push, email] = await Promise.all([
     announceInApp(article).catch((error) => {
       console.warn('inbox notification skipped:', error.message);
       return 0;
     }),
-    pushService.notifyArticlePublished(article)
+    pushService.notifyArticlePublished(article),
+    mailer.announceStory(article).catch((error) => {
+      console.warn('email alert skipped:', error.message);
+      return { delivered: false, sent: 0, failed: 0, error: 'SEND_FAILED' };
+    }),
   ]);
-  return { inApp, push };
+  return { inApp, push, email };
 }
 
-module.exports = { announceArticlePublished, recipientIdsFor };
+// A decision about a draft belongs in the author's inbox, not just in the
+// editor's. Without it a writer only learns their story was rejected by
+// checking the list by hand.
+async function notifyAuthorOfDecision(article, decision, note) {
+  const authorId = String(article.author?._id || article.author || '');
+  if (!authorId) return 0;
+
+  const labels = {
+    approved: 'Approved for publication',
+    rejected: 'Sent back for changes',
+  };
+  const label = labels[decision] || decision;
+  const detail = note ? ` — ${String(note).slice(0, 300)}` : '';
+  const message = `“${article.title}” ${label}${detail}`;
+
+  // The newest decision is the only one worth keeping per story and decision.
+  await Notification.deleteMany({
+    user: authorId,
+    relatedEntity: article._id,
+    relatedModel: 'Article',
+    type: 'review_decision',
+  });
+  await Notification.create({
+    user: authorId,
+    type: 'review_decision',
+    message,
+    relatedEntity: article._id,
+    relatedModel: 'Article',
+  });
+  return 1;
+}
+
+module.exports = { announceArticlePublished, recipientIdsFor, notifyAuthorOfDecision };

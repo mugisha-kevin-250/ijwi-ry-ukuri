@@ -56,6 +56,17 @@ function parseItems(xml) {
 }
 
 /**
+ * The address of the picture Google printed beside a trend. It is a thumbnail
+ * on Google's own host, so it is stored with the article it came from and the
+ * publisher's name, and the story credits both - the newsroom never claims the
+ * photograph as its own.
+ */
+function pictureUrl(value) {
+  const url = String(value || '').trim();
+  return /^https:\/\/[^\s]+$/.test(url) ? url.slice(0, 600) : '';
+}
+
+/**
  * @param {string} xml the body of one geo's feed
  * @returns {{ topics: object[], malformed: boolean }}
  */
@@ -66,14 +77,16 @@ function parseTrendsFeed(xml) {
     const topic = tagValue(item, 'title');
     const band = trafficBand(tagValue(item, 'ht:approx_traffic'));
     const seenAt = tagValue(item, 'pubDate');
+    const feedPicture = pictureUrl(tagValue(item, 'ht:picture'));
     const newsItems = everyTag(item, 'ht:news_item')
       .map((block) => ({
         title: tagValue(block, 'ht:news_item_title'),
         url: tagValue(block, 'ht:news_item_url'),
         source: tagValue(block, 'ht:news_item_source'),
+        picture: pictureUrl(tagValue(block, 'ht:news_item_picture')) || feedPicture,
       }))
       .filter((news) => news.url);
-    return { topic, ...band, seenAt, newsItems };
+    return { topic, ...band, seenAt, picture: feedPicture, newsItems };
   }).filter((topic) => topic.topic);
 
   // A response with no <item> at all is either a genuinely empty feed or not a

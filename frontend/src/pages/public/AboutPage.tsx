@@ -14,7 +14,7 @@ export default function AboutPage() {
       alternateName: "Ijwi ry'ukuri",
       url: 'https://ijwi-ry--ukuri.web.app',
       logo: 'https://ijwi-ry--ukuri.web.app/icons/icon-512x512.png',
-      description: 'News in Kinyarwanda, English, French and Swahili, written by approved writers.',
+      description: 'News from Rwanda in English, translated into any language a reader chooses, written by approved writers.',
       areaServed: ['RW', 'world'],
       sameAs: ['https://ijwi-ry--ukuri.web.app'],
     },
@@ -32,9 +32,9 @@ export default function AboutPage() {
           here. Every story lives in one section, so the section pages are the shortest route to what you want.
         </p>
         <p>
-          The site reads in Kinyarwanda, English, French and Swahili. Pick a language from the flag in the header;
-          the stories themselves keep the language their writer typed them in, and anything that has not been
-          written in your language is translated for you as you read.
+          The site is written in English and can be read in any language a reader picks - the globe in the header
+          opens the full list, and the news, the section names and the buttons all arrive in the language you chose.
+          The translation is automatic, so the English text of a story stays the version the newsroom stands behind.
         </p>
       </Section>
 

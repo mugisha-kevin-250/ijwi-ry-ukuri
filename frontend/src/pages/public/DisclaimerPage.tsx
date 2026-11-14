@@ -45,7 +45,7 @@ export default function DisclaimerPage() {
           to it exactly as it does to a human mistake.
         </p>
         <p>
-          Parts of the site are shown in Kinyarwanda, French or Swahili through an automatic translator. The English
+          A reader can ask for any language and the whole site is translated into it automatically. The English
           text of a story is the version we stand behind. A translation can bend a name, a figure or a nuance, so where
           a detail matters, read it in the original language.
         </p>

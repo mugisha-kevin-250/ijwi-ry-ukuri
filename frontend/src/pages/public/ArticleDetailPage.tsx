@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
-import { Calendar, ChevronRight, Clock, Eye, Heart, MessageSquare, Bookmark, Share2, Sparkles, Loader2, UserPlus } from 'lucide-react'
+import { Calendar, ChevronRight, Clock, Eye, Heart, MessageSquare, Bookmark, Share2, Sparkles, Loader2, UserPlus, Flag, Trash2 } from 'lucide-react'
 import type { Article, Comment } from '../../types'
 import { publicAPI, articleAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
@@ -12,6 +12,8 @@ import EmptyState from '../../components/common/EmptyState'
 import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
 import AdSlot from '../../components/ads/AdSlot'
+import ListenButton from '../../components/audio/ListenButton'
+import TranslationNotice from '../../components/news/TranslationNotice'
 import { cn } from '../../utils/cn'
 import { useSeo, absoluteSiteUrl } from '../../utils/useSeo'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
@@ -20,26 +22,12 @@ import { useArticleViewTracking } from '../../utils/viewTracking'
 import { useArticleBookmark, useArticleLike, useAuthorFollow, useVisiblePoll } from '../../utils/engagementStore'
 import { shareArticle } from '../../utils/shareArticle'
 import { categoryGroupSlug, categoryHref, categoryLabel } from '../../data/categoryVisuals'
+import { looksLikeHtml, splitParagraphs } from '../../utils/storyBody'
 
 /** article.category arrives populated or as a bare id, depending on the route. */
 function storyCategory(article: Article | null) {
   if (!article) return null
   return typeof article.category === 'object' && article.category !== null ? article.category : null
-}
-
-// Stories are typed as plain text in a textarea, so every line break the writer
-// made is a paragraph; only the older records that carry markup go through as HTML.
-const HTML_MARKUP = /<\/?(p|h[1-6]|ul|ol|li|blockquote|figure|figcaption|img|a|em|strong|b|i|br|div|span)\b/i
-
-function looksLikeHtml(content: string) {
-  return HTML_MARKUP.test(content || '')
-}
-
-function splitParagraphs(content: string) {
-  return String(content || '')
-    .split(/\n+/)
-    .map((block) => block.trim())
-    .filter(Boolean)
 }
 
 export default function ArticleDetailPage() {
@@ -97,10 +85,7 @@ export default function ArticleDetailPage() {
     const fetchArticle = async () => {
       if (!slug) return
       try {
-        const [articleRes, relatedRes] = await Promise.all([
-          publicAPI.getArticleBySlug(slug),
-          publicAPI.getArticles({ page: 1, limit: 24 }),
-        ])
+        const articleRes = await publicAPI.getArticleBySlug(slug)
         const payload = articleRes.data.data as any
         const articleData = (payload?.article ?? payload) as Article | null
         if (!articleData) {
@@ -108,12 +93,6 @@ export default function ArticleDetailPage() {
           return
         }
         setArticle(articleData)
-        // Stories from the same section first, then whatever else is newest, so
-        // the sidebar reads as a follow-up to what the reader just finished.
-        const pool = (relatedRes.data.data?.articles as Article[] | undefined)?.filter((a) => a._id !== articleData._id) || []
-        const section = categoryGroupSlug(storyCategory(articleData))
-        const sameSection = pool.filter((a) => categoryGroupSlug(storyCategory(a)) === section)
-        setRelatedArticles([...sameSection, ...pool.filter((a) => !sameSection.includes(a))].slice(0, 4))
       } catch (error) {
         console.error('Failed to fetch article:', error)
         navigate('/articles')
@@ -123,6 +102,32 @@ export default function ArticleDetailPage() {
     }
     fetchArticle()
   }, [slug, navigate, user])
+
+  // The follow-up shelf is asked from the server by section, so it holds that
+  // section's newest stories instead of whatever fell inside a client-side slice.
+  useEffect(() => {
+    const section = categoryGroupSlug(storyCategory(article))
+    const storyId = article?._id
+    if (!storyId || !section) {
+      setRelatedArticles([])
+      return
+    }
+    let active = true
+    const loadRelated = async () => {
+      try {
+        const res = await publicAPI.getArticles({ category: section, page: 1, limit: 5 })
+        if (!active) return
+        const pool = (res.data.data?.articles as Article[] | undefined) || []
+        setRelatedArticles(pool.filter((item) => item._id !== storyId).slice(0, 4))
+      } catch {
+        if (active) setRelatedArticles([])
+      }
+    }
+    void loadRelated()
+    return () => {
+      active = false
+    }
+  }, [article?._id, article?.category])
 
   useArticleViewTracking(article?._id)
 
@@ -304,16 +309,38 @@ export default function ArticleDetailPage() {
             {(article.commentsCount || 0).toLocaleString()} {t('articles.comments')}
           </span>
         </div>
+        {/* The story can be heard as well as read. The control is the device's
+            own voice and only appears when the device actually has one. */}
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <ListenButton article={article} />
+          {/* Which language is on the screen, and whether a machine wrote it. */}
+          <TranslationNotice article={article} />
+        </div>
       </header>
 
       {article.featuredImage && (
-        <div className="relative aspect-video rounded-xl overflow-hidden">
-          <MediaImage
-            src={article.featuredImage}
-            alt={article.title}
-            className="h-full w-full object-cover"
-          />
-        </div>
+        <figure className="relative">
+          <div className="relative aspect-video rounded-xl overflow-hidden">
+            <MediaImage
+              src={article.featuredImage}
+              alt={article.title}
+              className="h-full w-full object-cover"
+            />
+          </div>
+          {/* A picture the newsroom did not take says whose it is, and links to
+              where it was published. */}
+          {article.imageCredit && (
+            <figcaption className="mt-1.5 text-xs text-slate-500">
+              {t('articles.imageCredit')}: {article.imageSourceUrl ? (
+                <a href={article.imageSourceUrl} target="_blank" rel="noreferrer nofollow" className="underline hover:text-slate-700">
+                  {article.imageCredit}
+                </a>
+              ) : (
+                article.imageCredit
+              )}
+            </figcaption>
+          )}
+        </figure>
       )}
 
       <div className="space-y-7">
@@ -450,20 +477,27 @@ function CommentsSection({ articleId }: { articleId: string }) {
   const [isLoading, setIsLoading] = useState(true)
   const [newComment, setNewComment] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [busyComment, setBusyComment] = useState('')
+  const [threadNote, setThreadNote] = useState('')
+  const [threadError, setThreadError] = useState('')
 
   useEffect(() => {
     const fetchComments = async () => {
       try {
         const response = await articleAPI.getComments(articleId)
-        setComments((response.data.data as any)?.comments || [])
+        setComments(response.data.data?.comments || [])
+        setIsLoading(false)
       } catch (error) {
         console.error('Failed to fetch comments:', error)
-      } finally {
+        // Saying the thread did not arrive is the honest answer. Leaving the
+        // "no comments yet" line up would claim nobody had spoken.
         setIsLoading(false)
+        setComments([])
+        setThreadError(t('articles.threadLoadFailed'))
       }
     }
     fetchComments()
-  }, [articleId])
+  }, [articleId, t])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -474,16 +508,52 @@ function CommentsSection({ articleId }: { articleId: string }) {
     if (!newComment.trim()) return
 
     setIsSubmitting(true)
+    setThreadError('')
     try {
       const response = await articleAPI.addComment(articleId, { content: newComment })
-      const created = (response.data.data as any)?.comment
-      // The API returns the bare comment, so the author still needs to be filled in locally.
-      if (created) setComments(prev => [{ ...created, user: { _id: user._id, fullName: user.fullName, avatar: user.avatar } }, ...prev])
+      const created = response.data.data?.comment
+      if (created) setComments((prev) => [created, ...prev])
       setNewComment('')
     } catch (error) {
       console.error('Failed to add comment:', error)
+      setThreadError(t('articles.postFailed'))
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  // A report is a request that a human look, and the only thing a reader can do
+  // to somebody else's words. The server keeps the comment on the page, so the
+  // row repaints with the flag rather than disappearing.
+  const report = async (comment: Comment) => {
+    if (!user) return requestSignIn()
+    setBusyComment(comment._id)
+    setThreadError('')
+    try {
+      const response = await articleAPI.reportComment(comment._id)
+      const updated = response.data.data?.comment
+      setComments((prev) => prev.map((row) => (row._id === comment._id ? { ...row, reported: true, status: updated?.status || row.status } : row)))
+      setThreadNote(t('articles.reportDone'))
+    } catch (error) {
+      console.error('Failed to report comment:', error)
+      setThreadError(t('articles.reportFailed'))
+    } finally {
+      setBusyComment('')
+    }
+  }
+
+  const remove = async (comment: Comment) => {
+    setBusyComment(comment._id)
+    setThreadError('')
+    try {
+      await articleAPI.deleteComment(comment._id)
+      setComments((prev) => prev.filter((row) => row._id !== comment._id))
+      setThreadNote(t('articles.commentRemoved'))
+    } catch (error) {
+      console.error('Failed to delete comment:', error)
+      setThreadError(t('articles.deleteFailed'))
+    } finally {
+      setBusyComment('')
     }
   }
 
@@ -498,13 +568,16 @@ function CommentsSection({ articleId }: { articleId: string }) {
             className="w-full min-h-[100px] p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white resize-none"
             rows={3}
           />
-          <button
-            type="submit"
-            disabled={!newComment.trim() || isSubmitting}
-            className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isSubmitting ? t('articles.posting') : t('articles.postComment')}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              disabled={!newComment.trim() || isSubmitting}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSubmitting ? t('articles.posting') : t('articles.postComment')}
+            </button>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{t('articles.moderationNote')}</span>
+          </div>
         </form>
       ) : (
         <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">
@@ -514,6 +587,9 @@ function CommentsSection({ articleId }: { articleId: string }) {
         </div>
       )}
 
+      {threadNote && <p className="text-sm text-green-700 dark:text-green-400">{threadNote}</p>}
+      {threadError && <p className="text-sm text-red-700 dark:text-red-400">{threadError}</p>}
+
       {isLoading ? (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -521,11 +597,20 @@ function CommentsSection({ articleId }: { articleId: string }) {
           ))}
         </div>
       ) : comments.length === 0 ? (
-        <p className="text-center text-gray-500 dark:text-gray-400 py-8">{t('articles.noComments')}</p>
+        <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+          {threadError ? t('articles.threadUnavailable') : t('articles.noComments')}
+        </p>
       ) : (
         <div className="space-y-4">
           {comments.map((comment) => (
-            <CommentItem key={comment._id} comment={comment} />
+            <CommentItem
+              key={comment._id}
+              comment={comment}
+              isMine={!!user && typeof comment.user === 'object' && comment.user._id === user._id}
+              isBusy={busyComment === comment._id}
+              onReport={() => void report(comment)}
+              onDelete={() => void remove(comment)}
+            />
           ))}
         </div>
       )}
@@ -533,29 +618,73 @@ function CommentsSection({ articleId }: { articleId: string }) {
   )
 }
 
-function CommentItem({ comment }: { comment: Comment }) {
-  const user = typeof comment.user === 'object' ? comment.user : null
+function CommentItem({
+  comment,
+  isMine,
+  isBusy,
+  onReport,
+  onDelete,
+}: {
+  comment: Comment
+  isMine: boolean
+  isBusy: boolean
+  onReport: () => void
+  onDelete: () => void
+}) {
+  const { t } = useI18n()
+  const reader = typeof comment.user === 'object' ? comment.user : null
   return (
     <div className="flex gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
       <Avatar
-        src={user?.avatar}
-        name={user?.fullName}
+        src={reader?.avatar}
+        name={reader?.fullName}
         className="h-10 w-10 flex-shrink-0 bg-brand-100 dark:bg-brand-900"
         textClassName="text-sm font-medium text-brand-600 dark:text-brand-400"
       />
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <Link
-            to={user ? `/user/${user._id}` : '#'}
+            to={reader ? `/user/${reader._id}` : '#'}
             className="font-medium text-gray-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400"
           >
-            {user?.fullName || 'Unknown'}
+            {reader?.fullName || 'Unknown'}
           </Link>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
           </span>
         </div>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">{comment.content}</p>
+        <p className="text-gray-600 dark:text-gray-400 mt-1 break-words">{comment.content}</p>
+        <div className="mt-2 flex items-center gap-3">
+          {comment.reported ? (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+              <Flag className="h-3.5 w-3.5" />
+              {t('articles.reported')}
+            </span>
+          ) : (
+            !isMine && (
+              <button
+                type="button"
+                onClick={onReport}
+                disabled={isBusy}
+                className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-amber-700 disabled:opacity-50"
+              >
+                <Flag className="h-3.5 w-3.5" />
+                {t('articles.reportComment')}
+              </button>
+            )
+          )}
+          {isMine && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={isBusy}
+              className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-red-700 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {t('articles.deleteComment')}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

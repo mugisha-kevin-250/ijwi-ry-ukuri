@@ -49,5 +49,34 @@ module.exports = {
   TREND_TIMEOUT_MS: Number(process.env.TREND_TIMEOUT_MS || 15000),
   RATE_PER_1000_VIEWS: Number(process.env.RATE_PER_1000_VIEWS || 5000),
   MINIMUM_PAYOUT: Number(process.env.MINIMUM_PAYOUT || 10000),
-  NODE_ENV: process.env.NODE_ENV || 'development'
+  // Email alerts. Like VAPID, a missing value is a supported state: every
+  // newsletter route reports that email is not configured instead of
+  // pretending a mail went out. SMTP_SECURE is true only for an implicit-TLS
+  // port (465); 587 stays on STARTTLS.
+  SMTP_HOST: process.env.SMTP_HOST || '',
+  SMTP_PORT: Number(process.env.SMTP_PORT || 587),
+  SMTP_SECURE: process.env.SMTP_SECURE === 'true',
+  SMTP_USER: process.env.SMTP_USER || '',
+  SMTP_PASSWORD: process.env.SMTP_PASSWORD || '',
+  MAIL_FROM_EMAIL: process.env.MAIL_FROM_EMAIL || '',
+  MAIL_FROM_NAME: process.env.MAIL_FROM_NAME || '',
+  // Google Cloud Translation. A reader picks any language the service knows and
+  // the news is delivered in it. No key means no translation: every read then
+  // returns the English original and the page says why, which is a supported
+  // state rather than a failure. The key never leaves the server.
+  GOOGLE_TRANSLATE_API_KEY: process.env.GOOGLE_TRANSLATE_API_KEY || '',
+  TRANSLATE_TIMEOUT_MS: Number(process.env.TRANSLATE_TIMEOUT_MS || 12000),
+  // Long articles are sent in pieces. This is the piece size, not a cap on the
+  // story - a story longer than TRANSLATE_MAX_CHARS is still translated whole.
+  TRANSLATE_CHUNK_CHARS: Number(process.env.TRANSLATE_CHUNK_CHARS || 4000),
+  // A cost ceiling, not a feature: one reader asking for a 200,000-word document
+  // is refused instead of quietly spending the newsroom's quota.
+  TRANSLATE_MAX_CHARS: Number(process.env.TRANSLATE_MAX_CHARS || 60000),
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  // The weekly pay ledger and scheduled stories only move if some process wakes
+  // up for them. Onwards unless the operator turns it off - a second instance
+  // sharing one database should set this to false so pay is not computed twice.
+  ENABLE_SCHEDULER: process.env.ENABLE_SCHEDULER !== 'false',
+  // Which zone "Monday just after midnight" means. Kigali time is the newsroom.
+  SCHEDULER_TZ: process.env.SCHEDULER_TZ || 'Africa/Kigali'
 };

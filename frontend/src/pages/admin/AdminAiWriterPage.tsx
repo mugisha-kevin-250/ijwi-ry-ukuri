@@ -134,6 +134,12 @@ export default function AdminAiWriterPage() {
   const [body, setBody] = useState('')
   const [tags, setTags] = useState('')
   const [category, setCategory] = useState('')
+  // The picture the trend feed printed beside the headline, and the publisher it
+  // credited. Kept separate from the text so a borrowed photo always says whose
+  // it is instead of arriving as an unnamed image.
+  const [image, setImage] = useState('')
+  const [imageCredit, setImageCredit] = useState('')
+  const [imageSourceUrl, setImageSourceUrl] = useState('')
   const [saving, setSaving] = useState(false)
 
   const [notice, setNotice] = useState('')
@@ -196,7 +202,17 @@ export default function AdminAiWriterPage() {
   }, [load])
 
   const persist = async (
-    input: { title: string; summary: string; metaDescription?: string; content: string; tags: string[]; category: string },
+    input: {
+      title: string
+      summary: string
+      metaDescription?: string
+      content: string
+      tags: string[]
+      category: string
+      featuredImage?: string
+      imageCredit?: string
+      imageSourceUrl?: string
+    },
     publish: boolean,
   ): Promise<Article | null> => {
     if (!input.title.trim() || !input.summary.trim() || !input.content.trim() || !input.category) {
@@ -210,6 +226,10 @@ export default function AdminAiWriterPage() {
         summary: input.summary.trim(),
         content: input.content.trim(),
         category: canonicalCategoryId(categories, input.category),
+        featuredImage: input.featuredImage?.trim() || undefined,
+        // A picture with no owner named is a picture the site would be claiming.
+        imageCredit: input.featuredImage?.trim() ? input.imageCredit?.trim() || 'Source image' : undefined,
+        imageSourceUrl: input.featuredImage?.trim() ? input.imageSourceUrl?.trim() || undefined : undefined,
         publish
       })
       setNotice(publish ? 'Story published to readers.' : 'Story saved as a draft.')
@@ -254,6 +274,13 @@ export default function AdminAiWriterPage() {
       setBody(story.paragraphs.join('\n\n'))
       setTags(story.tags.join(', '))
       setCategory(chosenCategory)
+      // The photo is the one the feed printed with the headline. If Google named
+      // no publisher for it, the story is published without a picture rather
+      // than with an uncredited one.
+      const photo = story.photo && story.photo.source ? story.photo : null
+      setImage(photo?.url || '')
+      setImageCredit(photo?.source || '')
+      setImageSourceUrl(photo?.articleUrl || '')
       // Auto mode is the owner's own decision to skip the review step, so the
       // story goes straight out and stays editable in the list below.
       if (status?.autoPublish && chosenCategory) {
@@ -263,7 +290,10 @@ export default function AdminAiWriterPage() {
           metaDescription: story.metaDescription || '',
           content: story.paragraphs.join('\n\n'),
           tags: story.tags,
-          category: chosenCategory
+          category: chosenCategory,
+          featuredImage: photo?.url || '',
+          imageCredit: photo?.source || '',
+          imageSourceUrl: photo?.articleUrl || ''
         }, true)
         if (created) {
           setSavedId(created._id)
@@ -280,7 +310,7 @@ export default function AdminAiWriterPage() {
     setError('')
     setNotice('')
     setSaving(true)
-    const created = await persist({ title, summary, metaDescription: meta, content: body, tags: tags.split(',').map((tag) => tag.trim().toLowerCase()).filter(Boolean).slice(0, 6), category }, publish)
+    const created = await persist({ title, summary, metaDescription: meta, content: body, tags: tags.split(',').map((tag) => tag.trim().toLowerCase()).filter(Boolean).slice(0, 6), category, featuredImage: image, imageCredit, imageSourceUrl }, publish)
     if (created) {
       setDraft(null)
       setSavedId('')
@@ -292,6 +322,9 @@ export default function AdminAiWriterPage() {
       setMeta('')
       setBody('')
       setTags('')
+      setImage('')
+      setImageCredit('')
+      setImageSourceUrl('')
     }
     setSaving(false)
   }
@@ -467,6 +500,36 @@ export default function AdminAiWriterPage() {
                   <p className="mt-2 text-blue-800/80">
                     Gemini saw these as background only and was told not to copy them. Check them before you publish.
                   </p>
+                </div>
+              )}
+
+              {draft.photo?.url && (
+                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-bold text-slate-700">The picture the source published</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <img src={draft.photo.url} alt="" className="h-20 w-32 rounded-md border border-slate-200 bg-white object-cover" />
+                    <p className="min-w-0 flex-1 text-xs text-slate-600">
+                      {draft.photo.source ? `Credited to ${draft.photo.source}.` : 'No publisher was named for this picture.'}{' '}
+                      {draft.photo.articleUrl && (
+                        <a href={draft.photo.articleUrl} target="_blank" rel="noreferrer nofollow" className="font-semibold text-blue-700 underline">
+                          Open the source
+                        </a>
+                      )}
+                    </p>
+                  </div>
+                  <label className="mt-3 flex items-start gap-2 text-xs text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(image)}
+                      onChange={(event) => {
+                        setImage(event.target.checked ? draft.photo?.url || '' : '')
+                        setImageCredit(event.target.checked ? draft.photo?.source || '' : '')
+                        setImageSourceUrl(event.target.checked ? draft.photo?.articleUrl || '' : '')
+                      }}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                    />
+                    Use this picture and print the credit under it. Leave it off to attach one of your own in the editor.
+                  </label>
                 </div>
               )}
 

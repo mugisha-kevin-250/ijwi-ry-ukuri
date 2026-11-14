@@ -34,6 +34,9 @@ export interface Article {
   metaDescription?: string
   content: string
   featuredImage?: string
+  /** Who took the picture, and where it came from. Printed under the image. */
+  imageCredit?: string
+  imageSourceUrl?: string
   author: string | { _id: string; fullName: string; username: string; avatar?: string; bio?: string }
   category: string | { _id: string; name: string; slug: string }
   tags: string[]
@@ -45,6 +48,12 @@ export interface Article {
   commentsCount: number
   readingTime: number
   language?: string
+  /**
+   * Set on a public read when the reader asked for another language: what the
+   * story is being shown in, and whether the translator actually served it.
+   * Absent means the English original is what is on screen.
+   */
+  translation?: { lang: string; translated: boolean }
   /** Only the admin portal produces these, and readers must see the label. */
   aiGenerated?: boolean
   country?: string
@@ -58,10 +67,13 @@ export interface Article {
 
 export interface Comment {
   _id: string
-  article: string
-  user: string | { _id: string; fullName: string; username: string; avatar?: string }
+  article?: string
+  user: string | { _id: string; fullName: string; username?: string; avatar?: string }
   content: string
   status: 'active' | 'hidden' | 'reported' | 'deleted'
+  // Whether the reader who asked for this list flagged the comment. Who flagged
+  // it is never sent to anybody else, so this is the only report a reader sees.
+  reported?: boolean
   createdAt: string
   updatedAt: string
 }

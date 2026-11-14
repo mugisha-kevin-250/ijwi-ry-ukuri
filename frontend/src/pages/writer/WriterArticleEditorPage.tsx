@@ -101,13 +101,15 @@ export default function WriterArticleEditorPage() {
         featuredImage: form.featuredImage,
         tags: form.tags.split(',').map((t:any) => t.trim()).filter(Boolean)
       }
-      let publishFailed = false
+      let publishRefusal = ''
       if (id) {
         await writerAPI.updateArticle(id, payload)
         try {
           await writerAPI.publishArticle(id)
-        } catch {
-          publishFailed = true
+        } catch (err: any) {
+          // The story saved either way, so the writer is told the real reason it
+          // did not go live rather than a generic failure.
+          publishRefusal = err?.response?.data?.message || t('writer.publishFailed')
         }
       } else {
         const res = await writerAPI.createArticle(payload)
@@ -115,14 +117,14 @@ export default function WriterArticleEditorPage() {
         if (article?._id) {
           try {
             await writerAPI.publishArticle(article._id)
-          } catch {
-            publishFailed = true
+          } catch (err: any) {
+            publishRefusal = err?.response?.data?.message || t('writer.publishFailed')
           }
         }
       }
-      if (publishFailed) {
-        setError(t('writer.publishFailed'))
-        toast.warn(t('writer.publishFailed'))
+      if (publishRefusal) {
+        setError(publishRefusal)
+        toast.warn(publishRefusal)
         navigate('/writer/articles')
       } else {
         toast.success(id ? t('writer.editArticle') : t('writer.save'))

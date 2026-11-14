@@ -25,7 +25,10 @@ async function connectDatabase() {
 
 async function startMemoryDatabase() {
   const { MongoMemoryServer } = require('mongodb-memory-server');
-  memoryServer = await MongoMemoryServer.create();
+  // Port 0 asks for any free port. The default, 27017, is the port a developer
+  // already has a real database on, and the test run would fail to start rather
+  // than say so.
+  memoryServer = await MongoMemoryServer.create({ instance: { port: 0 } });
   return memoryServer.getUri();
 }
 

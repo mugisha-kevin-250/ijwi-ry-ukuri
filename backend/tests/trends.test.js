@@ -15,6 +15,19 @@ const { connectDatabase, disconnectDatabase } = require('../src/config/database'
 const { parseTrendsFeed, trafficBand } = require('../src/utils/trendRss');
 const trendService = require('../src/services/trendService');
 
+// Google stamps each topic with the moment it was trending and the radar reads
+// only the last two days, so the fixture is built from the real calendar. A
+// fixed date would age out of that window and fail one day for a reason that
+// has nothing to do with the code.
+function sighting(daysAgo, hour, minute = 0) {
+  const when = new Date();
+  when.setUTCDate(when.getUTCDate() - daysAgo);
+  when.setUTCHours(hour, minute, 0, 0);
+  return { rfc: when.toUTCString(), day: when.toISOString().slice(0, 10) };
+}
+
+const TRENDING = [sighting(1, 20, 40), sighting(1, 18, 10), sighting(1, 9)];
+
 // Google's feed, copied from a real response with the shape it actually has:
 // the ht: namespace, an approximate traffic band and the headlines Google
 // credits each topic to.
@@ -25,7 +38,7 @@ const FEED = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <item>
       <title>bryan mbeumo &amp; cameroon</title>
       <ht:approx_traffic>1000+</ht:approx_traffic>
-      <pubDate>Thu, 12 Nov 2026 20:40:00 -0800</pubDate>
+      <pubDate>${TRENDING[0].rfc}</pubDate>
       <ht:news_item>
         <ht:news_item_title>Mbeumo looking to lead by example</ht:news_item_title>
         <ht:news_item_url>https://www.manutd.com/en/news/mbeumo</ht:news_item_url>
@@ -40,12 +53,12 @@ const FEED = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <item>
       <title>outlook</title>
       <ht:approx_traffic>200+</ht:approx_traffic>
-      <pubDate>Thu, 12 Nov 2026 18:10:00 -0800</pubDate>
+      <pubDate>${TRENDING[1].rfc}</pubDate>
     </item>
     <item>
       <title><![CDATA[local server & hosting]]></title>
       <ht:approx_traffic>50+</ht:approx_traffic>
-      <pubDate>Thu, 12 Nov 2026 09:00:00 -0800</pubDate>
+      <pubDate>${TRENDING[2].rfc}</pubDate>
     </item>
   </channel>
 </rss>`;
@@ -105,7 +118,7 @@ test('the feed is read without changing what Google printed', () => {
   assert.equal(topics[0].newsItems[0].source, 'Manchester United');
   assert.equal(topics[1].newsItems.length, 0);
   assert.equal(topics[2].topic, 'local server & hosting');
-  assert.match(topics[0].seenAt, /^Thu, 12 Nov 2026/);
+  assert.equal(topics[0].seenAt, TRENDING[0].rfc);
 });
 
 test('an answer that is not a feed is reported as unreadable', () => {
@@ -157,7 +170,7 @@ test('a live feed fills the radar and is stored with the URL it came from', asyn
     assert.equal(kenya.topics.length, 3);
     assert.equal(results.liveRegions, 1);
     assert.match(kenya.topics[0].sourceUrl, /trends\.google\.com\/trending\/rss\?geo=KE$/);
-    assert.match(kenya.topics[0].seenAt, /^2026-11-13/);
+    assert.match(kenya.topics[0].seenAt, new RegExp(`^${TRENDING[0].day}`));
     assert.equal(await TrendTopic.countDocuments({ geo: 'KE' }), 3);
   } finally {
     stub.restore();

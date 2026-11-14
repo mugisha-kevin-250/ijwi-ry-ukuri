@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
-import { useI18n, type Lang } from '../../context/I18nContext'
+import { Globe } from 'lucide-react'
+import { useI18n } from '../../context/I18nContext'
+import { languageName, useLanguageCatalog } from '../../utils/languageCatalog'
+import { DEFAULT_LANGUAGE } from '../../utils/readerLanguage'
 import { cn } from '../../utils/cn'
-import LanguageFlag from './LanguageFlag'
+import LanguageOptions from './LanguageOptions'
 
-const LANGUAGE_NAMES: Record<Lang, { name: string; nativeName: string }> = {
-  rw: { name: 'Kinyarwanda', nativeName: 'Ikinyarwanda' },
-  en: { name: 'English', nativeName: 'English' },
-  fr: { name: 'French', nativeName: 'Français' },
-  sw: { name: 'Swahili', nativeName: 'Kiswahili' },
-}
+/**
+ * The language button in the header and on the settings page. It opens the
+ * whole list; the name it shows is the language the reader is actually reading
+ * in, not whatever the browser was configured with.
+ */
 
 interface LanguageSelectorProps {
   className?: string
@@ -17,70 +18,42 @@ interface LanguageSelectorProps {
 }
 
 export default function LanguageSelector({ className, buttonClassName }: LanguageSelectorProps) {
-  const { lang, setLang, t, supportedLanguages } = useI18n()
+  const { lang, t } = useI18n()
+  const { languages } = useLanguageCatalog()
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const current = LANGUAGE_NAMES[lang] ?? LANGUAGE_NAMES.en
+  const label = lang === DEFAULT_LANGUAGE ? 'English' : languageName(languages, lang) || lang
 
   return (
     <div className={cn('relative', className)} ref={containerRef}>
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
-        className={cn(
-          'flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50',
-          buttonClassName
-        )}
-        aria-label={t('nav.language')}
+        aria-label={t('lang.openPicker')}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
+        className={cn(
+          'flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50',
+          buttonClassName,
+        )}
       >
-        <LanguageFlag lang={lang} />
-        <span>{current.nativeName}</span>
-        <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} aria-hidden="true" />
+        <Globe className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+        <span className="max-w-[9rem] truncate">{label}</span>
       </button>
 
       {isOpen && (
-        <ul
-          className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg focus:outline-none"
-          role="listbox"
-          aria-label={t('nav.language')}
-        >
-          {supportedLanguages.map((code) => (
-            <li key={code}>
-              <button
-                type="button"
-                onClick={() => {
-                  setLang(code)
-                  setIsOpen(false)
-                }}
-                className={cn(
-                  'flex w-full items-center justify-between px-4 py-2 text-left text-sm transition-colors',
-                  lang === code ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-50'
-                )}
-                role="option"
-                aria-selected={lang === code}
-              >
-                <span className="flex items-center gap-2.5">
-                  <LanguageFlag lang={code} />
-                  {LANGUAGE_NAMES[code].nativeName}
-                </span>
-                {lang === code && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="absolute right-0 z-50 mt-1 flex max-h-[70vh] w-72 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+          <LanguageOptions className="min-h-0 flex-1" onPicked={() => setIsOpen(false)} autoFocus />
+        </div>
       )}
     </div>
   )

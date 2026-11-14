@@ -10,13 +10,19 @@ const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { calculateValidView } = require('../services/validViewService');
 const clientIp = require('../utils/clientIp');
 const { cleanText } = require('../utils/textFields');
+const commentState = require('../utils/commentState');
 
 const router = express.Router();
 
-router.get('/:id/comments', async (req, res, next) => {
+router.get('/:id/comments', optionalAuth, async (req, res, next) => {
   try {
-    const comments = await Comment.find({ article: req.params.id, status: 'active' }).populate('user', 'fullName username');
-    return successResponse(res, 200, 'Comments fetched', { comments });
+    const comments = await Comment.find({ article: req.params.id, status: { $in: commentState.READER_STATUSES } })
+      .populate('user', 'fullName username')
+      .sort({ createdAt: -1 })
+      .limit(200);
+    return successResponse(res, 200, 'Comments fetched', {
+      comments: comments.map((comment) => commentState.commentForReader(comment, req.user?._id)),
+    });
   } catch (error) {
     next(error);
   }
@@ -33,9 +39,10 @@ router.post('/:id/comments', protect, async (req, res, next) => {
       user: req.user._id,
       content
     });
-    article.commentsCount = Number(article.commentsCount || 0) + 1;
-    await article.save();
-    return successResponse(res, 201, 'Comment created', { comment });
+    await commentState.syncCommentCount(article._id);
+    return successResponse(res, 201, 'Comment created', {
+      comment: commentState.commentForReader(await comment.populate('user', 'fullName username'), req.user._id),
+    });
   } catch (error) {
     next(error);
   }
@@ -54,12 +61,41 @@ router.put('/comments/:id', protect, async (req, res, next) => {
       comment.content = content;
     }
     await comment.save();
-    return successResponse(res, 200, 'Comment updated', { comment });
+    return successResponse(res, 200, 'Comment updated', {
+      comment: commentState.commentForReader(await comment.populate('user', 'fullName username'), req.user._id),
+    });
   } catch (error) {
     next(error);
   }
 });
 
+// A reader taking a comment to the newsroom is the only moderation control a
+// reader gets, and it changes nothing another reader can see: the comment stays
+// on the page and moves into the staff queue.
+router.post('/comments/:id/report', protect, async (req, res, next) => {
+  try {
+    const comment = await Comment.findById(req.params.id);
+    if (!comment) return errorResponse(res, 404, 'Comment not found');
+    if (!commentState.READER_STATUSES.includes(comment.status)) {
+      return errorResponse(res, 409, 'This comment is no longer on the page');
+    }
+    const already = comment.reportedBy.some((id) => String(id) === String(req.user._id));
+    const reason = cleanText(req.body?.reason, { maxLength: 300 });
+    if (!already) comment.reportedBy.push(req.user._id);
+    if (reason) comment.reportReason = reason;
+    if (comment.status === 'active') comment.status = 'reported';
+    await comment.save();
+    return successResponse(res, 200, already
+      ? 'You had already reported this comment'
+      : 'Comment reported to the newsroom', {
+      comment: commentState.commentForReader(comment, req.user._id),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The author may always take down their own words; staff may take down anyone's.
 router.delete('/comments/:id', protect, async (req, res, next) => {
   try {
     const comment = await Comment.findById(req.params.id);
@@ -68,7 +104,12 @@ router.delete('/comments/:id', protect, async (req, res, next) => {
       return errorResponse(res, 403, 'Unauthorized');
     }
     comment.status = 'deleted';
+    if (req.user.role === 'ADMIN' || req.user.role === 'EDITOR') {
+      comment.moderatedBy = req.user._id;
+      comment.moderatedAt = new Date();
+    }
     await comment.save();
+    await commentState.syncCommentCount(comment.article);
     return successResponse(res, 200, 'Comment deleted');
   } catch (error) {
     next(error);

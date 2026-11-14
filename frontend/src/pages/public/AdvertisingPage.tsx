@@ -39,8 +39,8 @@ export default function AdvertisingPage() {
 
       <Section title="Who reads this site">
         <p>
-          Readers come in four languages - English is what a first-time visitor sees, and the reader switches the whole
-          site to Kinyarwanda, French or Swahili with one tap - on phones, through a site they can install as an app,
+          English is what a first-time reader sees, and the whole site - the news, the sections and the buttons -
+          switches to any language they choose with one tap: on phones, through a site they can install as an app,
           and through live broadcasts. Stories are grouped by
           section, and a reader can follow the writer they trust. Traffic numbers are measured with Google Analytics
           once it is configured; the newsroom does not publish estimated or invented audience figures.

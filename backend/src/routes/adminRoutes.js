@@ -13,6 +13,8 @@ const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
 const trendService = require('../services/trendService');
 const generateSlug = require('../utils/generateSlug');
+const lifecycle = require('../utils/articleLifecycle');
+const workflow = require('../services/articleWorkflow');
 const escapeRegex = require('../utils/escapeRegex');
 const { plainText, cleanText, cleanTags, safeMediaUrl } = require('../utils/textFields');
 
@@ -297,26 +299,30 @@ router.get('/articles', async (req, res, next) => {
   }
 });
 
+// An admin can put a story anywhere in the lifecycle, but only by moving it
+// along a legal step. This route used to write any state directly, which is how
+// a draft could become "live" with no review and no publishedAt to explain it.
 router.put('/articles/:id/status', async (req, res, next) => {
   try {
     const { status } = req.body;
-    const allowed = ['draft', 'pending_review', 'approved', 'rejected', 'published', 'archived'];
-    if (!allowed.includes(status)) return errorResponse(res, 400, 'Invalid status');
+    if (!lifecycle.STORY_STATES.includes(status)) {
+      return errorResponse(res, 400, `A story cannot be "${status}". It is one of: ${lifecycle.STORY_STATES.join(', ')}.`);
+    }
 
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
 
-    const firstPublish = article.status !== 'published' && status === 'published';
-    article.status = status;
-    if (status === 'published' && !article.publishedAt) article.publishedAt = new Date();
-    await article.save();
-    if (firstPublish) await notificationService.announceArticlePublished(article);
+    const result = await workflow.moveStory({ article, to: status, by: req.user, note: req.body.note });
+    if (result.error) return errorResponse(res, result.status, result.error);
 
-    const populated = await article.populate([
+    const populated = await result.article.populate([
       { path: 'author', select: 'fullName username avatar' },
       { path: 'category', select: 'name slug' }
     ]);
-    return successResponse(res, 200, 'Article status updated', { article: populated });
+    return successResponse(res, 200, 'Article status updated', {
+      article: populated,
+      nextStates: lifecycle.allowedMoves(status),
+    });
   } catch (error) {
     next(error);
   }
@@ -485,7 +491,15 @@ router.post('/ai/trends', authorize('ADMIN'), async (req, res, next) => {
       region: evidence.region,
       evidence: evidence.headlines
     });
-    return successResponse(res, 200, 'Trend draft ready for review', { ...story, evidence, destination: '/trending' });
+    // The picture is the one the feed printed next to the headline and the name
+    // is the publisher Google credited, so a trend story can carry its source
+    // image without anyone guessing at one.
+    return successResponse(res, 200, 'Trend draft ready for review', {
+      ...story,
+      evidence,
+      photo: trendService.photoCreditFor(evidence),
+      destination: '/trending'
+    });
   } catch (error) {
     if (error.code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, error.message);
     if (String(error.code || '').startsWith('AI_')) return errorResponse(res, 502, error.message);
@@ -495,7 +509,18 @@ router.post('/ai/trends', authorize('ADMIN'), async (req, res, next) => {
 
 router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
   try {
-    const { title, summary, content, category, metaDescription, tags = [], featuredImage, publish } = req.body || {};
+    const {
+      title,
+      summary,
+      content,
+      category,
+      metaDescription,
+      tags = [],
+      featuredImage,
+      imageCredit,
+      imageSourceUrl,
+      publish
+    } = req.body || {};
     if (!title || !summary || !content || !category) {
       return errorResponse(res, 400, 'Title, summary, content and category are required');
     }
@@ -503,8 +528,7 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
     if (!categoryDoc) return errorResponse(res, 404, 'Category not found');
 
     const wantsPublish = publish === undefined ? await isAutoPublishOn() : publish === true || publish === 'true';
-    const publishedAt = wantsPublish ? new Date() : undefined;
-    // The text comes back from the browser, so it is cleaned the same way a
+    const publishedAt = wantsPublish ? new Date() : undefined;    // The text comes back from the browser, so it is cleaned the same way a
     // writer's story is - a machine can hand over a headline carrying markup.
     const headline = plainText(title, { maxLength: 200 });
     const body = cleanText(content, { maxLength: 60000 });
@@ -522,13 +546,27 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       metaDescription: metaDescription ? plainText(metaDescription, { maxLength: 200 }) : undefined,
       content: body,
       featuredImage: safeMediaUrl(featuredImage),
+      imageCredit: imageCredit ? plainText(imageCredit, { maxLength: 160 }) : '',
+      imageSourceUrl: safeMediaUrl(imageSourceUrl),
       author: req.user._id,
       category: categoryDoc._id,
       tags: cleanTags(tags, { max: 6 }),
       language: 'en',
       aiGenerated: true,
       status: wantsPublish ? 'published' : 'draft',
-      publishedAt
+      publishedAt,
+      // A machine wrote it and a named person let it out. Both facts belong in
+      // the same trail an editor's decision leaves, or the queue cannot say who
+      // released the story.
+      reviewEvents: [{
+        from: 'draft',
+        to: wantsPublish ? 'published' : 'draft',
+        by: req.user._id,
+        note: wantsPublish ? 'Published from the AI newsroom' : 'Saved from the AI newsroom',
+        at: new Date(),
+      }],
+      approvedBy: wantsPublish ? req.user._id : undefined,
+      reviewedAt: new Date(),
     });
 
     if (wantsPublish) await notificationService.announceArticlePublished(article);

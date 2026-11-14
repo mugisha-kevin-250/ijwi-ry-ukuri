@@ -103,7 +103,7 @@ Nothing in the last few commits has been pushed to the hosts. A release is:
 ```
 git push                                        # Render redeploys the backend
 cd frontend
-# 1. bump VERSION in public/sw.js (radar-v15 -> radar-v16) or returning readers
+# 1. bump VERSION in public/sw.js (radar-v16 -> radar-v17) or returning readers
 #    keep the previous bundle forever
 npm run build                                   # regenerates sitemaps + ads.txt, then builds
 npx firebase-tools deploy --only hosting
@@ -127,7 +127,35 @@ in `/robots.txt` and in the page head.
    https://publishercenter.google.com and point it at the site. Approval needs a
    real contact address (action 5) and original reporting on the front page.
 
-## 9. Housekeeping
+## 9. Put the Google Translate key in Render
+
+**Status: the feature is shipped and waiting.** A reader can pick any of the ~190
+languages Google Cloud Translation supports, from the globe menu in the header or
+the alert on a first visit. Without the key the picker still lists them all, but
+every story stays English and the site says so plainly instead of pretending.
+
+1. Google Cloud Console -> create or reuse a project -> APIs -> enable **Cloud
+   Translation API**. Restrict the key to that API only; a browser-visible key is
+   not a risk here because it never reaches a browser — the backend uses it.
+2. Copy the API key value into Render -> `studentnews-backend` -> Environment as
+   `GOOGLE_TRANSLATE_API_KEY`, and add the same line to your local
+   `.env.render`. Nothing to change in the frontend build.
+3. Restart the service.
+
+**Check.** `GET https://studentnews-backend.onrender.com/api/translate/languages`
+answers `configured: true`; open a story with `?lang=fr` in the address bar and the
+headline arrives in French. On the site itself, choose a language in the header and
+the page reloads in it. Translating costs one Google request per *new* English text
+per language — a re-read is served from the database, and editing a story is what
+makes the site pay again. Roughly $20 per million characters; the site's own labels
+are a few hundred per language, and a full story is a few thousand.
+
+**What it does not do.** The English text remains the version the newsroom stands
+behind: writers, editors and the database always see English, `/api/articles` with
+no `?lang` is byte-for-byte what it was before (so crawlers, RSS and the sitemaps
+are unaffected), and the spoken news and the radio desk still read English copy.
+
+## 10. Housekeeping
 
 - Delete `JWT_REFRESH_SECRET` from the Render dashboard: there is no refresh
   endpoint and the code no longer reads it. `render.yaml` keeps its entry on

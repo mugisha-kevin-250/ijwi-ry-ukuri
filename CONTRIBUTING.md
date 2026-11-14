@@ -53,9 +53,10 @@ those three, not because they are good manners.
   (`noUnusedLocals` will fail the build on an unused import, on purpose).
 - Match the file you are editing. The comments in this project explain *why* a
   constraint exists; a comment that only restates the code will be removed.
-- User-visible strings are the dictionaries in `frontend/src/context/I18nContext.tsx`,
-  served through `t('key')` for four languages (English, Kinyarwanda, French, Kiswahili).
-  English is the default, and a new key with only English text is a half-finished feature.
+- User-visible strings are the English dictionary in
+  `frontend/src/context/I18nContext.tsx`, served through `t('key')`. English is the
+  only source text: a reader's other ~190 languages come from the Cloud Translation
+  endpoint at request time, so a new key needs English copy and nothing else.
 - Bump `VERSION` in `frontend/public/sw.js` in any frontend release, otherwise
   returning readers keep the previous bundle forever.
 

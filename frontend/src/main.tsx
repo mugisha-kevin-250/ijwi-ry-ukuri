@@ -16,29 +16,12 @@ import './index.css'
 
 registerServiceWorker()
 
-declare global {
-  interface Window {
-    googleTranslateElementInit: () => void
-  }
-}
-
-// The stories are written in Kinyarwanda, so that is the language Google has to
-// translate from; declaring English made it re-translate our own Kinyarwanda
-// labels into machine Kinyarwanda. The widget itself stays off-screen because
-// the language menu is what switches it (see I18nProvider).
-let translatorStarted = false
-window.googleTranslateElementInit = () => {
-  if (translatorStarted || !window.google || !window.google.translate || !window.google.translate.TranslateElement) return
-  translatorStarted = true
-  new window.google.translate.TranslateElement({
-    pageLanguage: 'rw',
-    includedLanguages: 'rw,en,fr,sw',
-    layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE
-  }, 'google_translate_element')
-}
-// element.js can finish loading before this module runs, and then its callback
-// found nothing to call, so start the translator here as well.
-window.googleTranslateElementInit()
+// The reader's language used to be served by Google's own page-translation
+// widget, which rewrote the DOM in the browser and could only ever work on what
+// was already on screen. It is gone: a chosen language is now sent with every
+// story request and the server answers in it (see I18nContext and
+// services/translateService on the backend), so nothing third-party has to run
+// over the page.
 
 ReactDOM.createRoot(document.getElementById('app')!).render(
   <React.StrictMode>

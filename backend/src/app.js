@@ -17,6 +17,8 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const pushRoutes = require('./routes/pushRoutes');
 const liveRoutes = require('./routes/liveRoutes');
+const newsletterRoutes = require('./routes/newsletterRoutes');
+const translateRoutes = require('./routes/translateRoutes');
 const uploadStore = require('./services/uploadStore');
 const clientIp = require('./utils/clientIp');
 
@@ -113,6 +115,22 @@ app.post('/api/admin/ai/generate', aiLimiter);
 app.post('/api/admin/ai/trends', aiLimiter);
 app.post('/api/admin/ai/articles', aiLimiter);
 app.post('/api/contact', contactLimiter);
+// Subscribing costs an email, so it shares the open form's ceiling. The
+// confirm and unsubscribe links are GETs a reader opens from an old mail and
+// stay unthrottled.
+app.post('/api/newsletter/subscribe', contactLimiter);
+// Translating the site's own labels is the one translation call a reader can
+// ask for on their own, so it is capped. It is a one-off per language per
+// browser, and the server only ever pays Google for the first reader.
+const translateLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('Too many translation requests from this address, please try again later.')
+});
+app.post('/api/translate/chrome', translateLimiter);
 
 const swaggerOptions = {
   definition: {
@@ -135,6 +153,9 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+// Mounted before the public routes so /api/translate is answered here and not
+// swallowed by the catch-all story endpoints.
+app.use('/api/translate', translateRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/writers', writerRoutes);
 app.use('/api/editor', editorRoutes);
@@ -145,6 +166,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/live', liveRoutes);
+app.use('/api/newsletter', newsletterRoutes);
 app.use('/uploads', express.static(env.UPLOAD_DIR));
 // Render's disk is wiped on redeploy, so anything the cache lost is read back
 // from the database copy.

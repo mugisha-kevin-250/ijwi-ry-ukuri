@@ -2,6 +2,7 @@ import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig, ty
 import type { ApiResponse } from '../types'
 import { normalizeImage } from '../utils/imageNormalizer'
 import { beginRequest, endRequest } from '../utils/apiActivity'
+import { DEFAULT_LANGUAGE, readerLanguage } from '../utils/readerLanguage'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
@@ -82,6 +83,25 @@ function relativizeUploads(node: unknown): unknown {
 type TrackedConfig = AxiosRequestConfig & { __routeProgressId?: number }
 const tracked = (config: AxiosRequestConfig | undefined): TrackedConfig => (config || {}) as TrackedConfig
 
+// The public reads that answer with stories, and therefore have to know which
+// language the reader is reading them in. Everything else - a writer's own
+// drafts, an admin's queue, a dashboard - is always served in the language the
+// newsroom actually wrote, and this list is what keeps it that way.
+const STORY_PATHS = ['/articles', '/latest', '/trending', '/popular', '/sections', '/categories', '/search', '/writers/']
+
+// English is what the database holds, so a reader who never chose anything gets
+// the plain request and nobody pays for a translation of text that needs none.
+function withReaderLanguage(config: TrackedConfig): TrackedConfig {
+  const method = String(config.method || 'get').toLowerCase()
+  const url = String(config.url || '')
+  if (method !== 'get' || !STORY_PATHS.some((path) => url.startsWith(path))) return config
+  const lang = readerLanguage()
+  if (lang === DEFAULT_LANGUAGE) return config
+  const params = (config.params || {}) as Record<string, unknown>
+  if (params.lang === undefined) config.params = { ...params, lang }
+  return config
+}
+
 class ApiClient {
   private client: AxiosInstance
 
@@ -106,6 +126,7 @@ class ApiClient {
           config.headers.Authorization = `Bearer ${token}`
         }
         if (config.data && typeof config.data === 'object') relativizeUploads(config.data)
+        withReaderLanguage(config)
         // Last, so nothing that can throw leaves a request counted forever.
         tracked(config).__routeProgressId = beginRequest()
         return config

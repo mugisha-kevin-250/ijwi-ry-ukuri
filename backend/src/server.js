@@ -3,6 +3,7 @@ const { connectDatabase } = require('./config/database');
 const { seedDefaults } = require('./utils/seedDefaults');
 const { seedUploads } = require('./utils/seedUploads');
 const attachLiveSocket = require('./sockets/liveSocket');
+const { startScheduler } = require('./jobs/scheduler');
 const env = require('./config/env');
 
 async function connectDatabaseWithRetry() {
@@ -45,6 +46,7 @@ async function startServer() {
 
     connectDatabaseWithRetry()
       .then(seedDefaults)
+      .then(() => startScheduler())
       .catch((error) => {
         console.error('Failed to initialize database:', error.message);
         process.exit(1);
@@ -58,6 +60,7 @@ async function startServer() {
     const seeded = seedUploads();
     if (seeded) console.log(`Seeded ${seeded} upload file(s) onto ${env.UPLOAD_DIR}`);
     listenForRequests(env.PORT);
+    startScheduler();
   } catch (error) {
     console.error('Failed to start server:', error.message);
     process.exit(1);

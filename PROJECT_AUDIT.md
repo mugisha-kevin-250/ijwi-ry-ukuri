@@ -74,9 +74,10 @@ Live topology: Firebase Hosting serves the SPA at
 
 ### Audience and reach
 
-12. **One language of content.** The interface switches between four languages, but
-    a story is stored in one and the routes have no language prefix, so `/rw` and
-    `/fr` do not exist and hreflang cannot be emitted.
+12. **One language of record.** A reader can now have any language Google translates
+    into, but it is machine translation served on request: the routes have no
+    language prefix, so `/rw` and `/fr` do not exist, hreflang cannot be emitted, and
+    the English original is the only text a human editor is accountable for.
 13. **No newsletter, no podcast, no video library, no social distribution** — the
     reader either visits or does not.
 14. **No trending intelligence.** The home carousel shows the newest 24 stories,
@@ -95,9 +96,10 @@ Live topology: Firebase Hosting serves the SPA at
     can only ask for, and `backend/package-lock.json` is still untracked, so CI installs
     the backend with `npm install` and gets whatever versions are current that day.
 17. **Performance is unmeasured, and the first number is not reassuring.** The SPA builds
-    to one JavaScript chunk of 1.27 MB (365 kB gzipped) that every reader downloads before
-    the page shows anything, with Google Translate, GIS, GA4 and the ad script all asking
-    for the main thread after that. No Lighthouse or Core Web Vitals figure exists for the
+    to one JavaScript chunk of 1.39 MB (393 kB gzipped) that every reader downloads before
+    the page shows anything, with GIS, GA4 and the ad script all asking
+    for the main thread after that. A reader who picks a language pays one extra API
+    round-trip per page for it. No Lighthouse or Core Web Vitals figure exists for the
     live site, so LCP, INP and CLS are unknown rather than fine.
 18. **`render.yaml` is documentation, not the deployment.** The Render service was
     created from the dashboard, so the file can drift from reality without any

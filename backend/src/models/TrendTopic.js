@@ -15,10 +15,15 @@ const trendTopicSchema = new mongoose.Schema({
   trafficLabel: String,
   approxTraffic: Number,
   seenAt: Date,
+  // The thumbnail Google printed for the trend, and the one each headline
+  // carried. Kept because a story built on a trend should show the picture the
+  // source published, not a random one.
+  picture: String,
   newsItems: [{
     title: String,
     url: String,
     source: String,
+    picture: String,
   }],
   sourceUrl: String,
   sightings: { type: Number, default: 1 },

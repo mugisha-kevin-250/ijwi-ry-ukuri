@@ -69,8 +69,12 @@
   Admin -> AI Writer, and a review gate — a generated story is saved as a `draft` and
   only reaches readers when the admin publishes it, even with auto-publish on. The key
   never leaves the server (`GEMINI_API_KEY`), and the calls are capped per client IP.
-- English is the default language, with Kinyarwanda, French and Kiswahili selectable
-  from the flag menu in the header (`frontend/src/context/I18nContext.tsx`).
+- English is the source text and the default. A reader chooses any language Google
+  Cloud Translation supports from the globe menu in the header (or the first-visit
+  alert); the backend translates the story text and the site's own labels with
+  `GOOGLE_TRANSLATE_API_KEY` and caches each result, so an empty key means the whole
+  site is honestly English rather than half-translated.
+  See `backend/src/services/translateService.js`.
 - Abuse limits and clean storage: rate limits on sign-in, uploads and the AI writer,
   all text through `backend/src/utils/textFields.js` before it is stored, and a
   `Content-Security-Policy` header on every hosted response. See "Security settings".
@@ -183,9 +187,11 @@ public by design: only ids meant to be public go there, and each one needs
   production) and never serialises a whole error object to the client.
 - **Content-Security-Policy** ships as a Firebase Hosting response header for `/**`
   (`frontend/firebase.json`). It is the reason `pagead2.googlesyndication.com`,
-  `www.googletagmanager.com`, `accounts.google.com` and the Google Translate origins are
-  listed; **adding any other third-party script means adding its origin there first**, or
+  `www.googletagmanager.com` and `accounts.google.com` are listed; **adding any other
+  third-party script means adding its origin there first**, or
   the browser blocks it and the feature looks broken with no server-side error.
+  Reader-language translation needs no entry: the browser only ever talks to our own
+  API, and the Google Translate call is made by the server.
 - `helmet` sets the rest of the protective headers, uploads are size- and type-checked,
   and `/api-docs` is disabled in production.
 

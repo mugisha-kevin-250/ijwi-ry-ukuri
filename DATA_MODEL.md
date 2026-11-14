@@ -3,8 +3,9 @@
 Status: current-state inventory + target evolution plan.  
 Sources inspected: `backend/src/models/*.js`, route/service usage. **No direct production DB inspection performed.**  
 Migration rule: safe, additive evolution only; back up before changes; preserve stable IDs/URLs/relationships; no destructive resets.  
-Status 2026-11-12: this inventory was checked against `backend/src/models/*.js` and still
-matches, except that `Article` now also carries `aiGenerated`. Nothing in section 3 has been
+Status 2026-11-14: this inventory was checked against `backend/src/models/*.js` and still
+matches. Two additions since the last pass: the `Translation` collection behind the
+reader-language translator, and `Article.aiGenerated`. Nothing in section 3 has been
 created yet, and no collection has been dropped or renamed.
 
 ## 1. Current entities (as implemented)
@@ -14,7 +15,7 @@ created yet, and no collection has been dropped or renamed.
 | User (`User`) | fullName, username, email, password(select:false), googleId, role[READER/WRITER/EDITOR/ADMIN], isActive, avatar, country, language, bio, writerStatus[pending/approved/rejected/suspended], writerProfile ref, lastLoginAt, timestamps | -> WriterProfile; authored Articles; engagement refs | Coarse RBAC; no permissions table |
 | WriterProfile (`WriterProfile`) | user(unique), fullName, username, bio, profileImage, country, language, reasonForWriting, status, totalArticles, totalValidViews, timestamps | <- User; target of Follow | Separate from User identity |
 | Category (`Category`) | name, slug(unique), description, isActive, parent ref, order, aliases[], labelKey, timestamps | <- Article.category; parent -> Category | Seeded from `backend/src/utils/categoryTree.js` at boot (`seedSections()`), one document per section and sub-section; duplicates from before are collapsed at read time, never deleted |
-| Article (`Article`) | title, slug(unique), summary, metaDescription, content, featuredImage, author ref, category ref, tags[], status[draft/pending_review/approved/rejected/published/archived], views/validViews/uniqueViews/likes/commentsCount, readingTime, language, country, aiGenerated, publishedAt, timestamps | -> User(author), Category; -> Comment/Like/Bookmark/ArticleView/Report | No image credit/caption, no revisions, sources, corrections, translations or scheduling metadata |
+| Article (`Article`) | title, slug(unique), summary, metaDescription, content, featuredImage, author ref, category ref, tags[], status[draft/pending_review/approved/rejected/published/archived], views/validViews/uniqueViews/likes/commentsCount, readingTime, language, country, aiGenerated, publishedAt, timestamps | -> User(author), Category; -> Comment/Like/Bookmark/ArticleView/Report | No image credit/caption, no revisions, sources, corrections or scheduling metadata. Readers see it in any language through the separate `Translation` cache; the human-reviewed, language-specific article row is still not built |
 | Comment (`Comment`) | article/user refs, content/status/metadata (per model/routes) | -> Article, User | Moderation basic |
 | Like (`Like`) | article, user (uniqueness via upsert pattern) | -> Article, User | Denormalized count on Article |
 | Bookmark (`Bookmark`) | article, user | -> Article, User | Reader save |
@@ -29,10 +30,11 @@ created yet, and no collection has been dropped or renamed.
 | PlatformSetting (`PlatformSetting`) | key(unique), value(mixed), description, timestamps | global | Rates/limits/flags/bootstrap markers |
 | Live / LiveComment | broadcast session/chat state | -> User/Live | Live video feature |
 | TrendTopic (`TrendTopic`) | provider, geo, topic, day (unique together), trafficLabel, approxTraffic, seenAt, newsItems[{title,url,source}], sourceUrl, sightings, firstSeenAt, lastSeenAt | feeds the admin radar; seeds one AI story | One document per topic per region per day. Stores only what the provider printed — the band label and its number, never a count of our own. Pruned after 21 days |
+| Translation (`Translation`) | kind[story/chrome], lang, key, sourceHash, parts[{field,source,text}], chars, article ref, timestamps | -> Article (optional) | The machine translation a reader asked for, bought from Google once per language per English original. `sourceHash` is the hash of the English text, so editing a story retires its translations instead of serving a stale sentence. The English `Article` documents are never modified by it, and `lang` is deliberately not called `language` — a field by that name makes Mongo's text index try to read it as a per-document language override (see task: the `rw`/`sw` rejection) |
 
 ## 2. Gaps relative to target product
 
-Missing or incomplete for planned releases: granular roles/permissions, article revisions/translations/scheduling records, sources and corrections, author-as-journalist rich entity, regions/countries, breaking news records, editorial assignments/reviews/feedback, trend scores/clusters (the raw provider observations are stored since 2026-11-13, nothing derives a score from them yet), newsletter subscribers/campaigns/consent logs, podcasts/episodes, videos, radio stations/programs, social post drafts/logs, ad placements/ads config, consent records, audit logs, integration settings/health, reader preferences/deletion workflows.
+Missing or incomplete for planned releases: granular roles/permissions, article revisions/scheduling records, human-reviewed language variants (the machine translations in `translations` are not editorial content), sources and corrections, author-as-journalist rich entity, regions/countries, breaking news records, editorial assignments/reviews/feedback, trend scores/clusters (the raw provider observations are stored since 2026-11-13, nothing derives a score from them yet), newsletter subscribers/campaigns/consent logs, podcasts/episodes, videos, radio stations/programs, social post drafts/logs, ad placements/ads config, consent records, audit logs, integration settings/health, reader preferences/deletion workflows.
 
 ## 3. Target logical entities (planned, additive)
 
@@ -43,7 +45,7 @@ Design to fit current stack (Mongoose/Mongo) and adapt names/types to existing c
 | roles / permissions / role_permissions | Fine-grained RBAC | name, slug, description, permission keys/scopes | users/assignments | Map existing 4 roles first; do not break auth |
 | author_profiles (or extend WriterProfile/User) | Public journalist identity | displayName, slug, photo, bio, role/title, beats, languages, contacts/social (approved), user ref, active, timestamps | articles, user | Never fabricate; preserve current author display |
 | article_revisions | Edit history | article, editor, diff/snapshot, status, note, timestamps | article, user | Append-only |
-| article_translations | Language variants | sourceArticle, language, slug, title/summary/content, status, reviewer, timestamps | article, user | Link to original; no auto-publish |
+| article_translations | Language variants a human stands behind | sourceArticle, language, slug, title/summary/content, status, reviewer, timestamps | article, user | The machine cache (`translations`) already serves readers; this adds editorial review, a per-language URL and hreflang on top. Link to original; no auto-publish |
 | article_sources | Verification | article, title/org/url/type, accessedAt, quote/ref, verificationStatus, notes, addedBy/reviewedBy | article, users | Required workflow for important stories |
 | corrections | Transparency | article, reason, previous/corrected fields, approver, publicNotice, timestamps | article, user | Immutable/auditable records |
 | categories (evolve) | Taxonomy | add parent, order, locale names/descriptions, active flags | self, articles | Preserve existing slugs/assignments |

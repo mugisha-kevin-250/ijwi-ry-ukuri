@@ -18,5 +18,7 @@ module.exports = {
   PlatformSetting: require('./PlatformSetting'),
   TrendTopic: require('./TrendTopic'),
   Live: require('./Live'),
-  LiveComment: require('./LiveComment')
+  LiveComment: require('./LiveComment'),
+  NewsletterSubscriber: require('./NewsletterSubscriber'),
+  Translation: require('./Translation')
 };

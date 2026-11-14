@@ -98,16 +98,17 @@ Missing: a transparent trend score, topic clustering and history views.
 
 ## Release 4 — International distribution (Medium–High) — PARTIAL
 
-The interface speaks English, Kinyarwanda, French and Kiswahili from the header flag menu
-and a reader can choose their language in Settings, but content is not routed by language:
-no `/en` `/rw` `/fr` prefixes, no translation records, no hreflang. The newsletter form
+Every language Google Cloud Translation supports is selectable from the header globe
+menu — labels and story text are translated server-side and cached — but content is
+not routed by language: no `/en` `/rw` `/fr` prefixes, no hreflang, and the English
+original is the only version the newsroom stores. The newsletter form
 stores an address in the browser and sends it to nobody. Live video works but needs a TURN
 relay to reach everyone. No podcast, radio, social distribution or reader-preference
 controls yet.
 
 | Work item | Existing | Required changes | Dependencies | DB impact | Security impact | Acceptance criteria | Testing |
 |---|---|---|---|---|---|---|---|
-| Multilingual publishing | UI labels only | `/en|/rw|/fr` routes/content, translation records/workflow/review, hreflang, language-specific SEO/sitemaps/feeds | Editorial translation process | Additive | Content integrity | Correct language routing/metadata; no empty translations | i18n/SEO tests |
+| Multilingual publishing | Machine translation of UI labels and story text into any supported Google language, cached in `translations` keyed by source hash | `/en|/rw|/fr` routes, human translation records/workflow/review, hreflang, language-specific SEO/sitemaps/feeds | Editorial translation process | Additive (`translations`, shipped) | Content integrity | Correct language routing/metadata; no empty translations | i18n/SEO tests |
 | Newsletter | Local-only capture | Subscriber model, consent/double opt-in, preferences, templates/campaigns, unsubscribe, delivery/bounce logs | Provider (e.g. ESP) decision | Additive (PII) | High (privacy/PII) | Consentful subscribe/unsubscribe; no public exposure | Flow + security tests |
 | Radio (authorized) | Live video exists | Dedicated radio stream UI/schedule/status using owner-provided authorized URL; clear unconfigured state | Owner stream URL/license | Additive/config | Avoid unauthorized streams | Player reliable/accessible when configured | Device tests |
 | Podcasts/video | Missing | Podcast series/episodes/RSS, managed video/captions/transcripts, authorized embeds | Media hosting choices | Additive | Rights/licensing | Valid feeds/pages; responsive | Feed/player tests |
@@ -131,7 +132,9 @@ them from the code:
   click, not whether the story is reviewed.
 - **Trend input is typed, not scraped.** The trend source for now is "admin types the
   topic", not an automatic feed of other publishers' headlines.
-- **English is the default**, with Kinyarwanda, French and Kiswahili still selectable.
+- **English is the source and the default.** A reader picks any language Google
+  Translation supports and the whole site arrives in it; the English text stays the
+  version the newsroom publishes. The old three-language menu was retired for this.
 - **Advertising and analytics ids come from the owner.** They have not been provided, so
   the site loads no ad script, writes no `ads.txt` and reports nothing to GA4. Applying to
   AdSense is the owner's decision and will not be done on their behalf.

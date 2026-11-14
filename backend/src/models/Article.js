@@ -10,6 +10,11 @@ const articleSchema = new mongoose.Schema({
   metaDescription: { type: String, trim: true },
   content: { type: String, required: true },
   featuredImage: String,
+  // Who took the picture on the story and where it came from. A photograph the
+  // newsroom did not make has to say so, and an AI story usually borrows the
+  // source's own image, so these travel with it.
+  imageCredit: String,
+  imageSourceUrl: String,
   author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
   tags: [{ type: String, trim: true }],
@@ -29,6 +34,21 @@ const articleSchema = new mongoose.Schema({
   // admin portal can produce them.
   aiGenerated: { type: Boolean, default: false },
   country: String,
+  // The review trail an editor leaves behind. approvedBy and reviewNote answer
+  // "who signed this off and what did they say", and reviewEvents is the full
+  // history, so a story can be explained after the fact instead of guessed at.
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reviewedAt: Date,
+  reviewNote: String,
+  reviewEvents: [{
+    _id: false,
+    from: String,
+    to: String,
+    by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    note: String,
+    at: { type: Date, default: Date.now }
+  }],
+  scheduledAt: Date,
   publishedAt: Date,
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   ArrowRight,
-  ArrowUpRight,
-  Bookmark,
   BookOpen,
   ChevronRight,
   Clock3,
@@ -16,36 +14,27 @@ import {
   Users,
 } from 'lucide-react'
 import type { Article, Category } from '../../types'
-import { publicAPI } from '../../services/api'
+import { newsletterAPI, publicAPI, type TopWriter } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import NewsBanner from '../../components/news/NewsBanner'
 import NewsAlertsCard from '../../components/pwa/NewsAlertsCard'
+import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
 import { useArticleLike, useAuthorFollow } from '../../utils/engagementStore'
 import { shareArticle } from '../../utils/shareArticle'
-import { categoryHref, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
+import { categoryHref, categoryLabel } from '../../data/categoryVisuals'
+import { SECTIONS, sectionHrefFor, type SectionNode } from '../../data/sections'
 
 const NEWSLETTER_KEY = 'radar-newsletter'
 const LEGACY_NEWSLETTER_KEY = 'ijwiryukuri-newsletter'
 
-/**
- * The topic strip names each section in the reader's language and links to the
- * canonical copy of it, because the newsroom stores the same section twice
- * ("Sports" and "Amasport"). A section with no category is left out rather than
- * sending the reader to the generic list.
- */
-const topics = [
-  { key: 'category.rwanda', group: 'rwanda' },
-  { key: 'category.politics', group: 'politik' },
-  { key: 'category.business', group: 'business' },
-  { key: 'category.sports', group: 'sports' },
-  { key: 'category.entertainment', group: 'entertainment' },
-  { key: 'category.technology', group: 'technology' },
-  { key: 'category.health', group: 'health' },
-  { key: 'category.other', group: 'ibindi' },
-]
+// The home page is the newsroom, so it is built from what is newest. One
+// request pulls a wide sheet of stories; the page then shows a third of it and
+// hands the rest to "See more news" instead of pretending there is none.
+const LATEST_LIMIT = 48
+const LATEST_PAGE_ONE = 12
 
 function articleCategory(article: Article) {
   return typeof article.category === 'object' ? article.category : null
@@ -63,14 +52,16 @@ function ArticleImage({ article, className = '' }: { article: Article; className
   )
 }
 
-function SectionHeading({ title, href = '/articles', action }: { title: string; href?: string; action?: string }) {
+function SectionHeading({ title, href = '/articles', action }: { title: string; href?: string | null; action?: string }) {
   const { t } = useI18n()
   return (
     <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-2">
       <h2 className="text-lg font-extrabold tracking-tight text-slate-900">{title}</h2>
-      <Link to={href} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900">
-        {action ?? t('articles.viewAll')}<ChevronRight className="h-3.5 w-3.5" />
-      </Link>
+      {href && (
+        <Link to={href} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900">
+          {action ?? t('articles.viewAll')}<ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+      )}
     </div>
   )
 }
@@ -196,130 +187,206 @@ function CompactStory({ article, index }: { article: Article; index?: number }) 
   )
 }
 
+/**
+ * Which section a story belongs to, read from the category the API sends with
+ * it. Stories that map to no section are left out of the rails rather than
+ * dumped into a fake "Other" shelf.
+ */
+function sectionSlugOf(article: Article): string | null {
+  const href = sectionHrefFor(articleCategory(article))
+  return href ? href.split('/')[1] || null : null
+}
+
+function RailCard({ article }: { article: Article }) {
+  const { t } = useI18n()
+  return (
+    <article className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <Link to={`/article/${article.slug}`} className="block overflow-hidden">
+        <ArticleImage article={article} className="aspect-[16/10] w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+      </Link>
+      <div className="p-3.5">
+        <Link to={`/article/${article.slug}`}>
+          <h3 className="line-clamp-3 text-sm font-bold leading-snug text-slate-900 group-hover:text-blue-800">{article.title}</h3>
+        </Link>
+        <p className="mt-2 inline-flex items-center gap-1 text-[11px] text-slate-400">
+          <Clock3 className="h-3.5 w-3.5" />
+          {article.readingTime || 3} {t('articles.minRead')}
+        </p>
+      </div>
+    </article>
+  )
+}
+
+/**
+ * One shelf of the newsroom. It is only rendered when the section really has
+ * stories in the sheet that was fetched, so an empty desk is never dressed up
+ * with someone else's work.
+ */
+function SectionRail({ section, stories }: { section: SectionNode; stories: Article[] }) {
+  const { t } = useI18n()
+  if (stories.length < 2) return null
+  return (
+    <section aria-label={t(section.labelKey)}>
+      <div className="mb-4 flex items-center justify-between border-b-2 border-[#062b52] pb-2 dark:border-blue-500">
+        <h2 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">{t(section.labelKey)}</h2>
+        <Link to={`/${section.slug}`} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-300">
+          {t('articles.viewAll')}<ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stories.slice(0, 4).map((article) => (
+          <RailCard key={article._id} article={article} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export default function HomePage() {
   const { t } = useI18n()
   useSeo({ path: '/' })
-  const [searchParams] = useSearchParams()
   const [latest, setLatest] = useState<Article[]>([])
+  const [totalStories, setTotalStories] = useState(0)
+  const [page, setPage] = useState(1)
   const [trending, setTrending] = useState<Article[]>([])
   const [popular, setPopular] = useState<Article[]>([])
+  const [topWriters, setTopWriters] = useState<TopWriter[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [newsletterEmail, setNewsletterEmail] = useState('')
+  const [visibleLatest, setVisibleLatest] = useState(LATEST_PAGE_ONE)
+  // Only a hint that prefills the box; the subscription itself lives on the
+  // server. Older builds stored a list of addresses under the old brand name.
+  const [newsletterEmail, setNewsletterEmail] = useState(() => {
+    const stored = localStorage.getItem(NEWSLETTER_KEY) ?? localStorage.getItem(LEGACY_NEWSLETTER_KEY)
+    if (!stored) return ''
+    try {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed)) return String(parsed[parsed.length - 1] || '')
+      if (typeof parsed === 'string') return parsed
+    } catch {
+      return stored
+    }
+    return ''
+  })
   const [newsletterMessage, setNewsletterMessage] = useState('')
+  const [newsletterError, setNewsletterError] = useState('')
+  const [newsletterBusy, setNewsletterBusy] = useState(false)
 
-  const search = searchParams.get('search') || ''
-  const resolvedTopics = useMemo(() => resolveCategories(categories), [categories])
-
-  const loadNews = async () => {
-    setLoading(true)
+  const loadNews = async (targetPage = 1) => {
+    setLoading(targetPage === 1)
     setLoadError('')
     const results = await Promise.allSettled([
-      publicAPI.getArticles({ page: 1, limit: 24, sort: 'latest' }),
-      publicAPI.getTrending(),
-      publicAPI.getPopular(),
-      publicAPI.getCategories(),
+      publicAPI.getArticles({ page: targetPage, limit: LATEST_LIMIT, sort: 'latest' }),
+      targetPage === 1 ? publicAPI.getTrending() : Promise.resolve(null),
+      targetPage === 1 ? publicAPI.getPopular() : Promise.resolve(null),
+      targetPage === 1 ? publicAPI.getCategories() : Promise.resolve(null),
+      targetPage === 1 ? publicAPI.getTopWriters() : Promise.resolve(null),
     ])
 
-    const [latestResult, trendingResult, popularResult, categoriesResult] = results
+    const [latestResult, trendingResult, popularResult, categoriesResult, writersResult] = results
     let failed = false
-    if (latestResult.status === 'fulfilled') {
+
+    if (latestResult.status === 'fulfilled' && latestResult.value) {
       const data = latestResult.value.data.data as any
-      if (Array.isArray(data)) {
-        setLatest(data)
-      } else if (data && Array.isArray(data.articles)) {
-        setLatest(data.articles)
-      } else {
-        setLatest([])
-      }
+      const incoming: Article[] = Array.isArray(data) ? data : data?.articles || []
+      const total: number = Array.isArray(data) ? incoming.length : data?.total ?? incoming.length
+      setLatest((current) => {
+        if (targetPage === 1) return incoming
+        const seen = new Set(current.map((article) => article._id))
+        return [...current, ...incoming.filter((article) => !seen.has(article._id))]
+      })
+      setTotalStories(total)
+      setPage(targetPage)
+    } else if (latestResult.status === 'rejected') {
+      failed = true
     }
-    else failed = true
-    if (trendingResult.status === 'fulfilled') {
-      const data = trendingResult.value.data.data as any
-      if (Array.isArray(data)) {
-        setTrending(data)
-      } else if (data && Array.isArray(data.articles)) {
-        setTrending(data.articles)
-      } else {
-        setTrending([])
-      }
+
+    const readList = (settled: PromiseSettledResult<any>) => {
+      if (settled.status !== 'fulfilled' || !settled.value) return null
+      const data = settled.value.data.data as any
+      return Array.isArray(data) ? data : data?.articles || []
     }
-    else failed = true
-    if (popularResult.status === 'fulfilled') {
-      const data = popularResult.value.data.data as any
-      if (Array.isArray(data)) {
-        setPopular(data)
-      } else if (data && Array.isArray(data.articles)) {
-        setPopular(data.articles)
-      } else {
-        setPopular([])
-      }
-    }
-    else failed = true
-    if (categoriesResult.status === 'fulfilled') {
+    if (trendingResult.status === 'fulfilled' && trendingResult.value) setTrending(readList(trendingResult) || [])
+    if (popularResult.status === 'fulfilled' && popularResult.value) setPopular(readList(popularResult) || [])
+    if (categoriesResult.status === 'fulfilled' && categoriesResult.value) {
       const data = categoriesResult.value.data.data as any
-      if (Array.isArray(data)) {
-        setCategories(data)
-      } else if (data && Array.isArray(data.categories)) {
-        setCategories(data.categories)
-      } else {
-        setCategories([])
-      }
+      setCategories(Array.isArray(data) ? data : data?.categories || [])
     }
-    else failed = true
+    if (writersResult.status === 'fulfilled' && writersResult.value) {
+      const data = writersResult.value.data.data as any
+      setTopWriters(Array.isArray(data?.writers) ? data.writers : [])
+    }
 
     if (failed) setLoadError(t('home.loadError'))
     setLoading(false)
+    setLoadingMore(false)
   }
 
   useEffect(() => {
-    void loadNews()
+    void loadNews(1)
   }, [])
 
-  const handleNewsletterSubmit = (event: FormEvent<HTMLFormElement>) => {
+  // The address now lives on the server, which is the only place that can mail
+  // it. What the page says depends on what the server actually did: a mail sent,
+  // a mail that could not be sent because no mail server is configured here, or
+  // an address that was already on the list.
+  const submitNewsletter = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    // The key changed with the brand, so an address typed under the old name is
-    // still read; it moves across the next time the box is used.
-    const stored = localStorage.getItem(NEWSLETTER_KEY) ?? localStorage.getItem(LEGACY_NEWSLETTER_KEY)
-    const saved = JSON.parse(stored || '[]') as string[]
-    if (!saved.includes(newsletterEmail.trim().toLowerCase())) {
-      localStorage.setItem(NEWSLETTER_KEY, JSON.stringify([...saved, newsletterEmail.trim().toLowerCase()]))
+    const email = newsletterEmail.trim().toLowerCase()
+    if (!email) return
+    setNewsletterBusy(true)
+    setNewsletterMessage('')
+    setNewsletterError('')
+    try {
+      const result = await newsletterAPI.subscribe(email, 'home')
+      if (!result.needsConfirmation) setNewsletterMessage(t('home.newsletterAlready'))
+      else if (result.delivered) setNewsletterMessage(t('home.newsletterMailed'))
+      else setNewsletterMessage(t('home.newsletterNotMailing'))
+      setNewsletterEmail('')
+      // Remembering the address on this device only prefills the box next time;
+      // it is not a subscription and the page never claims it is.
+      localStorage.setItem(NEWSLETTER_KEY, email)
       localStorage.removeItem(LEGACY_NEWSLETTER_KEY)
+    } catch (error: any) {
+      setNewsletterError(error?.response?.data?.message || t('home.newsletterFailed'))
+    } finally {
+      setNewsletterBusy(false)
     }
-    setNewsletterMessage(t('home.emailSaved'))
-    setNewsletterEmail('')
-  }
-
-  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const formData = new FormData(event.currentTarget as HTMLFormElement)
-    const searchValue = formData.get('search') as string
-    const params = new URLSearchParams()
-    if (searchValue) {
-      params.set('search', searchValue)
-    }
-    window.location.href = `/articles?${params.toString()}`
   }
 
   const featured = latest[0]
+  const restOfLatest = latest.filter((article) => article._id !== featured?._id)
+  const shownLatest = restOfLatest.slice(0, visibleLatest)
+  const hasMoreLocal = restOfLatest.length > shownLatest.length
+  const hasMorePages = totalStories > latest.length
+
+  // The shelves are cut from the one sheet of latest stories already in hand, so
+  // the home page never asks the API nine times for the same answers.
+  const rails = useMemo(() => {
+    const buckets = new Map<string, Article[]>()
+    latest.forEach((article) => {
+      const slug = sectionSlugOf(article)
+      if (!slug) return
+      const bucket = buckets.get(slug) || []
+      if (bucket.length < 4) bucket.push(article)
+      buckets.set(slug, bucket)
+    })
+    // "Trending" is its own shelf fed by the trending feed, not a category rail.
+    return SECTIONS.filter((section) => section.slug !== 'trending').map((section) => ({
+      section,
+      stories: buckets.get(section.slug) || [],
+    }))
+  }, [latest])
+
   const sideStories = trending.filter((article) => article._id !== featured?._id).slice(0, 4)
-  const latestGrid = latest.filter((article) => article._id !== featured?._id).slice(0, 6)
-  const popularStories = popular.length ? popular : trending
+  // No fallback here: showing the trending list under "Popular" would claim
+  // those were the most-read stories when the read actually failed.
+  const popularStories = popular
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
-      <nav className="bg-[var(--color-brand)] text-white" aria-label={t('nav.articles')}>
-        <div className="mx-auto flex max-w-7xl items-center gap-6 overflow-x-auto px-4 py-2.5 text-xs font-semibold sm:px-6 lg:px-8">
-          {topics.map((topic) => {
-            const found = resolvedTopics.find((item) => item.visual.slug === topic.group)
-            if (!found) return null
-            return <Link key={topic.key} to={categoryHref(found.category)} className="shrink-0 transition hover:text-[var(--color-brand-light)]">{t(topic.key)}</Link>
-          })}
-          <Link to="/categories" className="shrink-0 text-[var(--color-brand-light)]">{t('nav.categories')} +</Link>
-        </div>
-      </nav>
-
       <div className="bg-red-600 text-white">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2 text-xs sm:px-6 lg:px-8">
           <span className="shrink-0 rounded bg-white px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-red-600">{t('home.breaking')}</span>
@@ -328,32 +395,15 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Mobile Search Bar */}
-      <div className="md:hidden px-4 py-3 bg-[var(--color-bg)] border-b border-[var(--color-border)]">
-        <form onSubmit={handleSearch} className="relative">
-          <input
-            type="search"
-            name="search"
-            defaultValue={search}
-            placeholder={t('search.placeholder')}
-            className="input-field pl-10"
-            aria-label={t('nav.search')}
-          />
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </form>
-      </div>
-
       <main className="mx-auto max-w-7xl space-y-9 px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
         {loadError && (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <span>{loadError}</span>
-            <button type="button" onClick={() => void loadNews()} className="font-bold underline">{t('home.retry')}</button>
+            <button type="button" onClick={() => void loadNews(1)} className="font-bold underline">{t('home.retry')}</button>
           </div>
         )}
 
-<section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(280px,0.9fr)]">
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(280px,0.9fr)]">
           <div>
             <SectionHeading title={t('home.top')} />
             {loading ? <div className="aspect-[16/8] animate-pulse rounded-xl bg-slate-200" /> : latest.length ? (
@@ -371,59 +421,94 @@ export default function HomePage() {
 
         <section>
           <SectionHeading title={t('home.latest')} href="/articles?sort=latest" />
-          {loading ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3, 4, 5, 6].map((item) => <div key={item} className="h-64 animate-pulse rounded-xl bg-slate-200" />)}</div> : latestGrid.length ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{latestGrid.map((article) => <StoryCard key={article._id} article={article} />)}</div>
+          {loading ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[1, 2, 3, 4, 5, 6, 7, 8].map((item) => <div key={item} className="h-72 animate-pulse rounded-xl bg-slate-200" />)}</div> : shownLatest.length ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{shownLatest.map((article) => <StoryCard key={article._id} article={article} />)}</div>
+              {(hasMoreLocal || hasMorePages) && (
+                <div className="mt-5 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => (hasMoreLocal ? setVisibleLatest((count) => count + 8) : void loadNews(page + 1))}
+                    disabled={loadingMore}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-800 transition hover:border-blue-400 hover:text-blue-800 disabled:opacity-60"
+                  >
+                    {loadingMore ? t('home.loadingMore') : t('home.moreNews')}
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </>
           ) : <p className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">{t('home.emptyLatest')}</p>}
         </section>
+
+        {!loading && rails.map(({ section, stories }) => <SectionRail key={section.slug} section={section} stories={stories} />)}
 
         <section className="grid gap-6 lg:grid-cols-[1.1fr_1fr_0.9fr]">
           <div>
             <SectionHeading title={t('home.topics')} href="/categories" />
             <div className="grid grid-cols-2 gap-2">
-              {resolvedTopics.slice(0, 8).map(({ category }) => (
-                <Link key={category._id} to={categoryHref(category)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold transition hover:border-blue-300 hover:text-blue-800">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><Bookmark className="h-4 w-4" /></span>
-                  <span className="truncate">{categoryLabel(category, t)}</span>
+              {SECTIONS.filter((section) => section.slug !== 'trending').map((section) => (
+                <Link key={section.slug} to={`/${section.slug}`} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold transition hover:border-blue-300 hover:text-blue-800">
+                  <span className="truncate">{t(section.labelKey)}</span>
                 </Link>
               ))}
-              {!categories.length && !loading && <p className="col-span-2 text-sm text-slate-500">{t('home.emptyCategories')}</p>}
             </div>
           </div>
           <div>
-            <SectionHeading title={t('home.mostFollowed')} href="/articles?sort=popular" />
-            {popularStories.slice(0, 3).map((article) => <CompactStory key={article._id} article={article} />)}
-            {!popularStories.length && !loading && <p className="text-sm text-slate-500">{t('home.emptyFollowed')}</p>}
+            <SectionHeading title={t('home.popular')} href="/articles?sort=popular" />
+            {popularStories.slice(0, 4).map((article) => <CompactStory key={article._id} article={article} />)}
+            {!popularStories.length && !loading && <p className="text-sm text-slate-500">{t('home.emptyPopular')}</p>}
           </div>
           <aside className="rounded-xl bg-[#082d53] p-5 text-white">
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-white/10"><Mail className="h-5 w-5" /></div>
             <h2 className="text-lg font-extrabold">{t('home.newsletterTitle')}</h2>
             <p className="mt-2 text-sm leading-relaxed text-blue-100">{t('home.newsletterDesc')}</p>
-            <form className="mt-4 space-y-2" onSubmit={handleNewsletterSubmit}>
+            <form className="mt-4 space-y-2" onSubmit={submitNewsletter}>
               <label htmlFor="newsletter-email" className="sr-only">{t('home.newsletterEmail')}</label>
               <input id="newsletter-email" type="email" required value={newsletterEmail} onChange={(event) => setNewsletterEmail(event.target.value)} placeholder={t('home.newsletterPlaceholder')} className="w-full rounded-lg border border-white/20 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-cyan-400" />
-              <button className="w-full rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-bold transition hover:bg-blue-400">{t('home.newsletterSave')}</button>
+              <button
+                type="submit"
+                disabled={newsletterBusy}
+                className="w-full rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-bold transition hover:bg-blue-400 disabled:opacity-60"
+              >
+                {newsletterBusy ? t('home.newsletterSaving') : t('home.newsletterSave')}
+              </button>
             </form>
             {newsletterMessage && <p role="status" className="mt-2 text-xs text-cyan-200">{newsletterMessage}</p>}
+            {newsletterError && <p role="alert" className="mt-2 text-xs text-amber-200">{newsletterError}</p>}
             <p className="mt-2 text-[10px] text-blue-200">{t('home.newsletterNote')}</p>
           </aside>
         </section>
 
-        <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-[#062b52] to-blue-700 text-white">
-          <div className="flex flex-col items-start justify-between gap-5 p-6 sm:flex-row sm:items-center sm:p-8">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-200">{t('home.heroEyebrow')}</span>
-              <h2 className="mt-2 text-2xl font-extrabold sm:text-3xl">{t('home.heroTitle')}</h2>
-              <p className="mt-2 max-w-xl text-sm text-blue-100">{t('home.heroDesc')}</p>
-            </div>
-            <Link to="/articles" className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-blue-900 transition hover:bg-blue-50">{t('home.heroBrowse')}<ArrowUpRight className="h-4 w-4" /></Link>
-          </div>
-        </section>
-
         <section className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
           <div>
-            <SectionHeading title={t('home.popular')} href="/articles?sort=popular" />
-            {popularStories.slice(0, 4).map((article, index) => <CompactStory key={article._id} article={article} index={index} />)}
-            {!popularStories.length && !loading && <p className="text-sm text-slate-500">{t('home.emptyPopular')}</p>}
+            <SectionHeading title={t('home.mostFollowed')} href={null} />
+            {topWriters.length ? (
+              <ol className="space-y-2">
+                {topWriters.slice(0, 5).map((writer, index) => (
+                  <li key={writer._id} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                    <span className="w-5 shrink-0 text-sm font-extrabold text-slate-400">{index + 1}</span>
+                    <Avatar
+                      src={writer.avatar}
+                      name={writer.fullName}
+                      className="h-10 w-10 shrink-0 bg-blue-100"
+                      textClassName="font-bold text-blue-700"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <Link to={`/user/${writer._id}`} className="block truncate text-sm font-bold text-slate-900 hover:text-blue-800">
+                        {writer.fullName}
+                      </Link>
+                      <p className="truncate text-xs text-slate-500">@{writer.username}</p>
+                    </div>
+                    <span className="shrink-0 text-xs font-semibold text-slate-500">
+                      {writer.followers} {t(writer.followers === 1 ? 'home.followerOne' : 'home.followerMany')}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              !loading && <p className="text-sm text-slate-500">{t('home.emptyFollowed')}</p>
+            )}
           </div>
           <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><Users className="h-5 w-5" /></div>

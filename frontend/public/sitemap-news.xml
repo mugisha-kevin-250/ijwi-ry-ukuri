@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
   <url>
+    <loc>https://ijwi-ry--ukuri.web.app/article/days-of-our-lives-returns-with-new-arrests-and-drama-1794750317138</loc>
+    <news:news>
+      <news:publication>
+        <news:name>RADAR</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-11-15T13:13:25Z</news:publication_date>
+      <news:title>Days of our Lives Returns with New Arrests and Drama</news:title>
+      <news:keywords>Trending, days of our lives, television, entertainment, drama</news:keywords>
+    </news:news>
+  </url>
+  <url>
     <loc>https://ijwi-ry--ukuri.web.app/article/darian-mensahs-transfer-journey-draws-attention-across-regions-1794679691979</loc>
     <news:news>
       <news:publication>
@@ -58,30 +70,6 @@
       <news:publication_date>2026-11-14T13:51:00Z</news:publication_date>
       <news:title>Kenya Defence Forces Upgrade Training and Readiness Against Regional Threats</news:title>
       <news:keywords>Trending, kenya defence forces, military readiness, security threats, regional defense</news:keywords>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://ijwi-ry--ukuri.web.app/article/fast-and-furious-franchise-prepares-for-2026-release-1794573280773</loc>
-    <news:news>
-      <news:publication>
-        <news:name>RADAR</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-11-13T12:27:49Z</news:publication_date>
-      <news:title>Fast and Furious Franchise Prepares for 2026 Release</news:title>
-      <news:keywords>Movies, fast and furious, movies, universal pictures, entertainment</news:keywords>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://ijwi-ry--ukuri.web.app/article/fast-and-furious-2026-film-release-updates-for-rwanda-region-1794572829855</loc>
-    <news:news>
-      <news:publication>
-        <news:name>RADAR</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-11-13T12:27:09Z</news:publication_date>
-      <news:title>Fast and Furious 2026 Film Release Updates for Rwanda Region</news:title>
-      <news:keywords>Trending, entertainment, fast and furious, rwanda, cinema, movies</news:keywords>
     </news:news>
   </url>
 </urlset>

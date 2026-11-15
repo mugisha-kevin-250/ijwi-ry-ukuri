@@ -7,7 +7,11 @@ import { cn } from '../../utils/cn'
 import { type SectionNode } from '../../data/sections'
 import { sectionLabel, useSections } from '../../utils/sectionsStore'
 
-const DESKTOP_DROPDOWNS_QUERY = '(min-width: 1024px)'
+// The section line is drawn from `md` up, so that is the width where its
+// dropdowns belong. It used to be 1024px, which left every laptop between those
+// two numbers with a bar of section names that had no arrows and no panels: the
+// sub-sections were still there, but nothing on screen admitted they existed.
+const DESKTOP_DROPDOWNS_QUERY = '(min-width: 768px)'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 /** How fast the phone strip drifts, how long it rests at each end, and how long
@@ -394,9 +398,12 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
           // whether it is showing or not the row costs the same width - otherwise
           // the measurement that decides if the names fit would change the room they
           // have to fit in, and the strip would pulse between the two answers.
+          // The seats are deliberately tight: nine names cost 735px at a tablet's
+          // width and the row has 720px, and paying four pixels back to the padding
+          // is what lets a 768px screen have its dropdowns instead of a scroller.
           const pill = cn(
-            'whitespace-nowrap rounded-lg py-1.5 pl-2 text-[13px] font-bold underline-offset-4 transition',
-            section.children.length > 0 ? 'pr-5' : 'pr-2',
+            'whitespace-nowrap rounded-lg py-1.5 pl-1.5 text-[13px] font-bold underline-offset-4 transition',
+            section.children.length > 0 ? 'pr-[17px]' : 'pr-1.5',
             isActive
               ? 'bg-brand-600 text-white shadow-sm dark:bg-blue-600'
               : 'text-gray-800 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400',
@@ -424,7 +431,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                     aria-haspopup="true"
                     aria-label={`${sectionLabel(section, t)} sub-sections`}
                     className={cn(
-                      'absolute right-1 top-1/2 -translate-y-1/2 rounded p-px text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400',
+                      'absolute right-0.5 top-1/2 -translate-y-1/2 rounded p-px text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400',
                       // Out of the row's way when the row is a scroller: a panel
                       // opened inside one is clipped, and an arrow that goes nowhere
                       // is a lie.

@@ -5,7 +5,7 @@
     <link>https://ijwi-ry--ukuri.web.app</link>
     <description>News written by approved writers: world, politics, business, technology, sports, entertainment and health.</description>
     <language>en</language>
-    <lastBuildDate>Sun, 15 Nov 2026 11:56:32 GMT</lastBuildDate>
+    <lastBuildDate>Sun, 15 Nov 2026 12:52:42 GMT</lastBuildDate>
     <docs>https://www.rss.org/rss.xml</docs>
     <generator>RADAR build scripts</generator>
     <atom:link href="https://ijwi-ry--ukuri.web.app/feed.xml" rel="self" type="application/rss+xml" />
@@ -14,6 +14,20 @@
       <title>RADAR</title>
       <link>https://ijwi-ry--ukuri.web.app</link>
     </image>
+    <item>
+      <title>Days of our Lives Returns with New Arrests and Drama</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/days-of-our-lives-returns-with-new-arrests-and-drama-1794750317138</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/days-of-our-lives-returns-with-new-arrests-and-drama-1794750317138</guid>
+      <description>The long-running daytime drama Days of our Lives presents viewers in the United States with mounting arrests, painful truths, and dramatic confrontations.</description>
+      <pubDate>Sun, 15 Nov 2026 13:13:25 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Trending</category>
+      <category>days of our lives</category>
+      <category>television</category>
+      <category>entertainment</category>
+      <category>drama</category>
+      <media:content url="https://studentnews-backend.onrender.com/uploads/1794750311217-34374470.webp" medium="image" />
+    </item>
     <item>
       <title>Darian Mensah&apos;s Transfer Journey Draws Attention Across Regions</title>
       <link>https://ijwi-ry--ukuri.web.app/article/darian-mensahs-transfer-journey-draws-attention-across-regions-1794679691979</link>
@@ -387,20 +401,6 @@
       <category>kuhira</category>
       <category>IGIHE</category>
       <media:content url="https://studentnews-backend.onrender.com/uploads/1794066892485-19762815.jpg" medium="image" />
-    </item>
-    <item>
-      <title>Igitekerezo: Guhana abanyeshuri bikwiye kurinda umwana no guteza imbere imyigire</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/igitekerezo-guhana-abanyeshuri-bikwiye-kurinda-umwana-no-guteza-imbere-imyigire-1794066880503</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/igitekerezo-guhana-abanyeshuri-bikwiye-kurinda-umwana-no-guteza-imbere-imyigire-1794066880503</guid>
-      <description>Impaka zo muri Tanzania ku gukuraho gukubita abanyeshuri zongera kwibutsa ko ishuri rikwiye guhana mu buryo butabangamira umwana.</description>
-      <pubDate>Sat, 07 Nov 2026 14:53:42 GMT</pubDate>
-      <dc:creator>Shyakaclever Prince</dc:creator>
-      <category>Opinions</category>
-      <category>Igitekerezo</category>
-      <category>uburezi</category>
-      <category>abana</category>
-      <category>IGIHE</category>
-      <media:content url="https://studentnews-backend.onrender.com/uploads/1794066875998-244887255.png" medium="image" />
     </item>
   </channel>
 </rss>

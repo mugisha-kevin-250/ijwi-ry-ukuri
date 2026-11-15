@@ -17,6 +17,9 @@ interface HeaderProps {
   sidebarCollapsed?: boolean
 }
 
+/** How far a reader has to be into the page before the bought space is drawn. */
+const AD_REVEAL_AFTER_PX = 160
+
 /**
  * The masthead, and the height the rest of the page has to clear.
  *
@@ -35,6 +38,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
+  const [isAdRevealed, setIsAdRevealed] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const barRef = useRef<HTMLElement | null>(null)
 
@@ -112,11 +116,18 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
   }
 
   useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 8)
+    const onScroll = () => {
+      setIsScrolled(window.scrollY > 8)
+      // The bought space is not on the page until the reader has started reading
+      // it. Crossing this line once is enough to bring it in, and it goes away
+      // again when they come back to the top, so the first screen of the site is
+      // always the news rather than the advertising.
+      setIsAdRevealed(variant === 'public' && window.scrollY > AD_REVEAL_AFTER_PX)
+    }
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  }, [variant])
 
   // Publish the height the fixed rows take up, so the page under the header can
   // start below it without anyone keeping a magic number in two places. It runs on
@@ -147,10 +158,34 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     >
       <nav ref={barRef} className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
         {/*
-          The name is the first thing on the page, and the sections get a line of
-          their own underneath it. They used to share the masthead row, which left
-          them too narrow to hold ten names and their sub-section panels, so the
-          dropdowns switched themselves off and a reader on a laptop could not
+          The space a business buys is the first row of the site, above the name,
+          on every public page. It is not there when the page first opens - the
+          reader gets the newsroom, not an advert - and it slides in as soon as
+          they start down the page, so it is the thing they see whenever they come
+          back up. It is a strip rather than a banner because the header is fixed:
+          anything taller steals a quarter of a phone screen. A campaign booked
+          into "nav" prints here; when nobody has bought it the newsroom's own
+          offer does, in the same height, so nothing below it moves.
+        */}
+        {variant === 'public' && (
+          <div
+            className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
+              isAdRevealed ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+            }`}
+            aria-hidden={!isAdRevealed}
+            inert={!isAdRevealed}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <AdSlot name="nav" className="pb-1.5" />
+            </div>
+          </div>
+        )}
+
+        {/*
+          The name is the first thing the reader sees, and the sections get a line
+          of their own underneath it. They used to share the masthead row, which
+          left them too narrow to hold ten names and their sub-section panels, so
+          the dropdowns switched themselves off and a reader on a laptop could not
           reach Middle East or Football without opening a menu.
         */}
         <div className="flex h-16 items-center justify-between gap-4 md:h-14">
@@ -313,16 +348,6 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             </button>
           </div>
         </div>
-
-        {/*
-          The space a business buys sits above the section links, on every page of
-          the site, where a reader lands first. It is a strip rather than a banner
-          because the header is fixed: anything taller than this is a phone screen
-          with a quarter of it permanently sold. A campaign booked into "nav"
-          prints here; when nobody has bought it the newsroom's own offer does, in
-          the same height, so the page under the header never moves.
-        */}
-        {variant === 'public' && <AdSlot name="nav" className="pb-1.5" />}
 
         {/*
           Every section on its own line under the name, and it has the whole width

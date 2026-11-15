@@ -61,7 +61,13 @@ export default function AdCreative({ campaign, shape = 'banner', className }: Ad
 
   return (
     <aside aria-label={t('ads.label')} className="notranslate">
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('ads.label')}</p>
+      {/* In the strip the label goes on the advertiser's own line instead of
+          above the card: a line of its own made the header too tall to be a
+          strip. It still says what it is, in the same words, in the same place
+          in the reading order. */}
+      {shape === 'strip' ? null : (
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('ads.label')}</p>
+      )}
       <a
         href={campaign.link}
         target="_blank"
@@ -95,7 +101,7 @@ export default function AdCreative({ campaign, shape = 'banner', className }: Ad
 
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: accent }}>
-            {campaign.advertiser}
+            {shape === 'strip' ? `${t('ads.label')} · ${campaign.advertiser}` : campaign.advertiser}
           </span>
           <span
             className={cn(

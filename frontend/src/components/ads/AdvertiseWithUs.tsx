@@ -78,10 +78,19 @@ export default function AdvertiseWithUs({ shape = 'banner', className }: Adverti
       />
 
       <div className="relative min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200">{t('ads.label')}</p>
+        {/*
+          In the strip the word ADVERTISEMENT is a badge in front of the offer
+          rather than a line above it: three stacked lines made this row 94px
+          tall, and a header that tall is not a strip any more. Every other space
+          has the room, and keeps the label on its own line.
+        */}
+        {shape === 'strip' ? null : (
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200">{t('ads.label')}</p>
+        )}
         <p
           className={cn(
-            'mt-1 font-extrabold uppercase leading-[1.05] tracking-tight motion-safe:animate-[ads-house-slide_7s_ease-in-out_infinite]',
+            'font-extrabold uppercase leading-[1.05] tracking-tight motion-safe:animate-[ads-house-slide_7s_ease-in-out_infinite]',
+            shape === 'strip' ? 'mt-0' : 'mt-1',
             shape === 'strip'
               ? // Two short lines beat one cut-off line: the offer is the whole
                 // point of this space, and an ellipsis after "FREE SPACE TO"
@@ -92,9 +101,21 @@ export default function AdvertiseWithUs({ shape = 'banner', className }: Adverti
                 : 'text-2xl sm:text-3xl',
           )}
         >
+          {shape === 'strip' && (
+            <span className="mr-2 inline-block rounded bg-white/15 px-1.5 py-0.5 align-middle text-[9px] font-bold uppercase tracking-[0.14em] text-blue-100">
+              {t('ads.label')}
+            </span>
+          )}
           {t('ads.houseHeadline')}
         </p>
-        <p className={cn('mt-1.5 text-xs leading-snug text-blue-100', isWide && 'hidden sm:block')}>
+        <p
+          className={cn(
+            'mt-1.5 text-xs leading-snug text-blue-100',
+            // The strip is one line of offer and a button; the sentence under it
+            // is what made the header too tall to be a strip.
+            shape === 'strip' ? 'hidden' : isWide && 'hidden sm:block',
+          )}
+        >
           {t('ads.houseNote')}
         </p>
       </div>

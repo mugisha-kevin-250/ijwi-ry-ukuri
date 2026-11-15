@@ -123,6 +123,44 @@ Console restricted to the Cloud Translation API, then restart.
 `TRANSLATE_TIMEOUT_MS`, `TRANSLATE_CHUNK_CHARS` and `TRANSLATE_MAX_CHARS` are
 fine at their defaults.
 
+### Live scores
+
+The scores desk at `/live-sports` is served entirely by this API. A reader never
+contacts a sports site: `src/services/liveScoreService.js` asks the upstream once
+per competition per day, keeps the answer in the `sportscoreboards`, `sportmatches`
+and `sportstandings` collections, and every reader after that is answered from our
+own database. That is what lets a thousand people watch the same Saturday without
+anybody's address being blocked. No key, no account and no quota is involved, and
+none of these four names has to be set for the page to work — they are here so a
+change of feed, of league list or of polling rate is a Render edit rather than a
+rebuild of the site.
+
+| Variable | Default | What it does | Without it |
+| --- | --- | --- | --- |
+| `ESPN_BASE_URL` | `https://site.api.espn.com/apis` | Where the scoreboard, summary and table documents are read from. Only the server ever sees this address. | The built-in ESPN address is used, which is the working case. |
+| `LIVESCORE_LEAGUES` | empty | The comma-separated competition codes the page offers, in the order a reader sees them (`eng.1, esp.1, uefa.champions, …`). | The thirteen competitions built into the service are followed: the five big European leagues, the Champions and Europa Leagues, the CAF Champions League, the Championship, and Portugal, the Netherlands, Turkey and Scotland. |
+| `LIVESCORE_TIMEOUT_MS` | `12000` | How long one upstream call may take before it is abandoned. | — |
+| `LIVESCORE_REFRESH_SECONDS` | `60` | How old a stored day may get before the cron re-reads it, and how long a scoreboard stays fresh enough to serve without asking again. | — |
+
+Two things about the schedule are worth knowing before changing any of them. The
+cron wakes once a minute and fetches only what a reader has actually looked at
+recently — a day nobody opened is not fetched, which is why the first visitor to a
+matchday waits a second or two while the rest are answered from the database. And
+the whole process shares four upstream slots plus a six-second request budget, so
+a cold page is answered with the leagues that did arrive and the rest keep
+fetching in the background; the page says which ones are still loading instead of
+showing an empty day.
+
+A free Render instance that is asleep runs no cron at all. That is a cost of the
+plan rather than of this feature: the first request after a wake-up pays for the
+fetch, and every request after it is served from Atlas.
+
+`render.yaml` does not declare these four names, for the same reason it does not
+declare the translation settings: a value written in the Blueprint is a value the
+Blueprint enforces on every later sync, and the defaults in `src/config/env.js`
+are already the ones we want. Add one in the dashboard only when it actually has
+to differ.
+
 ## Frontend
 
 Vite only inlines names starting with `VITE_`. Anything unset falls back to the

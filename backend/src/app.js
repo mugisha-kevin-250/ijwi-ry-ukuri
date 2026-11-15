@@ -129,6 +129,10 @@ app.post('/api/admin/ai/trends', aiLimiter);
 app.post('/api/admin/ai/articles', aiLimiter);
 app.post('/api/admin/ai/chat', aiChatLimiter);
 app.post('/api/admin/ai/photos', aiLimiter);
+// An ad creative is a short call and a person often wants to see two or three
+// before picking one, so it shares the research desk's wider ceiling rather than
+// the story writer's ten an hour.
+app.post('/api/admin/ads/generate', aiChatLimiter);
 app.post('/api/contact', contactLimiter);
 // Subscribing costs an email, so it shares the open form's ceiling. The
 // confirm and unsubscribe links are GETs a reader opens from an old mail and

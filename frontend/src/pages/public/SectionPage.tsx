@@ -3,7 +3,8 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Article, Category } from '../../types'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
-import { resolveSectionPath, SECTIONS, type SectionNode } from '../../data/sections'
+import { resolvePathIn, sectionLabel, useSections } from '../../utils/sectionsStore'
+import type { SectionNode } from '../../data/sections'
 import ArticleList from '../../components/news/ArticleList'
 import { Loading, LoadingGrid } from '../../components/common/Loading'
 import EmptyState from '../../components/common/EmptyState'
@@ -27,15 +28,19 @@ export default function SectionPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [payload, setPayload] = useState<SectionPayload>(EMPTY_PAYLOAD)
   const [isLoading, setIsLoading] = useState(true)
+  // A section the newsroom created after this build was made is not in the
+  // shipped table, so the page waits for the server's list before it decides the
+  // address is one it cannot serve.
+  const { sections, isLoaded } = useSections()
 
-  const resolved = resolveSectionPath(sectionSlug, subSlug)
+  const resolved = resolvePathIn(sections, sectionSlug, subSlug)
   const section = resolved?.section ?? null
   const child = resolved?.child ?? null
   const path = section ? `/${section.slug}${child ? `/${child.slug}` : ''}` : '/'
 
   // The name comes from the language the reader is reading in, so a section the
   // database spells "Amasport" still prints as Sports in English.
-  const labelOf = (node: SectionNode | null) => (node ? (node.labelKey ? t(node.labelKey) : node.slug) : '')
+  const labelOf = (node: SectionNode | null) => sectionLabel(node, t)
   const label = child ? labelOf(child) : labelOf(section)
   const description = payload.category?.description || ''
   const sort = searchParams.get('sort') || 'latest'
@@ -103,9 +108,14 @@ export default function SectionPage() {
     return () => {
       active = false
     }
-  }, [sectionSlug, subSlug, page, sort])
+  }, [sectionSlug, subSlug, section?.slug, child?.slug, page, sort])
 
-  if (!resolved) return <Navigate to="/" replace />
+  // The address is only a dead end once the server has said what its sections
+  // are; before that, sending the reader home would be a guess.
+  if (!resolved) {
+    if (!isLoaded) return <Loading className="py-20" />
+    return <Navigate to="/" replace />
+  }
 
   const setParam = (name: string, value: string) => {
     const params = Object.fromEntries(searchParams)
@@ -221,7 +231,7 @@ export default function SectionPage() {
       <section className="border-t border-gray-200 pt-8 dark:border-gray-800">
         <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('section.more')}</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          {SECTIONS.filter((item) => item.slug !== section!.slug).map((item) => (
+          {sections.filter((item) => item.slug !== section!.slug).map((item) => (
             <Link
               key={item.slug}
               to={`/${item.slug}`}

@@ -84,10 +84,15 @@ async function sectionDocFor(slug) {
  * The header and the section pages read this. The shape comes from the section
  * table, the names and descriptions from the database, so an admin who renames a
  * section sees the new name without the addresses moving.
+ *
+ * A section the newsroom created after that table was written - one the table
+ * has no address for - is appended in the admin's own order. Without this the
+ * section desk could create a section that only a typed URL could reach, which
+ * is not a section a reader can find.
  */
 async function sectionTree() {
   const docs = await Category.find({ isActive: true })
-    .select('name slug description labelKey order aliases')
+    .select('name slug description labelKey order aliases parent')
     .lean();
   const bySpelling = new Map();
   docs.forEach((doc) => {
@@ -103,15 +108,41 @@ async function sectionTree() {
       _id: stored ? String(stored._id) : null,
       slug: item.slug,
       name: stored?.name || item.name,
-      labelKey: stored?.labelKey || item.labelKey,
-      description: stored?.description || item.description,
+      labelKey: stored?.labelKey || item.labelKey || '',
+      description: stored?.description || item.description || '',
       aliases: item.aliases || [],
       href: section ? `/${section.slug}/${item.slug}` : `/${item.slug}`,
       children: (item.children || []).map((child) => node(child, item)),
     };
   };
 
-  return tree.SECTIONS.map((section) => node(section, null));
+  const claimed = new Set(
+    tree.SECTIONS.flatMap((section) => [
+      ...tree.nodeSlugs({ section, child: null }),
+      ...section.children.flatMap((child) => tree.nodeSlugs({ section, child })),
+    ]).map((slug) => tree.normalize(slug)),
+  );
+
+  const byOrder = (a, b) => (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name));
+  const isExtra = (doc) => !claimed.has(tree.normalize(doc.slug));
+
+  /** Every section the admin made that hangs under this one, in their order. */
+  const attach = (parent) => {
+    if (!parent._id) return parent;
+    const children = docs
+      .filter((doc) => String(doc.parent || '') === String(parent._id) && isExtra(doc))
+      .sort(byOrder)
+      .map((doc) => node({ slug: doc.slug, name: doc.name, aliases: doc.aliases || [doc.slug] }, parent));
+    return { ...parent, children: [...parent.children, ...children] };
+  };
+
+  // The table first, in the order it is shipped in, then anything above it the
+  // newsroom added - and a new sub-section goes under whatever it was hung on,
+  // including a section the table already has.
+  const published = tree.SECTIONS.map((section) => attach(node(section, null)));
+  const extra = docs.filter((doc) => !doc.parent && isExtra(doc)).sort(byOrder).map((doc) => node(doc, null));
+
+  return [...published, ...extra.map(attach)];
 }
 
 /**

@@ -11,6 +11,10 @@
 export interface SectionNode {
   slug: string
   labelKey: string
+  /** The name the newsroom stores for this section. Only a section outside the
+   *  published table needs it: the ones in the table are printed from their
+   *  `labelKey`, so the same section reads as Sports, Imikino or Michezo. */
+  name?: string
   aliases: string[]
   children: SectionNode[]
 }

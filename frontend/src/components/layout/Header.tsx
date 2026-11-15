@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Menu, X, User, Bookmark, LogOut, LayoutDashboard, Settings, Search } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../common/Avatar'
 import RadarLogo from '../common/RadarLogo'
+import AdSlot from '../ads/AdSlot'
 import LanguageSelector from './LanguageSelector'
 import LiveButton from './LiveButton'
 import RadioNewsButton from './RadioNewsButton'
@@ -16,6 +17,17 @@ interface HeaderProps {
   sidebarCollapsed?: boolean
 }
 
+/**
+ * The masthead, and the height the rest of the page has to clear.
+ *
+ * The header is fixed, so every page under it needs to know how tall it is. That
+ * used to be two numbers written into two files, which is fine until an advert
+ * adds fifty pixels to the header and the top row of the page hides underneath it.
+ * So the navigation - the masthead, the bought space and the section links - is
+ * measured in the browser and published as `--header-h` for anything that needs
+ * it. The collapsible menu deliberately sits outside what is measured: opening it
+ * would otherwise shove the whole page down.
+ */
 export default function Header({ variant = 'public', sidebarCollapsed = false }: HeaderProps) {
   const { user, logout, token } = useAuth()
   const { t } = useI18n()
@@ -24,6 +36,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
   const [searchValue, setSearchValue] = useState('')
+  const barRef = useRef<HTMLElement | null>(null)
 
   // The section nav is the site's navigation. These sat beside the old category
   // strip, which is gone, so only the full index stays and it reads as "All news".
@@ -51,7 +64,10 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     { href: '/mugishaimekevin/ai-writer', label: t('nav.admin.aiWriter') },
     { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts') },
     { href: '/mugishaimekevin/messages', label: t('nav.admin.messages') },
-    { href: '/categories', label: t('nav.admin.categories') },
+    // The section desk, not the reader's category index: an admin clicking here
+    // is here to change the sections, not to browse them.
+    { href: '/mugishaimekevin/categories', label: t('nav.admin.categories') },
+    { href: '/mugishaimekevin/advertising', label: t('nav.admin.advertising') },
     { href: '/mugishaimekevin/settings', label: t('nav.admin.settings') },
   ]
 
@@ -102,6 +118,26 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Publish the height the fixed rows take up, so the page under the header can
+  // start below it without anyone keeping a magic number in two places. It runs on
+  // mount and whenever the bar changes - a campaign arriving in the advert strip,
+  // the reader rotating a phone, or the language making a section name longer.
+  useEffect(() => {
+    const bar = barRef.current
+    if (!bar) return
+    const publish = () => {
+      document.documentElement.style.setProperty('--header-h', `${Math.round(bar.getBoundingClientRect().height)}px`)
+    }
+    publish()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', publish)
+      return () => window.removeEventListener('resize', publish)
+    }
+    const observer = new ResizeObserver(publish)
+    observer.observe(bar)
+    return () => observer.disconnect()
+  }, [variant])
+
   return (
     <header
       translate="no"
@@ -109,7 +145,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
         isScrolled ? 'border-gray-200 shadow-md dark:border-gray-700' : 'border-gray-200 dark:border-gray-700'
       } ${variant === 'public' ? 'left-0' : sidebarCollapsed ? 'left-16' : 'left-16 md:left-64'}`}
     >
-      <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
+      <nav ref={barRef} className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
         {/*
           The name is the first thing on the page, and the sections get a line of
           their own underneath it. They used to share the masthead row, which left
@@ -279,6 +315,16 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
         </div>
 
         {/*
+          The space a business buys sits above the section links, on every page of
+          the site, where a reader lands first. It is a strip rather than a banner
+          because the header is fixed: anything taller than this is a phone screen
+          with a quarter of it permanently sold. A campaign booked into "nav"
+          prints here; when nobody has bought it the newsroom's own offer does, in
+          the same height, so the page under the header never moves.
+        */}
+        {variant === 'public' && <AdSlot name="nav" className="pb-1.5" />}
+
+        {/*
           Every section on its own line under the name, and it has the whole width
           to itself: this is what lets a reader hover World and get Middle East, or
           Sport and get Football, on a normal laptop rather than only on a
@@ -307,7 +353,16 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
           </div>
         )}
 
-        {isMenuOpen && (
+      </nav>
+
+      {/*
+        The collapsible menu is outside the measured navigation on purpose. The
+        page under the header is offset by however tall that navigation is, and a
+        menu that pushes the page down every time someone opens it is a bug
+        readers would feel on every page of the site.
+      */}
+      {isMenuOpen && (
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div id="mobile-menu" className="md:hidden py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="space-y-2">
               {/* On a phone the search lives here instead of the slim top bar. */}
@@ -375,8 +430,8 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
               )}
             </div>
           </div>
-        )}
-      </nav>
+        </div>
+      )}
     </header>
   )
 }

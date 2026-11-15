@@ -18,7 +18,7 @@ import { cn } from '../../utils/cn'
  * asked for less motion gets the same card standing still.
  */
 
-export type Shape = 'banner' | 'rail' | 'rect'
+export type Shape = 'strip' | 'banner' | 'rail' | 'rect'
 
 interface AdvertiseWithUsProps {
   shape?: Shape
@@ -26,6 +26,9 @@ interface AdvertiseWithUsProps {
 }
 
 const SHELL: Record<Shape, string> = {
+  // The strip above the section links on every page. It has to be short enough
+  // that a phone reader still sees a headline under it.
+  strip: 'min-h-[52px] flex-row items-center justify-between gap-3 px-3 py-2 sm:min-h-[62px] sm:px-5',
   // 728x90 and its responsive cousins: one line of offer, one button.
   banner: 'min-h-[92px] flex-row items-center justify-between gap-4 px-4 py-3 sm:min-h-[104px] sm:px-6',
   // 300x600 in the column beside a story or a list of them.
@@ -41,13 +44,19 @@ export default function AdvertiseWithUs({ shape = 'banner', className }: Adverti
   // every other enquiry gets to the newsroom: the contact address the owner put
   // in the build environment, or the advertising page that explains how it works.
   const subject = encodeURIComponent('Advertising on RADAR')
+  const isWide = shape === 'banner' || shape === 'strip'
   const ctaClass = cn(
     'relative inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[#0a1f4d] shadow transition hover:bg-blue-50 motion-safe:animate-[ads-house-nudge_3.6s_ease-in-out_infinite]',
+    shape === 'strip' && 'px-3 py-1.5 text-[10px]',
+    // A wide banner puts its button on a line of its own once the screen is a
+    // phone's, because a squeezed line reads as a mistake. The strip above the
+    // section links never does that: it is one line by design, and a full-width
+    // button there leaves the offer no room to be read at all.
     shape === 'banner' && 'w-full sm:w-auto',
   )
   const ctaBody = (
     <>
-      <PhoneCall className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <PhoneCall className={cn('shrink-0', shape === 'strip' ? 'h-3.5 w-3.5' : 'h-4 w-4')} aria-hidden="true" />
       {t('ads.houseCta')}
     </>
   )
@@ -73,12 +82,19 @@ export default function AdvertiseWithUs({ shape = 'banner', className }: Adverti
         <p
           className={cn(
             'mt-1 font-extrabold uppercase leading-[1.05] tracking-tight motion-safe:animate-[ads-house-slide_7s_ease-in-out_infinite]',
-            shape === 'banner' ? 'text-xl sm:text-2xl lg:text-[28px]' : 'text-2xl sm:text-3xl',
+            shape === 'strip'
+              ? // Two short lines beat one cut-off line: the offer is the whole
+                // point of this space, and an ellipsis after "FREE SPACE TO"
+                // reads as a broken advert rather than as a sentence.
+                'line-clamp-2 text-sm sm:text-lg'
+              : shape === 'banner'
+                ? 'text-xl sm:text-2xl lg:text-[28px]'
+                : 'text-2xl sm:text-3xl',
           )}
         >
           {t('ads.houseHeadline')}
         </p>
-        <p className={cn('mt-1.5 text-xs leading-snug text-blue-100', shape === 'banner' && 'hidden sm:block')}>
+        <p className={cn('mt-1.5 text-xs leading-snug text-blue-100', isWide && 'hidden sm:block')}>
           {t('ads.houseNote')}
         </p>
       </div>

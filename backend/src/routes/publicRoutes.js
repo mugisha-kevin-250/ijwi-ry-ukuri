@@ -7,6 +7,7 @@ const Follow = require('../models/Follow');
 const WriterProfile = require('../models/WriterProfile');
 const { optionalAuth } = require('../middleware/auth');
 const { withEngagement } = require('../services/engagementService');
+const adService = require('../services/adService');
 const translate = require('../services/translateService');
 const { categoryIdsFor, sectionTree, sectionDocFor, sectionPathFor } = require('../utils/categoryGroups');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
@@ -308,17 +309,81 @@ router.post('/contact', async (req, res, next) => {
 
     const name = plainText(req.body.name, { maxLength: 120 });
     const email = plainText(req.body.email, { maxLength: 200 }).toLowerCase();
+    // Optional, and asked for on the advertising page: a business that wants a
+    // banner would rather talk than type, and a phone number nobody gave is worse
+    // than none. Kept to digits, spaces and the shapes an international number
+    // takes, so a stray paste cannot fill the field with a link.
+    const phone = plainText(req.body.phone, { maxLength: 40 }).replace(/[^\d+\-()\s.]/g, '').trim();
     const message = cleanText(req.body.message, { maxLength: 4000 });
     const topic = CONTACT_TOPICS.includes(req.body.topic) ? req.body.topic : 'other';
 
     const problems = [];
     if (name.length < 2) problems.push('Please tell us who is writing.');
     if (!EMAIL_SHAPE.test(email)) problems.push('That email address is missing something, so we could not reply to it.');
+    if (phone && phone.replace(/\D/g, '').length < 7) problems.push('That phone number looks too short to dial. Leave it blank if you would rather be answered by email.');
     if (message.length < 20) problems.push('Please add a little more detail, so the newsroom has something to work with.');
     if (problems.length) return errorResponse(res, 400, problems.join(' '));
 
-    await ContactMessage.create({ name, email, topic, message });
+    await ContactMessage.create({ name, email, phone, topic, message });
     return successResponse(res, 201, 'Message received');
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * The advertising the newsroom sells itself.
+ *
+ * One request answers for every space on the page: the client sends the list of
+ * placements it is about to draw and gets back the campaign booked into each one,
+ * or nothing for the spaces that have no buyer. A space with no buyer stays a
+ * space with no buyer - the site prints its own offer there rather than inventing
+ * an advertiser, so an empty answer here is an honest answer.
+ *
+ * Nothing that is not live, and nothing outside its booked window, is in this
+ * response. Drafts written by the model never reach a reader until a person
+ * publishes them.
+ */
+router.get('/ads', async (req, res, next) => {
+  try {
+    const asked = String(req.query.placement || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const places = asked.length ? asked : adService.PLACEMENTS;
+    const ads = await adService.activeForAll(places);
+    // Only the fields a creative is printed from. The internal note about the
+    // sale, who handled it and what the brief said stay on the desk.
+    const shape = (ad) => ({
+      _id: String(ad._id),
+      advertiser: ad.advertiser,
+      headline: ad.headline,
+      body: ad.body,
+      ctaLabel: ad.ctaLabel,
+      link: ad.link,
+      image: ad.image,
+      theme: ad.theme,
+    });
+    return successResponse(res, 200, 'Advertisements', {
+      ads: Object.fromEntries(Object.entries(ads).map(([place, ad]) => [place, shape(ad)])),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * One counted tap on one live ad.
+ *
+ * The reader's browser has already opened the link by the time this arrives, so a
+ * failure here is invisible to them and costs the advertiser nothing but a number.
+ * A click on a campaign that is not currently on the page is not counted and is
+ * not an error - an ad left open in an old tab is a normal thing.
+ */
+router.post('/ads/:id/click', async (req, res, next) => {
+  try {
+    await adService.countClick(req.params.id);
+    return successResponse(res, 200, 'Click counted');
   } catch (error) {
     next(error);
   }

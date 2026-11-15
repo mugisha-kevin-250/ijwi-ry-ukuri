@@ -15,6 +15,9 @@ const categorySchema = new mongoose.Schema({
   // The i18n key the site prints this section with, when one exists.
   labelKey: { type: String, default: '' },
   isActive: { type: Boolean, default: true },
+  // Who last changed the section, so the desk list can say whose edit this is
+  // rather than leaving an admin to guess.
+  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { timestamps: true });

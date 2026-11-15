@@ -23,5 +23,6 @@ module.exports = {
   Translation: require('./Translation'),
   AiResearchChat: require('./AiResearchChat'),
   RadioSchedule: require('./RadioSchedule'),
-  RadioBulletin: require('./RadioBulletin')
+  RadioBulletin: require('./RadioBulletin'),
+  Ad: require('./Ad')
 };

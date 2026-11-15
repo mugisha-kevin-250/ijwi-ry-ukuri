@@ -4,7 +4,8 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
-import { SECTIONS, type SectionNode } from '../../data/sections'
+import { type SectionNode } from '../../data/sections'
+import { sectionLabel, useSections } from '../../utils/sectionsStore'
 
 const DESKTOP_DROPDOWNS_QUERY = '(min-width: 1024px)'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
@@ -195,6 +196,10 @@ interface SectionNavProps {
 export default function SectionNav({ extraLinks = [], className, layout = 'bar', trailing = [], onNavigate }: SectionNavProps) {
   const { t } = useI18n()
   const location = useLocation()
+  // The shipped table paints the strip; what the newsroom added since then is
+  // folded in as soon as the server answers, so a section the admin created
+  // today is navigation tomorrow morning without another build.
+  const { sections } = useSections()
   const allowsDropdowns = useAllowsDropdowns()
   const reducedMotion = useMediaQuery(REDUCED_MOTION_QUERY)
   const [openSlug, setOpenSlug] = useState<string | null>(null)
@@ -214,7 +219,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
   // three levels deep on /world/africa.
   const activeSectionSlug = (() => {
     const first = location.pathname.split('/')[1]
-    return first && SECTIONS.some((section) => section.slug === first) ? first : null
+    return first && sections.some((section) => section.slug === first) ? first : null
   })()
 
   useEffect(() => {
@@ -259,10 +264,10 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
           className="h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <ul role="list" aria-label={t('nav.sections')} className="flex h-full w-max items-center gap-1.5 px-2">
-            {SECTIONS.map((section) => (
+            {sections.map((section) => (
               <li key={section.slug} className="shrink-0">
                 <NavLink to={sectionHref(section)} onClick={onNavigate} className={chip}>
-                  {t(section.labelKey)}
+                  {sectionLabel(section, t)}
                 </NavLink>
               </li>
             ))}
@@ -285,7 +290,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
   if (layout === 'stack') {
     return (
       <div ref={rootRef} className={cn('grid gap-1', className)}>
-        {SECTIONS.map((section) => {
+        {sections.map((section) => {
           const expanded = openAccordion === section.slug
           return (
             <div key={section.slug}>
@@ -302,7 +307,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                     )
                   }
                 >
-                  {t(section.labelKey)}
+                  {sectionLabel(section, t)}
                 </NavLink>
                 {section.children.length > 0 && (
                   <button
@@ -310,7 +315,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                     onClick={() => setOpenAccordion(expanded ? null : section.slug)}
                     aria-expanded={expanded}
                     aria-controls={`mobile-sub-${section.slug}`}
-                    aria-label={`${t(section.labelKey)} — ${expanded ? 'hide' : 'show'} sub-sections`}
+                    aria-label={`${sectionLabel(section, t)} — ${expanded ? 'hide' : 'show'} sub-sections`}
                     className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                   >
                     <ChevronDown className={cn('h-4 w-4 transition-transform', expanded && 'rotate-180')} aria-hidden="true" />
@@ -333,7 +338,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                         )
                       }
                     >
-                      {t(child.labelKey)}
+                      {sectionLabel(child, t)}
                     </NavLink>
                   ))}
                 </div>
@@ -381,7 +386,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
       )}
     >
       <ul ref={listRef} role="list" aria-label={t('nav.sections')} className="flex w-max min-w-full items-center">
-        {SECTIONS.map((section) => {
+        {sections.map((section) => {
           const isOpen = canOpenPanels && openSlug === section.slug
           const isActive = activeSectionSlug === section.slug
           // The right padding is the arrow's seat, and only the sections that have
@@ -409,7 +414,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                   onFocus={() => canOpenPanels && section.children.length > 0 && setOpenSlug(section.slug)}
                   className={pill}
                 >
-                  {t(section.labelKey)}
+                  {sectionLabel(section, t)}
                 </NavLink>
                 {section.children.length > 0 && (
                   <button
@@ -417,7 +422,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                     onClick={() => setOpenSlug(isOpen ? null : section.slug)}
                     aria-expanded={canOpenPanels && isOpen}
                     aria-haspopup="true"
-                    aria-label={`${t(section.labelKey)} sub-sections`}
+                    aria-label={`${sectionLabel(section, t)} sub-sections`}
                     className={cn(
                       'absolute right-1 top-1/2 -translate-y-1/2 rounded p-px text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400',
                       // Out of the row's way when the row is a scroller: a panel
@@ -452,7 +457,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                           )
                         }
                       >
-                        {t(child.labelKey)}
+                        {sectionLabel(child, t)}
                       </NavLink>
                     ))}
                   </div>

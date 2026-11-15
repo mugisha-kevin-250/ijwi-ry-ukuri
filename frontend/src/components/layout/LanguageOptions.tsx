@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Loader2, Search } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
 import { nearbyLanguages, useLanguageCatalog } from '../../utils/languageCatalog'
+import { flagFor } from '../../utils/languageFlag'
 import { cn } from '../../utils/cn'
 
 /**
@@ -56,7 +57,15 @@ export default function LanguageOptions({ className, onPicked, autoFocus }: Lang
         lang === code ? 'bg-[#062b52] text-white' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800',
       )}
     >
-      <span className="truncate">{name}</span>
+      {/* A flag is a scanning aid across two hundred rows, not a statement about
+          who owns the language - so it is hidden from the screen reader, which
+          gets the name, and the picture is never the only way to find a row. */}
+      <span className="flex min-w-0 items-center gap-2.5">
+        <span className="notranslate shrink-0 text-base leading-none" aria-hidden="true">
+          {flagFor(code)}
+        </span>
+        <span className="truncate">{name}</span>
+      </span>
       {lang === code && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
     </button>
   )

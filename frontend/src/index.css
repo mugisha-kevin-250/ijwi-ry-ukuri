@@ -14,6 +14,12 @@
   --color-success: #31a24c;
   --color-warning: #f7931a;
   --color-error: #fa383e;
+  /* How tall the fixed header is, so the page under it starts below the masthead
+     instead of hiding behind it. The Header component measures the real thing and
+     overwrites this as soon as it paints; the number here only has to be close
+     enough that the first frame is not wrong. Masthead, the space an advert is
+     sold into above the section links, and the links themselves. */
+  --header-h: 168px;
 }
 
 .dark {
@@ -29,6 +35,13 @@
 
 html {
   scroll-behavior: smooth;
+}
+
+/* An in-page link (#settings, #comments) has to land under the fixed header, not
+   behind it. The header is as tall as the advert above the section links makes
+   it, so the gap comes from the same measurement the page offset uses. */
+[id] {
+  scroll-margin-top: calc(var(--header-h) + 16px);
 }
 
 /* Install/updates banner slides up over the page when it appears. */

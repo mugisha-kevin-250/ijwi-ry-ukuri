@@ -17,6 +17,57 @@ async function resolveVapidKey(): Promise<string> {
 
 export type PushState = 'unsupported' | 'unavailable' | 'granted' | 'denied' | 'default'
 
+// The device's own answer to "should an alert make a noise here". It lives on the
+// server next to the subscription it describes, and in local storage only so the
+// switch on the settings page can show the truth before the network answers.
+const QUIET_KEY = 'radar.push.quiet'
+
+export function quietStoredLocally(): boolean {
+  try {
+    return localStorage.getItem(QUIET_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function rememberQuiet(quiet: boolean): void {
+  try {
+    localStorage.setItem(QUIET_KEY, quiet ? '1' : '0')
+  } catch {
+    // A private window that will not store a preference is not a reason to fail
+    // the request that was actually made.
+  }
+}
+
+/** The endpoint of this device's subscription, or null when it never subscribed. */
+export async function pushEndpoint(): Promise<string | null> {
+  if (!pushSupported()) return null
+  const registration = await getServiceWorkerRegistration()
+  const subscription = await registration?.pushManager.getSubscription()
+  return subscription?.endpoint ?? null
+}
+
+async function postQuiet(endpoint: string, quiet: boolean): Promise<void> {
+  await apiClient.post('/push/quiet', { endpoint, quiet })
+}
+
+/**
+ * Tell this device to receive its alerts without a sound.
+ *
+ * The story still arrives; what is switched off is the beep and the vibration.
+ * It is deliberately not an account setting - the phone on a desk at work and the
+ * same phone on a bedside table want opposite things, and only one of them can be
+ * configured from wherever the reader happens to be signed in.
+ */
+export async function setQuietAlerts(quiet: boolean): Promise<void> {
+  const endpoint = await pushEndpoint()
+  if (!endpoint) throw new Error('This device is not subscribed to alerts yet.')
+  // The server is the record. If it refused, the switch goes back to where it was
+  // rather than showing a promise nothing kept.
+  await postQuiet(endpoint, quiet)
+  rememberQuiet(quiet)
+}
+
 export function pushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
@@ -62,7 +113,7 @@ export async function enablePushNotifications(): Promise<PushSubscription> {
       applicationServerKey: toUint8Array(publicKey),
     }))
 
-  await apiClient.post('/push/subscribe', { subscription: subscription.toJSON() })
+  await apiClient.post('/push/subscribe', { subscription: subscription.toJSON(), quiet: quietStoredLocally() })
   return subscription
 }
 
@@ -74,10 +125,13 @@ export async function syncPushSubscription(): Promise<void> {
   const registration = await getServiceWorkerRegistration()
   const subscription = await registration?.pushManager.getSubscription()
   if (!subscription) return
-  await apiClient.post('/push/subscribe', { subscription: subscription.toJSON() }).catch(() => undefined)
+  await apiClient
+    .post('/push/subscribe', { subscription: subscription.toJSON(), quiet: quietStoredLocally() })
+    .catch(() => undefined)
 }
 
-export async function disablePushNotifications(): Promise<void> {  const registration = await getServiceWorkerRegistration()
+export async function disablePushNotifications(): Promise<void> {
+  const registration = await getServiceWorkerRegistration()
   const subscription = await registration?.pushManager.getSubscription()
   if (!subscription) return
 

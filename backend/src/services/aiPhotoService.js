@@ -78,8 +78,18 @@ function commonsFile(url) {
 
   // /wikipedia/commons/a/ab/Some.jpg
   if (upload && /\/wikipedia\/commons\//i.test(path)) {
-    const name = path.split('/').pop();
-    return name && /\.(jpe?g|png|webp|gif|svg|tiff?)$/i.test(name) ? named(name) : '';
+    const segments = path.split('/').filter(Boolean);
+    const last = segments.pop() || '';
+    // A model that means well will paste the thumbnail it saw on a page:
+    // .../thumb/a/ab/Some.jpg/800px-Some.jpg. The bytes at the end are a reduced
+    // copy of a file whose real name is the segment before it, and asking
+    // Commons for that name is what turns an 800px suggestion into the full
+    // picture the newsroom can actually print.
+    if (/^\/wikipedia\/commons\/thumb\//i.test(path)) {
+      const real = segments[segments.length - 1] || '';
+      if (/\.(jpe?g|png|webp|gif|svg|tiff?)$/i.test(real)) return named(real);
+    }
+    if (/\.(jpe?g|png|webp|gif|svg|tiff?)$/i.test(last)) return named(last);
   }
   return '';
 }

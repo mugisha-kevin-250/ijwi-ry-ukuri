@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Globe } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
 import { languageName, useLanguageCatalog } from '../../utils/languageCatalog'
+import { flagFor } from '../../utils/languageFlag'
 import { DEFAULT_LANGUAGE } from '../../utils/readerLanguage'
 import { cn } from '../../utils/cn'
 import LanguageOptions from './LanguageOptions'
@@ -10,6 +11,10 @@ import LanguageOptions from './LanguageOptions'
  * The language button in the header and on the settings page. It opens the
  * whole list; the name it shows is the language the reader is actually reading
  * in, not whatever the browser was configured with.
+ *
+ * The flag is the button's own picture, which is why the globe is gone: a reader
+ * looking for the button that changed their newsroom scans for a shape, and a
+ * flag is the one thing every row of the list already agrees means.
  */
 
 interface LanguageSelectorProps {
@@ -38,6 +43,7 @@ export default function LanguageSelector({ className, buttonClassName, labelClas
   }, [])
 
   const label = lang === DEFAULT_LANGUAGE ? 'English' : languageName(languages, lang) || lang
+  const flag = flagFor(lang)
 
   return (
     <div className={cn('relative', className)} ref={containerRef}>
@@ -52,8 +58,11 @@ export default function LanguageSelector({ className, buttonClassName, labelClas
           buttonClassName,
         )}
       >
-        <Globe className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+        <span className="notranslate shrink-0 text-base leading-none" aria-hidden="true">
+          {flag}
+        </span>
         <span className={cn('max-w-[9rem] truncate', labelClassName)}>{label}</span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
       </button>
 
       {isOpen && (

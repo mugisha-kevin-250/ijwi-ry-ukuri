@@ -31,9 +31,13 @@ router.post('/subscribe', optionalAuth, async (req, res, next) => {
     const subscription = readSubscription(req.body);
     if (!subscription) return errorResponse(res, 400, 'A complete push subscription is required');
 
+    // An existing install re-posting its subscription must not lose the quiet
+    // switch it already has, so the field is only written when it was sent.
+    const settings = typeof req.body?.quiet === 'boolean' ? { quiet: req.body.quiet } : {};
+
     await PushSubscription.updateOne(
       { endpoint: subscription.endpoint },
-      { $set: { ...subscription, user: req.user?._id ?? null } },
+      { $set: { ...subscription, ...settings, user: req.user?._id ?? null } },
       { upsert: true }
     );
 
@@ -44,6 +48,28 @@ router.post('/subscribe', optionalAuth, async (req, res, next) => {
       const count = await PushSubscription.countDocuments();
       return successResponse(res, 200, 'Already subscribed', { count });
     }
+    next(error);
+  }
+});
+
+/**
+ * Whether this device wants to be told quietly.
+ *
+ * The address a browser hands us to deliver a notification is itself the
+ * capability: the same value already unlocks /unsubscribe with no account
+ * behind it. So this is keyed the same way, and it only ever reports or changes
+ * one boolean about one device.
+ */
+router.post('/quiet', async (req, res, next) => {
+  try {
+    const endpoint = String(req.body?.endpoint || '').trim();
+    const quiet = req.body?.quiet === true;
+    if (!endpoint) return errorResponse(res, 400, 'endpoint is required');
+
+    const result = await PushSubscription.updateOne({ endpoint }, { $set: { quiet } });
+    if (!result.matchedCount) return errorResponse(res, 404, 'That device is not subscribed to alerts');
+    return successResponse(res, 200, quiet ? 'Alerts will arrive without a sound' : 'Alerts will make a sound', { quiet });
+  } catch (error) {
     next(error);
   }
 });
@@ -79,7 +105,21 @@ router.post('/broadcast', protect, authorize('ADMIN', 'EDITOR'), async (req, res
     const url = String(req.body?.url || '/').trim();
     if (!pushService.configured) return errorResponse(res, 503, 'Push is not configured on this server');
 
-    const result = await pushService.sendToAll({ title, body, url, tag: 'manual-broadcast' });
+    // Two switches the sender can see the use for. Quiet is for a bulletin that
+    // should be there when the reader looks but should not interrupt a meeting;
+    // urgent keeps the notification on the screen until it is dealt with, which
+    // is only honest for something the newsroom would put a warning label on.
+    const silent = req.body?.silent === true;
+    const urgent = req.body?.urgent === true;
+
+    const result = await pushService.sendToAll({
+      title,
+      body,
+      url,
+      tag: urgent ? `manual-alert-${Date.now()}` : 'manual-broadcast',
+      ...(silent ? { silent: true } : {}),
+      ...(urgent ? { requireInteraction: true } : {})
+    });
     return successResponse(res, 200, 'Broadcast finished', result);
   } catch (error) {
     next(error);

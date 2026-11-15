@@ -35,6 +35,106 @@ export interface SectionResults extends ArticleResults {
   category: Category | null
 }
 
+/**
+ * One section as the admin desk sees it: the stored document, plus the two
+ * facts that decide what can safely be done with it.
+ */
+export interface AdminSectionRecord {
+  _id: string
+  name: string
+  slug: string
+  description: string
+  parent: string | null
+  parentName: string
+  order: number
+  aliases: string[]
+  labelKey: string
+  isActive: boolean
+  /** Stories filed here and under every spelling of the same section. */
+  storyCount: number
+  /** Whether the published address table owns this slug: if it does, the
+   *  section's web address is fixed and only its name can move. */
+  inSectionTree: boolean
+  updatedAt: string
+}
+
+/** What the desk sends for a section. `slug` is optional: the name makes one. */
+export interface SectionDraft {
+  name: string
+  slug?: string
+  description?: string
+  parent?: string | null
+  order?: number
+  aliases?: string[]
+  isActive?: boolean
+}
+
+/** The spaces on the site an advertisement can be sold into. */
+export const AD_PLACEMENT_CHOICES = ['nav', 'list', 'articleInline', 'articleSidebar', 'newsRail'] as const
+export type AdPlacementName = (typeof AD_PLACEMENT_CHOICES)[number] | 'any'
+
+export type AdStatus = 'draft' | 'live' | 'paused'
+
+/** One campaign as the advertising desk sees it, brief and history included. */
+export interface AdminAdRecord {
+  _id: string
+  advertiser: string
+  headline: string
+  body: string
+  ctaLabel: string
+  link: string
+  image: string
+  placements: AdPlacementName[]
+  theme: { bg: string; fg: string; accent: string }
+  status: AdStatus
+  startsAt: string | null
+  endsAt: string | null
+  priority: number
+  clicks: number
+  source: 'desk' | 'ai'
+  model: string
+  brief: string
+  note: string
+  createdBy: { fullName?: string; username?: string } | null
+  updatedBy: { fullName?: string; username?: string } | null
+  publishedBy: { fullName?: string; username?: string } | null
+  publishedAt: string | null
+  createdAt: string
+  updatedAt: string
+  /** Live and inside its booked window right now. */
+  isRunning: boolean
+}
+
+/** What the desk sends for a campaign. Every field is optional on an update. */
+export interface AdDraft {
+  advertiser?: string
+  headline?: string
+  body?: string
+  ctaLabel?: string
+  link?: string
+  image?: string
+  placements?: AdPlacementName[]
+  theme?: { bg?: string; fg?: string; accent?: string }
+  status?: AdStatus
+  startsAt?: string | null
+  endsAt?: string | null
+  priority?: number
+  source?: 'desk' | 'ai'
+  model?: string
+  brief?: string
+  note?: string
+}
+
+/** The brief an admin types when they want Gemini to design the creative. */
+export interface AdBrief {
+  advertiser: string
+  offer: string
+  link?: string
+  placement?: AdPlacementName
+  tone?: string
+  mustInclude?: string
+}
+
 /** A writer on the "most followed" shelf, counted by the API from Follow rows. */
 export interface TopWriter {
   _id: string
@@ -126,7 +226,7 @@ export const publicAPI = {
   getTopWriters: (limit = 6) =>
     apiClient.get<{ writers: TopWriter[] }>('/writers/top', { limit }),
 
-  sendContact: (data: { name: string; email: string; topic: string; message: string; website?: string }) =>
+  sendContact: (data: { name: string; email: string; phone?: string; topic: string; message: string; website?: string }) =>
     apiClient.post('/contact', data),
 }
 
@@ -568,12 +668,63 @@ export interface ContactMessageRecord {
   _id: string
   name: string
   email: string
+  /** Only when the reader chose to leave one - a business asking about a banner
+   *  usually prefers a call to an email thread. */
+  phone?: string
   topic: 'correction' | 'story-tip' | 'advertising' | 'writer-access' | 'other'
   message: string
   status: 'open' | 'answered' | 'closed'
   createdAt: string
   handledAt?: string | null
   handledBy?: { fullName?: string; username?: string } | null
+}
+
+/**
+ * One campaign, read defensively.
+ *
+ * This list is what an admin uses to decide what is on the site and who it is
+ * from, so a row with something missing must not turn into "undefined" printed on
+ * a screen or a campaign that looks like it has no link. Anything the server did
+ * not send comes back empty and the interface says so.
+ */
+function toAdminAd(raw: unknown): AdminAdRecord {
+  const item = (raw || {}) as Record<string, unknown>
+  const text = (value: unknown) => (typeof value === 'string' ? value : value === undefined || value === null ? '' : String(value))
+  const theme = (item.theme || {}) as Record<string, unknown>
+  const person = (value: unknown) => {
+    if (!value || typeof value !== 'object') return null
+    const who = value as Record<string, unknown>
+    return { fullName: text(who.fullName), username: text(who.username) }
+  }
+  const when = (value: unknown) => (typeof value === 'string' ? value : null)
+  const placements = Array.isArray(item.placements) ? item.placements.map(String) : []
+  return {
+    _id: text(item._id),
+    advertiser: text(item.advertiser),
+    headline: text(item.headline),
+    body: text(item.body),
+    ctaLabel: text(item.ctaLabel),
+    link: text(item.link),
+    image: text(item.image),
+    placements: (placements.length ? placements : ['nav']) as AdPlacementName[],
+    theme: { bg: text(theme.bg), fg: text(theme.fg), accent: text(theme.accent) },
+    status: item.status === 'live' || item.status === 'paused' ? item.status : 'draft',
+    startsAt: when(item.startsAt),
+    endsAt: when(item.endsAt),
+    priority: Number(item.priority ?? 0) || 0,
+    clicks: Number(item.clicks ?? 0) || 0,
+    source: item.source === 'ai' ? 'ai' : 'desk',
+    model: text(item.model),
+    brief: text(item.brief),
+    note: text(item.note),
+    createdBy: person(item.createdBy),
+    updatedBy: person(item.updatedBy),
+    publishedBy: person(item.publishedBy),
+    publishedAt: when(item.publishedAt),
+    createdAt: text(item.createdAt),
+    updatedAt: text(item.updatedAt),
+    isRunning: item.isRunning === true,
+  }
 }
 
 export interface ContactInbox {
@@ -619,6 +770,86 @@ export const adminAPI = {
 
   getSettings: () =>
     apiClient.get('/admin/settings'),
+
+  /**
+   * The section desk.
+   *
+   * Every read is normalised because this list decides what an admin is allowed
+   * to delete: a missing story count read as zero would be an invitation to
+   * remove a section that still holds reports.
+   */
+  getSections: async (): Promise<AdminSectionRecord[]> => {
+    const response = await apiClient.get<{ categories?: unknown[] }>('/admin/categories')
+    const rows = Array.isArray(response.data.data?.categories) ? response.data.data.categories : []
+    return rows.map((raw) => {
+      const item = (raw || {}) as Record<string, unknown>
+      const text = (value: unknown) => (typeof value === 'string' ? value : '')
+      return {
+        _id: text(item._id),
+        name: text(item.name),
+        slug: text(item.slug),
+        description: text(item.description),
+        parent: typeof item.parent === 'string' ? item.parent : null,
+        parentName: text(item.parentName),
+        order: Number(item.order ?? 0) || 0,
+        aliases: Array.isArray(item.aliases) ? item.aliases.map(String) : [],
+        labelKey: text(item.labelKey),
+        isActive: item.isActive !== false,
+        storyCount: Number(item.storyCount ?? 0) || 0,
+        inSectionTree: item.inSectionTree === true,
+        updatedAt: text(item.updatedAt),
+      }
+    })
+  },
+
+  createSection: (input: SectionDraft) =>
+    apiClient.post<{ category: AdminSectionRecord }>('/admin/categories', input),
+
+  updateSection: (id: string, input: SectionDraft) =>
+    apiClient.put<{ category: AdminSectionRecord }>(`/admin/categories/${id}`, input),
+
+  deleteSection: (id: string, moveTo?: string | null) =>
+    apiClient.delete(`/admin/categories/${id}${moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : ''}`),
+
+  /**
+   * The advertising desk.
+   *
+   * A generated creative comes back from the server unsaved on purpose: the model
+   * writes, an admin reads it, and only saving it puts it on the site.
+   */
+  getAds: async (): Promise<AdminAdRecord[]> => {
+    const response = await apiClient.get<{ ads?: unknown[] }>('/admin/ads')
+    const rows = Array.isArray(response.data.data?.ads) ? response.data.data.ads : []
+    return rows.map(toAdminAd)
+  },
+
+  generateAd: async (brief: AdBrief): Promise<AdDraft> => {
+    const response = await apiClient.post<AdDraft>('/admin/ads/generate', brief)
+    const draft = (response.data.data || {}) as Record<string, unknown>
+    const theme = (draft.theme || {}) as Record<string, unknown>
+    // Only a string is a string: an absent field has to come back empty, because
+    // "undefined" in a colour box or a headline field is a bug a reader would see.
+    const text = (value: unknown) => (typeof value === 'string' ? value : '')
+    return {
+      advertiser: text(draft.advertiser) || brief.advertiser,
+      headline: text(draft.headline),
+      body: text(draft.body),
+      ctaLabel: text(draft.ctaLabel),
+      link: text(draft.link) || brief.link || '',
+      placements: Array.isArray(draft.placements) ? (draft.placements.map(String) as AdPlacementName[]) : [brief.placement || 'nav'],
+      theme: { bg: text(theme.bg), fg: text(theme.fg), accent: text(theme.accent) },
+      brief: text(draft.brief) || brief.offer,
+      model: text(draft.model),
+      source: 'ai',
+      status: 'draft',
+    }
+  },
+
+  createAd: (input: AdDraft) => apiClient.post<{ ad: AdminAdRecord }>('/admin/ads', input),
+
+  updateAd: (id: string, input: AdDraft) => apiClient.put<{ ad: AdminAdRecord }>(`/admin/ads/${id}`, input),
+
+  deleteAd: (id: string) => apiClient.delete(`/admin/ads/${id}`),
 
   getUsers: async (params?: { page?: number; limit?: number; role?: string; search?: string }) => {
     const response = await apiClient.get('/admin/users', params)
@@ -797,7 +1028,7 @@ export const pushAPI = {  getStatus: () =>
   getSubscribers: () =>
     apiClient.get<{ count: number; enabled: boolean }>('/push/subscriptions'),
 
-  broadcast: (payload: { title: string; body: string; url?: string }) =>
+  broadcast: (payload: { title: string; body: string; url?: string; silent?: boolean; urgent?: boolean }) =>
     apiClient.post<{ sent: number; failed: number; expired: number; total: number }>('/push/broadcast', payload),
 }
 

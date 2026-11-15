@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Archive, CheckCircle2, Inbox, Loader2, Mail, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
+import { Archive, CheckCircle2, Inbox, Loader2, Mail, Phone, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { ContactMessageRecord } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
@@ -157,6 +157,13 @@ export default function AdminMessagesPage() {
                     <a href={`mailto:${message.email}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:underline">
                       <Mail className="h-3.5 w-3.5" />{message.email}
                     </a>
+                    {/* Only readers who volunteered one. A tip a reporter may need
+                        to phone back about is the reason the field exists. */}
+                    {message.phone && (
+                      <a href={`tel:${message.phone.replace(/[^\d+]/g, '')}`} className="ml-2 inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:underline">
+                        <Phone className="h-3.5 w-3.5" />{message.phone}
+                      </a>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{TOPIC_LABELS[message.topic]}</span>

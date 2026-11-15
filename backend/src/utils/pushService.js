@@ -12,12 +12,29 @@ function isExpired(statusCode) {
   return statusCode === 404 || statusCode === 410;
 }
 
+/**
+ * What this particular device should be given.
+ *
+ * A phone that asked to be told quietly still gets the same story: the switch
+ * takes the sound away, never the news. `group` is what lets an Android shelf
+ * fold five new stories into one pile instead of five separate rows, and
+ * `timestamp` is what makes them sort themselves in the order they happened
+ * rather than the order the network delivered them.
+ */
+function withDeviceSettings(payload, subscription) {
+  const sent = { ...payload };
+  if (subscription && subscription.quiet) sent.silent = true;
+  if (!sent.group) sent.group = 'radar-news';
+  if (!sent.timestamp) sent.timestamp = Date.now();
+  return sent;
+}
+
 async function sendBatch(subscriptions, payload) {
   if (!subscriptions.length) return { sent: 0, expired: 0, failed: 0, total: 0 };
 
   const results = await Promise.allSettled(subscriptions.map((subscription) => webpush.sendNotification(
     { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
-    JSON.stringify(payload),
+    JSON.stringify(withDeviceSettings(payload, subscription)),
     { TTL: 60 * 60 * 12 }
   )));
 

@@ -282,7 +282,8 @@ function buildPhotoPrompt({ topic, region }) {
     "- Only links you are confident exist and are public: a news agency's own article image, a government or organisation press page image, a Wikimedia Commons file.",
     '- Give direct image links ending in .jpg, .jpeg, .png or .webp, or a Wikimedia Commons file page.',
     '- Never invent a URL and never guess a path. If you are not sure a link exists, leave it out.',
-    '- Prefer the largest clean version you know of, and say who owns the picture.',
+    '- Name the full-resolution file, not a reduced copy: never a Commons /thumb/ address or one ending in something like 800px-File.jpg, and no size query parameter. This site prints on phones and on desktops, and it asks the host for the largest copy up to 4K itself.',
+    '- Say who owns the picture, in the words their own page uses.',
     '',
     'Return ONLY a JSON object:',
     '{"photos": [{"url": string, "credit": string, "source": string, "why": string}]}',
@@ -399,4 +400,124 @@ async function radioScript({ slotName = 'news', at = '', dayName = '', stories =
   return { opening, closing, model: activeModel(), generatedAt: new Date().toISOString() };
 }
 
-module.exports = { isConfigured, activeModel, writeStory, chat, photoLinks, radioScript };
+/**
+ * The creative for an advertisement the newsroom sold.
+ *
+ * An admin types the brief - who is paying, what they actually offer, where the
+ * link goes - and the model turns that into the words and colours of the unit.
+ * The line between this and a story is the important one: a news story may be
+ * drafted from what the model believes it knows, but an advertisement is a claim
+ * a business is making to a reader, so the model is given nothing but the brief
+ * and told in as many words that an invented price, date or phone number is a
+ * defect rather than a flourish.
+ *
+ * It does not write markup, and it is not saved anywhere by this call. What comes
+ * back is a draft the desk reads, edits if needed, and publishes - "AI writes, a
+ * human publishes" is the rule the whole site runs on.
+ */
+function buildAdPrompt({ advertiser, offer, link, placement, tone, mustInclude }) {
+  return [
+    `Write the words and pick the colours for one small advertisement on a Rwandan news site.`,
+    `Who is advertising: ${advertiser}`,
+    `What they actually offer, in the advertiser's own words or the admin's notes:`,
+    offer,
+    link ? `The ad links to: ${link}` : '',
+    placement ? `It will be shown in this space on the page: ${placement}.` : '',
+    tone ? `Sound like this: ${tone}.` : 'Sound like a plain local business, not a slogan machine.',
+    mustInclude ? `These facts must appear: ${mustInclude}.` : '',
+    '',
+    'Rules you must follow:',
+    '- Use ONLY what is written above. Invent no price, percentage, discount, date, opening time, phone number, address, statistic, award, certification or customer claim.',
+    '- If the brief does not say something, leave it out. A short honest ad is a good result here; a specific-sounding one that is not in the brief is a failure.',
+    '- No exclamation marks, no "revolutionary", "unbeatable", "best in Rwanda", no superlatives the brief did not give you, no urgency you were not told about.',
+    '- The reader must be able to tell, from the first line, which business this is and what they get.',
+    `- "headline": at most 90 characters. "body": at most 220 characters, one or two sentences. "ctaLabel": at most 24 characters and it must describe what the link opens ("See the menu", "Book a place", not "Click here").`,
+    '- "theme": three colours the ad is printed in - bg, fg, accent - as #rrggbb. Choose something that reads clearly at small size on a phone, and make sure fg contrasts with bg.',
+    '',
+    'Return ONLY a JSON object:',
+    '{"headline": string, "body": string, "ctaLabel": string, "theme": {"bg": string, "fg": string, "accent": string}}'
+  ].filter((line) => line !== '').join('\n');
+}
+
+const PLACEMENT_NAMES = {
+  nav: 'the narrow strip above the section links, on every page (keep it to a few words)',
+  list: 'a banner between rows of a story list',
+  articleInline: 'a banner inside a story, between paragraphs',
+  articleSidebar: 'the tall column beside a story',
+  newsRail: 'the tall column beside a list of stories'
+};
+
+async function adCreative({ advertiser, offer, link, placement, tone, mustInclude } = {}) {
+  const who = String(advertiser || '').trim().slice(0, 80);
+  const what = String(offer || '').trim().slice(0, 1200);
+  if (!who) {
+    const error = new Error('Say who the advertisement is from');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+  if (what.length < 12) {
+    const error = new Error('Give the model something to work with: what the advertiser is actually offering');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+
+  const text = await callGemini({
+    contents: [{
+      role: 'user',
+      parts: [{
+        text: buildAdPrompt({
+          advertiser: who,
+          offer: what,
+          link,
+          placement: PLACEMENT_NAMES[placement] || placement,
+          tone: tone ? String(tone).slice(0, 160) : '',
+          mustInclude: mustInclude ? String(mustInclude).slice(0, 300) : ''
+        })
+      }]
+    }],
+    // Kept low. This job is to compress a brief someone else wrote, not to
+    // come up with a marketing idea the advertiser never had.
+    temperature: 0.45,
+    topP: 0.9,
+    maxOutputTokens: 400,
+    responseMimeType: 'application/json',
+    timeoutMs: CHAT_TIMEOUT_MS
+  });
+
+  let parsed;
+  try {
+    parsed = parseJson(text);
+  } catch (err) {
+    const error = new Error('Gemini returned something we could not read as an advertisement');
+    error.code = 'AI_BAD_OUTPUT';
+    error.cause = err;
+    throw error;
+  }
+
+  const theme = parsed.theme && typeof parsed.theme === 'object' ? parsed.theme : {};
+  const creative = {
+    advertiser: who,
+    headline: String(parsed.headline || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+    body: String(parsed.body || '').replace(/\s+/g, ' ').trim().slice(0, 320),
+    ctaLabel: String(parsed.ctaLabel || '').replace(/\s+/g, ' ').trim().slice(0, 30),
+    theme: {
+      bg: String(theme.bg || '').trim().slice(0, 9),
+      fg: String(theme.fg || '').trim().slice(0, 9),
+      accent: String(theme.accent || '').trim().slice(0, 9)
+    },
+    // Where the model went beyond the brief there is nothing to fall back on but
+    // the length, so the desk is told plainly that this still has to be read.
+    needsReview: true,
+    model: activeModel(),
+    generatedAt: new Date().toISOString()
+  };
+
+  if (!creative.headline) {
+    const error = new Error('Gemini did not return a usable headline');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+  return creative;
+}
+
+module.exports = { isConfigured, activeModel, writeStory, chat, photoLinks, radioScript, adCreative };

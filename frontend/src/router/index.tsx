@@ -46,6 +46,8 @@ import AdminArticlesPage from '../pages/admin/AdminArticlesPage'
 import AdminAiWriterPage from '../pages/admin/AdminAiWriterPage'
 import AdminPayoutsPage from '../pages/admin/AdminPayoutsPage'
 import AdminMessagesPage from '../pages/admin/AdminMessagesPage'
+import AdminCategoriesPage from '../pages/admin/AdminCategoriesPage'
+import AdminAdsPage from '../pages/admin/AdminAdsPage'
 import AdminSettingsPage from '../pages/admin/AdminSettingsPage'
 
 function RequireRole({ children }: { role?: 'WRITER'; children: ReactNode }) {
@@ -192,6 +194,12 @@ export const router = createBrowserRouter([
           { path: 'ai-writer', element: <RequireAdmin><AdminAiWriterPage /></RequireAdmin> },
           { path: 'payouts', element: <RequireAdmin><AdminPayoutsPage /></RequireAdmin> },
           { path: 'messages', element: <RequireAdmin><AdminMessagesPage /></RequireAdmin> },
+          // The desk that owns the sections. It used to point at the reader's
+          // /categories page, which shows what exists but lets nobody change it.
+          { path: 'categories', element: <RequireAdmin><AdminCategoriesPage /></RequireAdmin> },
+          // The desk that sells the advertising spaces. Separate from the reader's
+          // /advertising page, which only explains what is for sale.
+          { path: 'advertising', element: <RequireAdmin><AdminAdsPage /></RequireAdmin> },
           { path: 'settings', element: <RequireAdmin><AdminSettingsPage /></RequireAdmin> },
         ],
       },

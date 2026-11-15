@@ -5,7 +5,7 @@
     <link>https://ijwi-ry--ukuri.web.app</link>
     <description>News written by approved writers: world, politics, business, technology, sports, entertainment and health.</description>
     <language>en</language>
-    <lastBuildDate>Sat, 14 Nov 2026 17:00:32 GMT</lastBuildDate>
+    <lastBuildDate>Sun, 15 Nov 2026 11:56:32 GMT</lastBuildDate>
     <docs>https://www.rss.org/rss.xml</docs>
     <generator>RADAR build scripts</generator>
     <atom:link href="https://ijwi-ry--ukuri.web.app/feed.xml" rel="self" type="application/rss+xml" />
@@ -15,9 +15,24 @@
       <link>https://ijwi-ry--ukuri.web.app</link>
     </image>
     <item>
+      <title>Darian Mensah&apos;s Transfer Journey Draws Attention Across Regions</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/darian-mensahs-transfer-journey-draws-attention-across-regions-1794679691979</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/darian-mensahs-transfer-journey-draws-attention-across-regions-1794679691979</guid>
+      <description>An overview of quarterback Darian Mensah&apos;s recent transfer decisions, tracking his movement from Duke to the University of Miami.</description>
+      <pubDate>Sat, 14 Nov 2026 18:08:11 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Trending</category>
+      <category>darian mensah</category>
+      <category>college football</category>
+      <category>transfer portal</category>
+      <category>miami hurricanes</category>
+      <category>duke blue devils</category>
+      <media:content url="https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTX0QIydePb6wCPJ2WJRd2b-2XitiKF2jRnLdhCGOJ_1-SiVra60MVNMlYN2H0" medium="image" />
+    </item>
+    <item>
       <title>Imibereho myiza y&apos;abanyarwanda mu ncamake</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/imibereho-myiza-yabanyarwanda-mu-ncamake-1794679187510</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/imibereho-myiza-yabanyarwanda-mu-ncamake-1794679187510</guid>
+      <link>https://ijwi-ry--ukuri.web.app/article/imibereho-myiza-yabanyarwanda-mu-ncamake-1794679509361</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/imibereho-myiza-yabanyarwanda-mu-ncamake-1794679509361</guid>
       <description>Raporo zerekana intambwe yatewe mu mibereho y&apos;abanyarwanda binyuze mu bikorwa remezo, ubuzima, na gahunda z&apos;ubukungu mu gihugu.</description>
       <pubDate>Sat, 14 Nov 2026 17:59:47 GMT</pubDate>
       <dc:creator>aime kevin</dc:creator>
@@ -26,6 +41,7 @@
       <category>u rwanda</category>
       <category>iterambere</category>
       <category>ubukungu</category>
+      <media:content url="https://studentnews-backend.onrender.com/uploads/1794679495911-200474412.jpg" medium="image" />
     </item>
     <item>
       <title>Brighton and Liverpool Meet in Women&apos;s Super League Clash</title>
@@ -385,20 +401,6 @@
       <category>abana</category>
       <category>IGIHE</category>
       <media:content url="https://studentnews-backend.onrender.com/uploads/1794066875998-244887255.png" medium="image" />
-    </item>
-    <item>
-      <title>Abagore bahangana n’akazi katoroshye bashaka gutunga imiryango</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/abagore-bahangana-nakazi-katoroshye-bashaka-gutunga-imiryango-1794066866431</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/abagore-bahangana-nakazi-katoroshye-bashaka-gutunga-imiryango-1794066866431</guid>
-      <description>Inkuru ya IGIHE yagaragaje urugamba rw’abagore bakora mu masaha y’ijoro no mu bukonje kugira ngo babone ibitunga imiryango yabo.</description>
-      <pubDate>Sat, 07 Nov 2026 14:48:02 GMT</pubDate>
-      <dc:creator>Shyakaclever Prince</dc:creator>
-      <category>Lifestyle</category>
-      <category>Abagore</category>
-      <category>imibereho</category>
-      <category>imiryango</category>
-      <category>IGIHE</category>
-      <media:content url="https://studentnews-backend.onrender.com/uploads/1794066862339-730410508.jpg" medium="image" />
     </item>
   </channel>
 </rss>

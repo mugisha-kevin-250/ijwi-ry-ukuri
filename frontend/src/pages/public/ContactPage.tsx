@@ -92,12 +92,13 @@ export default function ContactPage() {
 
       <Section title="Advertising and partnerships">
         <p>
-          Ads on this site are run by Google AdSense, so an advertiser reaches Rwandan readers through Google's own
-          auction rather than through us. What we do and do not accept is written on the{' '}
+          The newsroom sells its own advertising spaces: tell us the business, the offer, the address the ad should
+          open and the dates, and we design the creative and book the space. Google's auction runs in the same spaces
+          where it has a buyer, which is what{' '}
           <Link to="/advertising" className="font-medium text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">
-            advertising page
-          </Link>
-          .
+            the advertising page
+          </Link>{' '}
+          explains. Choose &ldquo;Advertising or partnership&rdquo; in the form above and this reaches the same desk.
         </p>
       </Section>
 

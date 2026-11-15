@@ -20,13 +20,24 @@ const MIN_MESSAGE = 20
 interface FieldErrors {
   name?: string
   email?: string
+  phone?: string
   message?: string
 }
 
-function validate(values: { name: string; email: string; message: string }): FieldErrors {
+const PHONE_SHAPE = /^[+\d][\d\s().-]{5,}$/
+
+function validate(values: { name: string; email: string; phone: string; message: string }): FieldErrors {
   const errors: FieldErrors = {}
   if (values.name.trim().length < 2) errors.name = 'Please tell us who is writing.'
   if (!EMAIL_SHAPE.test(values.email.trim())) errors.email = 'That address is missing something, so we could not reply to it.'
+  // Never required: some readers would rather not hand over a number at all. What
+  // is refused is a number too short to dial, because a wrong one wastes the
+  // reporter's time exactly as much as a wrong address does.
+  if (values.phone.trim() && !PHONE_SHAPE.test(values.phone.trim())) {
+    errors.phone = 'That does not look like a number we could call. Digits, spaces and a leading + are all we need.'
+  } else if (values.phone.replace(/\D/g, '').length > 0 && values.phone.replace(/\D/g, '').length < 7) {
+    errors.phone = 'That number looks too short to dial. Leave it blank if you would rather be answered by email.'
+  }
   if (values.message.trim().length < MIN_MESSAGE) errors.message = `Please add a little more detail - at least ${MIN_MESSAGE} characters.`
   return errors
 }
@@ -37,6 +48,7 @@ export default function ContactForm() {
   const id = useId()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [topic, setTopic] = useState('correction')
   const [message, setMessage] = useState('')
   // Only a crawler fills this: the field is off-screen for a person.
@@ -48,14 +60,14 @@ export default function ContactForm() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const found = validate({ name, email, message })
+    const found = validate({ name, email, phone, message })
     setErrors(found)
     setFailure('')
     if (Object.keys(found).length) return
 
     setSending(true)
     try {
-      await publicAPI.sendContact({ name, email, topic, message, website })
+      await publicAPI.sendContact({ name, email, phone: phone.trim(), topic, message, website })
       setSent(true)
     } catch (err: any) {
       // The address itself says most: a full inbox from this address is a
@@ -112,6 +124,33 @@ export default function ContactForm() {
           />
         </label>
       </div>
+
+      {errors.name && <p id={`${id}-name-error`} role="alert" className="-mt-2 text-sm font-medium text-red-700 dark:text-red-400">{errors.name}</p>}
+      {errors.email && <p id={`${id}-email-error`} role="alert" className="-mt-2 text-sm font-medium text-red-700 dark:text-red-400">{errors.email}</p>}
+
+      <label className="block text-sm font-semibold text-gray-900 dark:text-white" htmlFor={`${id}-phone`}>
+        Phone number, if you would rather be called
+        <input
+          id={`${id}-phone`}
+          type="tel"
+          inputMode="tel"
+          className={FIELD_CLASS}
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
+          autoComplete="tel"
+          maxLength={40}
+          placeholder="+250 7…"
+          aria-invalid={Boolean(errors.phone) || undefined}
+          aria-describedby={errors.phone ? `${id}-phone-error` : `${id}-phone-help`}
+        />
+      </label>
+
+      {errors.phone
+        ? <p id={`${id}-phone-error`} role="alert" className="-mt-2 text-sm font-medium text-red-700 dark:text-red-400">{errors.phone}</p>
+        : <p id={`${id}-phone-help`} className="-mt-2 text-sm text-gray-500 dark:text-gray-400">
+            Optional, and only used to answer you back. A story tip that needs a call is worth a number; a correction is
+            usually faster by email.
+          </p>}
 
       {errors.name && <p id={`${id}-name-error`} role="alert" className="-mt-2 text-sm font-medium text-red-700 dark:text-red-400">{errors.name}</p>}
       {errors.email && <p id={`${id}-email-error`} role="alert" className="-mt-2 text-sm font-medium text-red-700 dark:text-red-400">{errors.email}</p>}

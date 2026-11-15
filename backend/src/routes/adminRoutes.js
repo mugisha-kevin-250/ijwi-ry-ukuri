@@ -13,6 +13,9 @@ const { successResponse, errorResponse } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
 const aiPhotoService = require('../services/aiPhotoService');
+const categoryService = require('../services/categoryService');
+const adService = require('../services/adService');
+const { publicHttpsUrl } = require('../services/urlGuard');
 const radioService = require('../services/radioService');
 const trendService = require('../services/trendService');
 const generateSlug = require('../utils/generateSlug');
@@ -855,6 +858,161 @@ router.post('/radio/bulletin/refresh', authorize('ADMIN'), async (req, res, next
     });
   } catch (error) {
     next(error);
+  }
+});
+
+/**
+ * The section desk.
+ *
+ * A section is where a story lives, so the list carries the story count and
+ * whether the address is a published one before an admin is allowed to touch it.
+ * Reading it is staff work; changing it belongs to the owner alone - an editor
+ * decides what goes in a section, not what sections exist.
+ */
+function refuse(res, next, error) {
+  // The service knows the difference between a typo (400), a section that is
+  // gone (404) and one that still holds stories (409), and the admin has to read
+  // that difference rather than "Internal server error". Any other failure is
+  // left for the global handler, which is the one that knows how to log it.
+  const status = Number(error?.status);
+  if (status >= 400 && status < 500 && error?.message) return errorResponse(res, status, error.message);
+  return next(error);
+}
+
+router.get('/categories', async (req, res, next) => {
+  try {
+    return successResponse(res, 200, 'Sections', { categories: await categoryService.list() });
+  } catch (error) {
+    refuse(res, next, error);
+  }
+});
+
+router.post('/categories', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const category = await categoryService.create(req.body || {}, req.user._id);
+    return successResponse(res, 201, 'Section created', { category });
+  } catch (error) {
+    refuse(res, next, error);
+  }
+});
+
+router.put('/categories/:id', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const category = await categoryService.update(req.params.id, req.body || {}, req.user._id);
+    return successResponse(res, 200, 'Section saved', { category });
+  } catch (error) {
+    refuse(res, next, error);
+  }
+});
+
+/**
+ * Remove a section - or move its stories somewhere else and then remove it.
+ *
+ * A section with stories in it is refused with the count and the two ways out
+ * (hide it, or name the section they move to). Nothing here silently orphans a
+ * published story, which is the one thing a taxonomy tool has to be trusted not
+ * to do.
+ */
+router.delete('/categories/:id', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const result = await categoryService.remove(req.params.id, { moveTo: req.query.moveTo });
+    return successResponse(res, 200, result.moved ? 'Section removed and stories moved' : 'Section removed', result);
+  } catch (error) {
+    refuse(res, next, error);
+  }
+});
+
+/**
+ * The advertising desk.
+ *
+ * These are the spaces the newsroom sells itself - the ones Google's auction has
+ * not bought. An ad here is a claim a named business is making to a reader, so
+ * the same rule as the AI writer applies with nothing added: the machine drafts
+ * from a brief a person typed, a person reads it, and only a person publishes it.
+ * A generated creative comes back from /ads/generate unsaved; nothing this server
+ * does can put words on the page without a status change someone pressed.
+ */
+function refuseAi(res, next, error) {
+  if (error.code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, 'Gemini is not configured on this server, so the creative has to be written by hand.');
+  if (String(error.code || '').startsWith('AI_')) return errorResponse(res, 502, error.message);
+  return refuse(res, next, error);
+}
+
+router.get('/ads', async (req, res, next) => {
+  try {
+    return successResponse(res, 200, 'Advertisements', { ads: await adService.list() });
+  } catch (error) {
+    refuse(res, next, error);
+  }
+});
+
+/**
+ * Draft a creative from the brief an admin typed.
+ *
+ * Nothing is written to the database here: the answer goes back to the form, and
+ * the campaign only exists once someone saves it. That is deliberate - a model
+ * asked for three versions of an ad should not leave three records behind.
+ */
+router.post('/ads/generate', authorize('ADMIN'), async (req, res, next) => {
+  const body = req.body || {};
+  const advertiser = plainText(body.advertiser, { maxLength: 80 });
+  const offer = cleanText(body.offer, { maxLength: 1200 });
+  const placement = adService.PLACEMENTS.includes(body.placement) ? body.placement : adService.PLACEMENTS[0];
+  const tone = plainText(body.tone, { maxLength: 160 });
+  const mustInclude = plainText(body.mustInclude, { maxLength: 300 });
+  const link = String(body.link || '').trim();
+
+  if (!advertiser) return errorResponse(res, 400, 'Say who the advertisement is from');
+  if (offer.length < 12) return errorResponse(res, 400, 'Write the brief: what the advertiser is actually offering');
+  if (link) {
+    const checked = publicHttpsUrl(link);
+    if (!checked.ok) return errorResponse(res, 400, `That link will not work in an ad: ${checked.reason}.`);
+  }
+
+  try {
+    const creative = await geminiService.adCreative({ advertiser, offer, link, placement, tone, mustInclude });
+    return successResponse(res, 200, 'Draft ready — read it before you publish', {
+      ...creative,
+      link,
+      brief: offer,
+      placements: [placement],
+      status: 'draft',
+      source: 'ai',
+    });
+  } catch (error) {
+    refuseAi(res, next, error);
+  }
+});
+
+router.post('/ads', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const ad = await adService.create(req.body || {}, req.user._id);
+    return successResponse(res, 201, 'Advertisement saved', { ad });
+  } catch (error) {
+    refuse(res, next, error);
+  }
+});
+
+router.put('/ads/:id', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const ad = await adService.update(req.params.id, req.body || {}, req.user._id);
+    return successResponse(res, 200, ad.status === 'live' ? 'Advertisement published' : 'Advertisement saved', { ad });
+  } catch (error) {
+    refuse(res, next, error);
+  }
+});
+
+/**
+ * Take a campaign off the page for good.
+ *
+ * Pausing is offered first everywhere in the interface; this is the harder button,
+ * and it refuses while the ad is still running.
+ */
+router.delete('/ads/:id', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    return successResponse(res, 200, 'Advertisement removed', await adService.remove(req.params.id));
+  } catch (error) {
+    refuse(res, next, error);
   }
 });
 

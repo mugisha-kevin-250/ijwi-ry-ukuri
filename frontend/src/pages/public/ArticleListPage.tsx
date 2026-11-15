@@ -464,7 +464,7 @@ export default function ArticleListPage() {
             stories scroll past it, so it stays visible without following the
             reader down to the bottom. */}
         <aside className="lg:col-start-2 lg:row-start-1 lg:row-end-4">
-          <div className="space-y-6 lg:sticky lg:top-[104px]">
+          <div className="space-y-6 lg:sticky lg:top-[calc(var(--header-h)_+_16px)]">
             <AdSlot name="newsRail" />
             {sections.length > 0 && (
               <nav

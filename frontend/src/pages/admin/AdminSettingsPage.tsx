@@ -47,6 +47,8 @@ function NewsAlertsPanel() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [link, setLink] = useState('/')
+  const [silent, setSilent] = useState(false)
+  const [urgent, setUrgent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
@@ -93,12 +95,20 @@ function NewsAlertsPanel() {
     }
     setBusy(true)
     try {
-      const response = await pushAPI.broadcast({ title: title.trim(), body: body.trim(), url: link.trim() || '/' })
+      const response = await pushAPI.broadcast({
+        title: title.trim(),
+        body: body.trim(),
+        url: link.trim() || '/',
+        silent,
+        urgent,
+      })
       const result = response.data.data
       setStatus(`Sent ${result?.sent ?? 0} of ${result?.total ?? 0} devices (${result?.expired ?? 0} unsubscribed, ${result?.failed ?? 0} failed).`)
       setSubscribers(result?.total ?? subscribers)
       setTitle('')
       setBody('')
+      setSilent(false)
+      setUrgent(false)
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'The alert could not be sent.')
     } finally {
@@ -133,6 +143,24 @@ function NewsAlertsPanel() {
         <Field id="pushTitle" label="Alert title" type="text" value={title} onChange={setTitle} placeholder="Breaking: ..." />
         <Field id="pushBody" label="Message" type="text" value={body} onChange={setBody} placeholder="Short summary shown in the notification" />
         <Field id="pushLink" label="Link to open" type="text" value={link} onChange={setLink} placeholder="/article/slug" />
+
+        {/* Two ways of saying how loud an alert is. Devices that were switched to
+            quiet by their own reader stay quiet whatever is ticked here. */}
+        <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input type="checkbox" checked={silent} onChange={(event) => setSilent(event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600" />
+            No sound on this bulletin
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input type="checkbox" checked={urgent} onChange={(event) => setUrgent(event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600" />
+            Keep it on screen until dismissed
+          </label>
+        </div>
+        <p className="text-xs text-slate-500">
+          The second one is for something a reader should not scroll past. On Android it is shown in the usual place
+          instead of pinned, and each device that asked for quiet alerts still gets no sound.
+        </p>
+
         <button type="submit" disabled={busy || !configured} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-60">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           Send alert now

@@ -1,7 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
   <url>
-    <loc>https://ijwi-ry--ukuri.web.app/article/imibereho-myiza-yabanyarwanda-mu-ncamake-1794679187510</loc>
+    <loc>https://ijwi-ry--ukuri.web.app/article/darian-mensahs-transfer-journey-draws-attention-across-regions-1794679691979</loc>
+    <news:news>
+      <news:publication>
+        <news:name>RADAR</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-11-14T18:08:11Z</news:publication_date>
+      <news:title>Darian Mensah&apos;s Transfer Journey Draws Attention Across Regions</news:title>
+      <news:keywords>Trending, darian mensah, college football, transfer portal, miami hurricanes, duke blue devils</news:keywords>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://ijwi-ry--ukuri.web.app/article/imibereho-myiza-yabanyarwanda-mu-ncamake-1794679509361</loc>
     <news:news>
       <news:publication>
         <news:name>RADAR</news:name>
@@ -70,30 +82,6 @@
       <news:publication_date>2026-11-13T12:27:09Z</news:publication_date>
       <news:title>Fast and Furious 2026 Film Release Updates for Rwanda Region</news:title>
       <news:keywords>Trending, entertainment, fast and furious, rwanda, cinema, movies</news:keywords>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://ijwi-ry--ukuri.web.app/article/bryan-mbeumo-shines-on-international-duty-amid-regional-attention-1794571376011</loc>
-    <news:news>
-      <news:publication>
-        <news:name>RADAR</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-11-13T11:46:49Z</news:publication_date>
-      <news:title>Bryan Mbeumo Shines on International Duty Amid Regional Attention</news:title>
-      <news:keywords>Football, bryan mbeumo, football, international, sports</news:keywords>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://ijwi-ry--ukuri.web.app/article/rwanda-football-fans-turn-attention-to-european-leagues-1794567932885</loc>
-    <news:news>
-      <news:publication>
-        <news:name>RADAR</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-11-13T11:05:32Z</news:publication_date>
-      <news:title>Rwanda Football Fans Turn Attention to European Leagues</news:title>
-      <news:keywords>Rwanda, football, rwanda, europe, sports</news:keywords>
     </news:news>
   </url>
 </urlset>

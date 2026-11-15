@@ -3,6 +3,7 @@ const Article = require('../models/Article');
 const workflow = require('../services/articleWorkflow');
 const rewardService = require('../services/rewardService');
 const radioService = require('../services/radioService');
+const liveScoreService = require('../services/liveScoreService');
 const env = require('../config/env');
 
 // Work the lifecycle has to finish on its own, because no person is standing
@@ -85,8 +86,34 @@ function startScheduler() {
     }
   }, options);
 
-  console.log('Scheduler started: story publishing every 5 minutes, the radio bulletin on the minute, weekly pay on Mondays.');
-  return { publishDueStories, runWeeklyPay, airDueBulletin: radioService.airDueBulletin };
+  // The scores page is warm, not pushed: one pass a minute re-fetches the
+  // leagues and matches readers actually have open, and every reader in the
+  // world is then served from this database. This is the only place the sports
+  // feed is asked for on a schedule, which is what keeps a free instance and a
+  // free public feed compatible - but it also means a slow minute must not
+  // become two minutes of overlapping work, so the pass refuses to start if the
+  // last one is still going.
+  let scorePassRunning = false;
+  cron.schedule('* * * * *', async () => {
+    if (scorePassRunning) {
+      console.warn('Live score pass skipped: the previous pass is still running.');
+      return;
+    }
+    scorePassRunning = true;
+    try {
+      const pass = await liveScoreService.refreshWatched({ now: new Date() });
+      if (pass.refreshed || pass.failed) {
+        console.log(`Live scores: refreshed ${pass.refreshed}, failed ${pass.failed}, watching ${pass.watched}.`);
+      }
+    } catch (error) {
+      console.error('Live score run failed:', error?.message || error);
+    } finally {
+      scorePassRunning = false;
+    }
+  }, options);
+
+  console.log('Scheduler started: story publishing every 5 minutes, the radio bulletin and the live scores on the minute, weekly pay on Mondays.');
+  return { publishDueStories, runWeeklyPay, airDueBulletin: radioService.airDueBulletin, refreshWatched: liveScoreService.refreshWatched };
 }
 
 module.exports = { startScheduler, publishDueStories, runWeeklyPay };

@@ -105,6 +105,37 @@ export const SECTIONS: SectionNode[] = [
   },
 ];
 
+/**
+ * A link that sits inside a section's panel but is a page of the site rather
+ * than a shelf of the archive.
+ *
+ * These are deliberately not in `SECTIONS`: that table also resolves stored
+ * categories to addresses, and nothing can be filed under "Live Scores" - there
+ * is no such category, and a story tagged that way would be sent to a page that
+ * does not hold stories. A feature is navigation with a destination, nothing
+ * more, which is why it has an `href` instead of an `aliases` list.
+ */
+export interface SectionFeature {
+  /** Which section's panel this belongs under. */
+  parent: string
+  slug: string
+  labelKey: string
+  href: string
+  /** Whether the panel should mark it as something happening right now. */
+  live?: boolean
+}
+
+export const SECTION_FEATURES: SectionFeature[] = [
+  // Named for what the reader is looking for - the sport, live - rather than for
+  // the software, and it sits under Sports because that is where a reader reaches
+  // for it.
+  { parent: 'sports', slug: 'live-sports', labelKey: 'nav.liveSports', href: '/live-sports', live: true },
+]
+
+export function featuresFor(sectionSlug: string): SectionFeature[] {
+  return SECTION_FEATURES.filter((feature) => feature.parent === sectionSlug)
+}
+
 function normalize(value: string): string {
   return value
     .toLowerCase()

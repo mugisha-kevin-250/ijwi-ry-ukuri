@@ -86,5 +86,21 @@ module.exports = {
   // schedule's zone because they are two different human decisions: one is an
   // accounting week, the other is when the newsreader starts talking. The
   // timetable document can override this per station.
-  RADIO_TZ: process.env.RADIO_TZ || 'Africa/Kigali'
+  RADIO_TZ: process.env.RADIO_TZ || 'Africa/Kigali',
+  // Live football scores. There is no key, no account and no quota here: ESPN
+  // publishes its scoreboard, results and tables as plain JSON, and OUR server is
+  // the only thing that ever asks for it. A reader talks to RADAR and never to a
+  // sports site, so a thousand people on the scores page cost one upstream call a
+  // minute instead of a thousand, and no reader's address can be blocked for it.
+  ESPN_BASE_URL: process.env.ESPN_BASE_URL || 'https://site.api.espn.com/apis',
+  // Which competitions the page offers, in the order a reader sees them. Empty
+  // means the list built into the service, so adding a league is an environment
+  // change on Render rather than a rebuild of the site.
+  LIVESCORE_LEAGUES: process.env.LIVESCORE_LEAGUES || '',
+  LIVESCORE_TIMEOUT_MS: Number(process.env.LIVESCORE_TIMEOUT_MS || 12000),
+  // How long a stored scoreboard is accepted before somebody has to ask again, and
+  // how often the cron wakes for the leagues readers are actually looking at.
+  // Sixty seconds is what a scores page is worth: a goal is either on the page or
+  // it is stale news.
+  LIVESCORE_REFRESH_SECONDS: Number(process.env.LIVESCORE_REFRESH_SECONDS || 60)
 };

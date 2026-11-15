@@ -264,6 +264,11 @@ async function main() {
       urlEntry(`${SITE_URL}/articles`, today, '0.9', 'hourly'),
       urlEntry(`${SITE_URL}/categories`, today, '0.7', 'daily'),
       urlEntry(`${SITE_URL}/live`, today, '0.8', 'hourly'),
+      // The scores desk is the page a search engine is most likely to be asked
+      // about on a Saturday, so it is offered hourly rather than daily and its
+      // lastmod moves with the build - a stale date on a live page tells the
+      // crawler the thing is not being looked after.
+      urlEntry(`${SITE_URL}/live-sports`, today, '0.9', 'hourly'),
       urlEntry(`${SITE_URL}/search`, null, '0.4', 'monthly'),
       ...publisherPages.map((slug) => urlEntry(`${SITE_URL}/${slug}`, today, '0.4', 'yearly')),
     ]),
@@ -342,7 +347,9 @@ ${written
   console.log(`  -> ${feedUrl}`)
   console.log(
     `${articles.length} articles, ${categories.length} categories, ${sectionHrefs.length} section pages, ${authors.size} writers, ` +
-      `${5 + publisherPages.length} static pages, ${news.count} stories in the News sitemap, ` +
+      // Home, News, Categories, TV, Search and the scores desk - the six addresses
+      // the site publishes that are not a story, a section or a policy page.
+      `${6 + publisherPages.length} static pages, ${news.count} stories in the News sitemap, ` +
       `${Math.min(newest.length, 30)} stories in the feed`
   )
 }

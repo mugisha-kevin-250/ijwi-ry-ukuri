@@ -1259,6 +1259,412 @@ export interface TranslateStatus {
  * The reader's language. The key stays on the server; the browser only ever
  * asks for a language and gets words back.
  */
+/**
+ * The scores page talks to RADAR and to nothing else.
+ *
+ * There is deliberately no sports-feed address anywhere in here. The backend
+ * fetches ESPN once a minute for the days somebody is actually looking at, keeps
+ * the answer in our own database, and hands the page what the database can
+ * answer. That is what lets a crowd on one shared carrier address watch sixty
+ * matches without any of them being rate-limited, and it is why every field on
+ * the page has to survive being absent: a score this server could not read is
+ * printed as nothing, never as a zero.
+ */
+export interface ScoreSide {
+  id: string
+  name: string
+  short: string
+  logo: string
+  /** Empty for a fixture that has not kicked off, and for a number we never got. */
+  score: string
+  record: string
+  form: string
+  winner: boolean
+  /** Only on a match: the squad, and the shape the manager picked. */
+  players: ScorePlayer[]
+  formation: string
+}
+
+export interface ScorePlayer {
+  id: string
+  name: string
+  jersey: string
+  position: string
+  starter: boolean
+}
+
+export type ScoreEventKind = 'goal' | 'card' | 'substitution' | 'other'
+
+export interface ScoreEvent {
+  /** The source's own clock, "15'" or "45'+2". Blank means it printed none. */
+  minute: string
+  period: number
+  kind: ScoreEventKind
+  label: string
+  text: string
+  teamId: string
+  teamName: string
+  players: string[]
+  scoringPlay: boolean
+}
+
+export interface ScoreStat {
+  name: string
+  label: string
+  home: string
+  away: string
+  homeValue: number | null
+  awayValue: number | null
+}
+
+export interface ScoreRow {
+  id: string
+  name: string
+  shortName: string
+  start: string | null
+  state: 'pre' | 'in' | 'post'
+  statusText: string
+  clock: string
+  period: number
+  venue: string
+  home: ScoreSide
+  away: ScoreSide
+}
+
+export interface ScoreGroup {
+  code: string
+  name: string
+  logo: string
+  matches: ScoreRow[]
+  fetchedAt: string | null
+  stale: boolean
+  /** The feed has not been read for this league yet; the rows below are old. */
+  pending: boolean
+  error: string | null
+}
+
+export interface Scoreboard {
+  ok: boolean
+  provider: string
+  /** Our cache key for the day being shown, `YYYYMMDD`. */
+  dateKey: string
+  /** The day the server is on. A reader crossing midnight sees this move. */
+  dayClock: string
+  groups: ScoreGroup[]
+  counts: { total: number; live: number; upcoming: number; finished: number }
+  pendingLeagues: string[]
+  errors: { code: string; reason: string }[]
+  stale: boolean
+  /** True while a league this page asked for is still being fetched. */
+  refreshing: boolean
+  /** The server's own advice on how soon to ask again: 30s with a match on. */
+  pollSeconds: number
+  refreshSeconds: number
+  nextRefreshAt: string | null
+}
+
+export interface ScoreMatch {
+  ok: boolean
+  stale: boolean
+  provider: string
+  id: string
+  code: string
+  league: { name: string; logo: string }
+  name: string
+  start: string | null
+  state: 'pre' | 'in' | 'post'
+  statusText: string
+  clock: string
+  venue: string
+  attendance: string
+  home: ScoreSide
+  away: ScoreSide
+  events: ScoreEvent[]
+  stats: ScoreStat[]
+  possession: { label: string; home: string; away: string } | null
+  fetchedAt: string | null
+}
+
+export interface StandingsRow {
+  rank: number
+  team: { id: string; name: string; short: string; logo: string }
+  /** Null when the competition printed no figure - never shown as zero. */
+  played: number | null
+  win: number | null
+  draw: number | null
+  loss: number | null
+  scored: number | null
+  conceded: number | null
+  difference: string
+  points: string
+  record: string
+  /** A points take-off, written by the league rather than by us. */
+  deductions: string
+  note: string
+  /** Which group this row belongs to, when the competition has groups. */
+  table: string
+}
+
+export interface Standings {
+  ok: boolean
+  stale: boolean
+  code: string
+  league: { name: string; logo: string }
+  season: string
+  rows: StandingsRow[]
+  fetchedAt: string | null
+}
+
+const figure = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+
+const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+/**
+ * A side, from whichever print of the match the server used.
+ *
+ * The scoreboard and the match page describe the same team with different
+ * halves of the object - one has the form line, the other the squad - so both
+ * are merged here rather than assumed, and a missing list stays an empty list.
+ */
+function normaliseSide(value: unknown): ScoreSide {
+  const side = (value || {}) as Partial<ScoreSide> & { teamId?: string }
+  return {
+    id: text(side.id) || text(side.teamId),
+    name: text(side.name),
+    short: text(side.short),
+    logo: text(side.logo),
+    score: text(side.score),
+    record: text(side.record),
+    form: text(side.form),
+    winner: side.winner === true,
+    players: Array.isArray(side.players) ? side.players.map(normalisePlayer) : [],
+    formation: text(side.formation),
+  }
+}
+
+function normalisePlayer(value: unknown): ScorePlayer {
+  const player = (value || {}) as Partial<ScorePlayer>
+  return {
+    id: text(player.id),
+    name: text(player.name),
+    jersey: text(player.jersey),
+    position: text(player.position),
+    starter: player.starter === true,
+  }
+}
+
+const STATES = new Set(['pre', 'in', 'post'])
+
+function normaliseState(value: unknown): 'pre' | 'in' | 'post' {
+  const state = text(value)
+  return STATES.has(state) ? (state as 'pre' | 'in' | 'post') : 'pre'
+}
+
+function normaliseRow(value: unknown): ScoreRow {
+  const row = (value || {}) as Partial<ScoreRow>
+  return {
+    id: text(row.id),
+    name: text(row.name),
+    shortName: text(row.shortName),
+    start: typeof row.start === 'string' || row.start === null ? text(row.start) || null : null,
+    state: normaliseState(row.state),
+    statusText: text(row.statusText),
+    clock: text(row.clock),
+    period: figure(row.period) ?? 0,
+    venue: text(row.venue),
+    home: normaliseSide(row.home),
+    away: normaliseSide(row.away),
+  }
+}
+
+/** A league the server could not name at all still gets its code, not a blank. */
+function normaliseGroup(value: unknown): ScoreGroup {
+  const group = (value || {}) as Partial<ScoreGroup>
+  return {
+    code: text(group.code),
+    name: text(group.name) || text(group.code),
+    logo: text(group.logo),
+    matches: Array.isArray(group.matches) ? group.matches.map(normaliseRow) : [],
+    fetchedAt: text(group.fetchedAt) || null,
+    stale: group.stale === true,
+    pending: group.pending === true,
+    error: text(group.error) || null,
+  }
+}
+
+const EVENT_KINDS = new Set(['goal', 'card', 'substitution', 'other'])
+
+function normaliseEvent(value: unknown): ScoreEvent {
+  const event = (value || {}) as Partial<ScoreEvent>
+  const kind = text(event.kind)
+  return {
+    minute: text(event.minute),
+    period: figure(event.period) ?? 0,
+    kind: EVENT_KINDS.has(kind) ? (kind as ScoreEventKind) : 'other',
+    label: text(event.label),
+    text: text(event.text),
+    teamId: text(event.teamId),
+    teamName: text(event.teamName),
+    players: Array.isArray(event.players) ? event.players.map(text).filter(Boolean) : [],
+    scoringPlay: event.scoringPlay === true,
+  }
+}
+
+// Our server passes a competition's ratio statistics through exactly as they are
+// published, and the feed writes them as fractions of one while naming them with
+// a percent sign. Left alone, a side that completed four passes in five reads
+// "0.8 PASS COMPLETION %" on the page, so a fraction is turned back into the
+// percentage its own label promises. A figure the source already scaled -
+// possession arrives as 55.9 - is bigger than one and is left untouched.
+function asPercentage(label: string, value: number | null): number | null {
+  if (value === null || value > 1 || !/%|pct|percent/i.test(label)) return value
+  return Math.round(value * 1000) / 10
+}
+
+function normaliseStat(value: unknown): ScoreStat {
+  const stat = (value || {}) as Partial<ScoreStat>
+  const named = `${text(stat.label)} ${text(stat.name)}`
+  const homeValue = asPercentage(named, figure(stat.homeValue))
+  const awayValue = asPercentage(named, figure(stat.awayValue))
+  return {
+    name: text(stat.name),
+    label: text(stat.label),
+    home: homeValue === null ? text(stat.home) : String(homeValue),
+    away: awayValue === null ? text(stat.away) : String(awayValue),
+    homeValue,
+    awayValue,
+  }
+}
+
+function normaliseStandingsRow(value: unknown): StandingsRow {
+  const row = (value || {}) as Partial<StandingsRow>
+  const team = (row.team || {}) as Partial<StandingsRow['team']>
+  return {
+    rank: figure(row.rank) ?? 0,
+    team: { id: text(team.id), name: text(team.name), short: text(team.short), logo: text(team.logo) },
+    played: figure(row.played),
+    win: figure(row.win),
+    draw: figure(row.draw),
+    loss: figure(row.loss),
+    scored: figure(row.scored),
+    conceded: figure(row.conceded),
+    difference: text(row.difference),
+    points: text(row.points),
+    record: text(row.record),
+    deductions: text(row.deductions),
+    note: text(row.note),
+    table: text(row.table),
+  }
+}
+
+export const scoresAPI = {
+  /** What the page offers to follow, with what is known about today. */
+  leagues: async (): Promise<{ leagues: { code: string; name: string; logo: string; matches: number; live: number }[]; refreshSeconds: number }> => {
+    const response = await apiClient.get('/scores/leagues')
+    const payload = (response.data?.data || {}) as Record<string, unknown>
+    const list = Array.isArray(payload.leagues) ? payload.leagues : []
+    return {
+      leagues: list.map((item) => {
+        const league = (item || {}) as Record<string, unknown>
+        return {
+          code: text(league.code),
+          name: text(league.name) || text(league.code),
+          logo: text(league.logo),
+          matches: figure(league.matches) ?? 0,
+          live: figure(league.live) ?? 0,
+        }
+      }),
+      refreshSeconds: figure(payload.refreshSeconds) ?? 60,
+    }
+  },
+
+  /** One day, grouped. The only call the page makes to stay current. */
+  scoreboard: async ({ date, league, live }: { date?: string; league?: string; live?: boolean } = {}): Promise<Scoreboard> => {
+    const response = await apiClient.get('/scores/scoreboard', {
+      ...(date ? { date } : {}), ...(league ? { league } : {}), ...(live ? { live: 1 } : {}),
+    })
+    const payload = (response.data?.data || {}) as Record<string, unknown>
+    const counts = (payload.counts || {}) as Record<string, unknown>
+    const groups = Array.isArray(payload.leagues) ? payload.leagues.map(normaliseGroup) : []
+    const poll = figure(payload.pollSeconds)
+    return {
+      ok: payload.ok !== false,
+      provider: text(payload.provider),
+      dateKey: text(payload.dateKey),
+      dayClock: text(payload.dayClock),
+      groups,
+      counts: {
+        total: figure(counts.total) ?? groups.reduce((n, group) => n + group.matches.length, 0),
+        live: figure(counts.live) ?? 0,
+        upcoming: figure(counts.upcoming) ?? 0,
+        finished: figure(counts.finished) ?? 0,
+      },
+      pendingLeagues: Array.isArray(payload.pendingLeagues) ? payload.pendingLeagues.map(text).filter(Boolean) : [],
+      errors: Array.isArray(payload.errors)
+        ? payload.errors.map((item) => {
+            const error = (item || {}) as Record<string, unknown>
+            return { code: text(error.code), reason: text(error.reason) }
+          })
+        : [],
+      stale: payload.stale === true,
+      refreshing: payload.refreshing === true,
+      // Never faster than the server is willing to answer, and never slower than
+      // a minute when it says zero: a page that stops asking is a page that stops
+      // being live.
+      pollSeconds: Math.min(Math.max(poll ?? 30, 15), 300),
+      refreshSeconds: figure(payload.refreshSeconds) ?? 60,
+      nextRefreshAt: text(payload.nextRefreshAt) || null,
+    }
+  },
+
+  /** One match: what happened, who played, what the two sides did with the ball. */
+  match: async (id: string, league?: string): Promise<ScoreMatch> => {
+    const response = await apiClient.get(`/scores/match/${encodeURIComponent(id)}`, league ? { league } : undefined)
+    const payload = (response.data?.data || {}) as Record<string, unknown>
+    const leagueObject = (payload.league || {}) as Record<string, unknown>
+    const possession = (payload.possession || null) as Record<string, unknown> | null
+    return {
+      ok: payload.ok !== false,
+      stale: payload.stale === true,
+      provider: text(payload.provider),
+      id: text(payload.id) || id,
+      code: text(payload.code),
+      league: { name: text(leagueObject.name), logo: text(leagueObject.logo) },
+      name: text(payload.name),
+      start: text(payload.start) || null,
+      state: normaliseState(payload.state),
+      statusText: text(payload.statusText),
+      clock: text(payload.clock),
+      venue: text(payload.venue),
+      attendance: text(payload.attendance),
+      home: normaliseSide(payload.home),
+      away: normaliseSide(payload.away),
+      events: Array.isArray(payload.events) ? payload.events.map(normaliseEvent) : [],
+      stats: Array.isArray(payload.stats) ? payload.stats.map(normaliseStat) : [],
+      possession: possession
+        ? { label: text(possession.label) || 'Possession', home: text(possession.home), away: text(possession.away) }
+        : null,
+      fetchedAt: text(payload.fetchedAt) || null,
+    }
+  },
+
+  /** The table, in the order the competition published it. */
+  standings: async (league: string): Promise<Standings> => {
+    const response = await apiClient.get('/scores/standings', { league })
+    const payload = (response.data?.data || {}) as Record<string, unknown>
+    const leagueObject = (payload.league || {}) as Record<string, unknown>
+    return {
+      ok: payload.ok !== false,
+      stale: payload.stale === true,
+      code: text(payload.code) || league,
+      league: { name: text(leagueObject.name), logo: text(leagueObject.logo) },
+      season: text(payload.season),
+      rows: Array.isArray(payload.entries) ? payload.entries.map(normaliseStandingsRow) : [],
+      fetchedAt: text(payload.fetchedAt) || null,
+    }
+  },
+}
+
 export const translateAPI = {
   getLanguages: async (): Promise<{ languages: TranslateLanguage[] } & TranslateStatus> => {
     const response = await apiClient.get('/translate/languages')

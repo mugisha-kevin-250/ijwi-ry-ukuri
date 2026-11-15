@@ -20,6 +20,7 @@ const liveRoutes = require('./routes/liveRoutes');
 const radioRoutes = require('./routes/radioRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const translateRoutes = require('./routes/translateRoutes');
+const scoreRoutes = require('./routes/scoreRoutes');
 const uploadStore = require('./services/uploadStore');
 const clientIp = require('./utils/clientIp');
 
@@ -47,6 +48,13 @@ const limiter = rateLimit({
   max: 500,
   standardHeaders: true,
   legacyHeaders: false,
+  // The scores page asks a question every thirty seconds while a reader is
+  // looking at it, and it is answered from our own database rather than by
+  // reading the news. Left in the shared ceiling, one fan watching a match would
+  // spend the requests of the whole office behind his carrier's address and the
+  // news pages would start refusing to load. Scores get their own, much wider,
+  // ceiling below.
+  skip: (req) => req.path.startsWith('/scores'),
   message: { success: false, message: 'Too many requests, please try again later.' }
 });
 app.use('/api', limiter);
@@ -151,6 +159,22 @@ const translateLimiter = rateLimit({
 });
 app.post('/api/translate/chrome', translateLimiter);
 
+// The scores page is the only part of the site a reader polls, so it is the only
+// part that has to be judged in requests-per-minute rather than per hour: one
+// fan watching a match asks two questions a minute, and an office behind one
+// carrier address has a hundred of them. The ceiling is therefore wide - 40 a
+// minute per address - while still being a ceiling, because every request that
+// arrives for a league this database has never seen costs an upstream call, and
+// the free feed we read is only free while we ask it politely.
+const scoresLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('The scores page is catching up, please wait a moment before asking again.')
+});
+
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -175,6 +199,10 @@ app.use('/api/auth', authRoutes);
 // Mounted before the public routes so /api/translate is answered here and not
 // swallowed by the catch-all story endpoints.
 app.use('/api/translate', translateRoutes);
+// The scores page is read twice a minute by every fan on the page and answered
+// from our own database, so it is mounted here - ahead of the catch-all public
+// story routes - with its own ceiling instead of the shared one.
+app.use('/api/scores', scoresLimiter, scoreRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/writers', writerRoutes);
 app.use('/api/editor', editorRoutes);

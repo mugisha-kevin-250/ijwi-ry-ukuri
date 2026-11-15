@@ -15,6 +15,7 @@ import CategoriesPage from '../pages/public/CategoriesPage'
 import CategoryPage from '../pages/public/CategoryPage'
 import HomePage from '../pages/public/HomePage'
 import LivePage from '../pages/public/LivePage'
+import LiveSportsPage from '../pages/public/LiveSportsPage'
 import MyLibraryPage from '../pages/public/MyLibraryPage'
 import RadioPage from '../pages/public/RadioPage'
 import SearchPage from '../pages/public/SearchPage'
@@ -131,6 +132,11 @@ export const router = createBrowserRouter([
           { path: 'categories', element: <CategoriesPage /> },
           { path: 'live', element: <LivePage /> },
           { path: 'live/:id', element: <LivePage /> },
+          // The scores desk. Its own address rather than /sports/... because a
+          // reader looking for a score is looking for the score, not for a
+          // section of the archive, and because the name a search engine indexes
+          // has to be the one on the tin.
+          { path: 'live-sports', element: <LiveSportsPage /> },
           // RADAR Audio: the stories read aloud. A page, not a fake station.
           { path: 'radio', element: <RadioPage /> },
           { path: 'category/:slug', element: <CategorySectionRoute /> },

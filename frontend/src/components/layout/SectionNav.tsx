@@ -4,7 +4,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
-import { type SectionNode } from '../../data/sections'
+import { type SectionFeature, type SectionNode, featuresFor } from '../../data/sections'
 import { sectionLabel, useSections } from '../../utils/sectionsStore'
 
 // The section line is drawn from `md` up, so that is the width where its
@@ -185,6 +185,31 @@ function childHref(section: SectionNode, child: SectionNode) {
   return `/${section.slug}/${child.slug}`
 }
 
+/**
+ * The extra link inside a section's panel that is not a shelf of the archive.
+ *
+ * Live Sports is the only one today, and it earns its place by being the thing a
+ * reader under Sports actually wants right now. It is printed first and marked,
+ * because a scores desk buried at the bottom of a list of five topic pages is a
+ * desk nobody finds.
+ */
+function FeatureLink({ feature, className, onNavigate }: { feature: SectionFeature; className: string; onNavigate?: () => void }) {
+  const { t } = useI18n()
+  return (
+    <NavLink to={feature.href} onClick={onNavigate} className={className}>
+      <span className="flex items-center gap-2">
+        {feature.live && (
+          <span className="relative flex h-1.5 w-1.5 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-75 motion-reduce:hidden" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-600" />
+          </span>
+        )}
+        {t(feature.labelKey)}
+      </span>
+    </NavLink>
+  )
+}
+
 interface SectionNavProps {
   /** Extra links that sit after the sections, e.g. News and Categories. */
   extraLinks?: { href: string; label: string }[]
@@ -269,10 +294,16 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
         >
           <ul role="list" aria-label={t('nav.sections')} className="flex h-full w-max items-center gap-1.5 px-2">
             {sections.map((section) => (
-              <li key={section.slug} className="shrink-0">
+              <li key={section.slug} className="flex shrink-0 items-center gap-1.5">
                 <NavLink to={sectionHref(section)} onClick={onNavigate} className={chip}>
                   {sectionLabel(section, t)}
                 </NavLink>
+                {/* On a phone there is no hover panel to put the scores desk in,
+                    so it rides next to the section it belongs to — the strip
+                    scrolls, and "under Sports" means beside it here. */}
+                {featuresFor(section.slug).map((feature) => (
+                  <FeatureLink key={feature.href} feature={feature} className={chip({ isActive: false })} />
+                ))}
               </li>
             ))}
             {extraLinks.map((link) => (
@@ -328,6 +359,16 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
               </div>
               {expanded && (
                 <div id={`mobile-sub-${section.slug}`} className="mb-1 ml-3 grid gap-0.5 border-l border-gray-200 pl-3 dark:border-gray-700">
+                  {featuresFor(section.slug).map((feature) => (
+                    <FeatureLink
+                      key={feature.href}
+                      feature={feature}
+                      className={cn(
+                        'rounded-lg px-3 py-1.5 text-sm font-bold transition',
+                        'bg-brand-50 text-brand-700 dark:bg-blue-900/40 dark:text-blue-300',
+                      )}
+                    />
+                  ))}
                   {section.children.map((child) => (
                     <NavLink
                       key={child.slug}
@@ -445,6 +486,13 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
               {isOpen && (
                 <div className="absolute left-0 top-full z-50 pt-1">
                   <div className="w-52 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                    {featuresFor(section.slug).map((feature) => (
+                      <FeatureLink
+                        key={feature.href}
+                        feature={feature}
+                        className="mb-0.5 block rounded-lg bg-brand-50 px-3 py-2 text-sm font-bold text-brand-700 transition hover:bg-brand-100 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60"
+                      />
+                    ))}
                     <Link
                       to={sectionHref(section)}
                       className="block rounded-lg px-3 py-2 text-sm font-bold text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700"

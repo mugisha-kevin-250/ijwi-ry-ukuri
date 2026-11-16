@@ -31,8 +31,10 @@ per-route canonical/OG/`NewsArticle` JSON-LD and the Search Console tag; config-
 is built in; and a consent banner that holds both Google scripts back until the reader
 answers yes, with the answer changeable on `/cookies`.
 Open: custom domain and canonical redirects (owner), authors directory and Person data, image credits/captions and correction and
-sponsored labels, `sitemap-images.xml`, server-side proof of the consent answer, and any measured
-Core Web Vitals numbers.
+sponsored labels, `sitemap-images.xml`, server-side proof of the consent answer. Core Web
+Vitals are measured rather than assumed now (see the Performance row: lab numbers from
+2026-11-16); field data still waits on a real domain, because a Firebase default domain
+collects nothing useful.
 
 | Work item | Existing | Required changes | Dependencies | DB impact | Security/privacy impact | Acceptance criteria | Testing |
 |---|---|---|---|---|---|---|---|
@@ -44,7 +46,7 @@ Core Web Vitals numbers.
 | SEO endpoints | Partial | `/robots.txt` correctness, `/sitemap.xml` index, `/sitemap-news.xml`, `/sitemap-images.xml` (if useful), `/feed.xml` RSS; exclude drafts/private/noindex; stable canonicals | API/public URL data | None | No private URL leakage | Valid XML/RSS; Search Console-ready | Fetch/validate endpoints |
 | ads.txt & AdSense prep | Built, waiting on the owner id | `/ads.txt` from `VITE_ADSENSE_PUB_ID`, three consent-aware placements that render nothing without their own slot id | Owner AdSense publisher ID/approval | None | Policy/compliance | Correct file when configured; no fake ads | Verified in the browser with test ids |
 | GA4 & consent | Built, waiting on the owner id | `page_view` per route plus share/copy_link/search events, no PII; a banner that asks once, keeps the answer in `localStorage`, and refuses to fetch either Google script until yes; `/cookies` shows the answer and resets it | Owner GA4 ID | None yet — the answer is browser-local, so there is no consent record to audit | High (privacy); default is refusal | Events fire once with consent; opt-out honored and reversible without support | Verified in the browser with a test id: decline loaded no script, accept reported the current path |
-| Performance/CWV | Unknown | Image optimization, lazy-load, dimensions, font/code splitting/caching review; measure LCP/INP/CLS | Tooling/time | None | None | Meets reasonable targets; no regressions | PageSpeed Insights/field data |
+| Performance/CWV | Measured 2026-11-16 in the mobile lab (Lighthouse, default mobile emulation and throttling; one run before, three after, since the anonymous PageSpeed API is over its shared quota): score 38→38/42/41, FCP 2.0→~2.2s, LCP 6.7→6.1/6.4/6.5s, TBT 3,510→1,840/1,900/2,150ms, CLS 0.051 unchanged. The SPA is loaded in pieces now — every page is its own chunk except the home page and the story page, and React/router/axios/date-fns sit in one stable `vendor` file; a reader's first download went from 341 kB of JavaScript in one file to 183 kB in two, and the admin charts, the live socket client and the editor form are no longer on that path at all | The remaining LCP cost is not the bundle: the home banner paints only after `/api/articles?...` answers a cold Render free instance, and `index.html` still loads the ~100 kB Google sign-in script on every page | None | None | None — no new script, no new data, nothing a reader consents to | LCP explained rather than guessed; no regression in CLS; staff code never on the reader's path | Re-measure after any change to the banner's data path or the sign-in script; field data (CrUX) still needs a real domain |
 | Search Console | Doc/process | Verification support (meta/DNS per hosting), sitemap submit instructions, monitoring checklist | Owner access | None | None | Documented and testable steps | Owner-verified externally |
 
 ## Release 2 — Global newsroom & editorial workflow (High) — STARTED

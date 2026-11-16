@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom'
+import { Suspense } from 'react'
 import Header from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
 import BottomNav from '../components/layout/BottomNav'
@@ -6,6 +7,7 @@ import AnnouncerBar from '../components/audio/AnnouncerBar'
 import LanguageAlert from '../components/layout/LanguageAlert'
 import SignInPrompt from '../components/auth/SignInPrompt'
 import ConsentBanner from '../components/consent/ConsentBanner'
+import RouteFallback from '../components/common/RouteFallback'
 import { useI18n } from '../context/I18nContext'
 
 export default function PublicLayout() {
@@ -24,7 +26,13 @@ export default function PublicLayout() {
         publishes rather than a number written down here.
       */}
       <main className="flex-1 pt-[var(--header-h)]">
-        <Outlet key={languageVersion} />
+        {/* A page arrives in its own piece of JavaScript, and only when a reader
+            asks for it. The boundary sits here, under the header and above the
+            footer, so the chrome - and a bulletin already being spoken - is
+            untouched while that piece is downloaded. */}
+        <Suspense fallback={<RouteFallback />}>
+          <Outlet key={languageVersion} />
+        </Suspense>
       </main>
       <Footer />
       <BottomNav />

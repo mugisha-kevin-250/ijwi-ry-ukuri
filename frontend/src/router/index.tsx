@@ -1,55 +1,78 @@
 import { createBrowserRouter, Navigate, Outlet, ScrollRestoration, useLocation, useParams } from 'react-router-dom'
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, Suspense, lazy, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { sectionHrefFor } from '../data/sections'
 import { trackPageView } from '../utils/analytics'
 import RouteProgressBar from '../components/common/RouteProgressBar'
+import RouteFallback from '../components/common/RouteFallback'
 import WriterAccessGate from '../components/auth/WriterAccessGate'
 import AdminLayout from '../layouts/AdminLayout'
 import PublicLayout from '../layouts/PublicLayout'
 import WriterLayout from '../layouts/WriterLayout'
-import AuthPage from '../pages/public/AuthPage'
-import ArticleDetailPage from '../pages/public/ArticleDetailPage'
-import ArticleListPage from '../pages/public/ArticleListPage'
-import CategoriesPage from '../pages/public/CategoriesPage'
-import CategoryPage from '../pages/public/CategoryPage'
 import HomePage from '../pages/public/HomePage'
-import LivePage from '../pages/public/LivePage'
-import LiveSportsPage from '../pages/public/LiveSportsPage'
-import MyLibraryPage from '../pages/public/MyLibraryPage'
-import RadioPage from '../pages/public/RadioPage'
-import SearchPage from '../pages/public/SearchPage'
-import SectionPage from '../pages/public/SectionPage'
-import AboutPage from '../pages/public/AboutPage'
-import AdvertisingPage from '../pages/public/AdvertisingPage'
-import ContactPage from '../pages/public/ContactPage'
-import CorrectionsPage from '../pages/public/CorrectionsPage'
-import EditorialPolicyPage from '../pages/public/EditorialPolicyPage'
-import PrivacyPage from '../pages/public/PrivacyPage'
-import TermsPage from '../pages/public/TermsPage'
-import CookiePolicyPage from '../pages/public/CookiePolicyPage'
-import DisclaimerPage from '../pages/public/DisclaimerPage'
-import UserProfilePage from '../pages/public/UserProfilePage'
-import WriterDashboardPage from '../pages/writer/WriterDashboardPage'
-import WriterArticlesPage from '../pages/writer/WriterArticlesPage'
-import WriterArticleEditorPage from '../pages/writer/WriterArticleEditorPage'
-import WriterEarningsPage from '../pages/writer/WriterEarningsPage'
-import EditorDashboardPage from '../pages/editor/EditorDashboardPage'
-import EditorQueuePage from '../pages/editor/EditorQueuePage'
-import EditorCommentsPage from '../pages/editor/EditorCommentsPage'
-import EditorReviewPage from '../pages/editor/EditorReviewPage'
-import DashboardPage from '../pages/dashboard/DashboardPage'
-import AdminLoginPage from '../pages/admin/AdminLoginPage'
-import AdminUsersPage from '../pages/admin/AdminUsersPage'
-import AdminWritersPage from '../pages/admin/AdminWritersPage'
-import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
-import AdminArticlesPage from '../pages/admin/AdminArticlesPage'
-import AdminAiWriterPage from '../pages/admin/AdminAiWriterPage'
-import AdminPayoutsPage from '../pages/admin/AdminPayoutsPage'
-import AdminMessagesPage from '../pages/admin/AdminMessagesPage'
-import AdminCategoriesPage from '../pages/admin/AdminCategoriesPage'
-import AdminAdsPage from '../pages/admin/AdminAdsPage'
-import AdminSettingsPage from '../pages/admin/AdminSettingsPage'
+import ArticleDetailPage from '../pages/public/ArticleDetailPage'
+//
+// Everything below this line is downloaded only when a reader asks for it.
+//
+// The rule for what stays above is: a page a cold visitor can arrive at directly
+// from a search result, a shared link or the home screen is compiled into the
+// first piece of JavaScript, and everything else waits. A reader who lands on a
+// story has that story's code already; a reader who never opens the newsroom's
+// own screens never downloads the charts, the article form or the live-video
+// socket client that those screens are built from.
+//
+const AboutPage = lazy(() => import('../pages/public/AboutPage'))
+const AdvertisingPage = lazy(() => import('../pages/public/AdvertisingPage'))
+const ArticleListPage = lazy(() => import('../pages/public/ArticleListPage'))
+const AuthPage = lazy(() => import('../pages/public/AuthPage'))
+const CategoriesPage = lazy(() => import('../pages/public/CategoriesPage'))
+const CategoryPage = lazy(() => import('../pages/public/CategoryPage'))
+const ContactPage = lazy(() => import('../pages/public/ContactPage'))
+const CookiePolicyPage = lazy(() => import('../pages/public/CookiePolicyPage'))
+const CorrectionsPage = lazy(() => import('../pages/public/CorrectionsPage'))
+const DisclaimerPage = lazy(() => import('../pages/public/DisclaimerPage'))
+const EditorialPolicyPage = lazy(() => import('../pages/public/EditorialPolicyPage'))
+const LivePage = lazy(() => import('../pages/public/LivePage'))
+const LiveSportsPage = lazy(() => import('../pages/public/LiveSportsPage'))
+const MyLibraryPage = lazy(() => import('../pages/public/MyLibraryPage'))
+const PrivacyPage = lazy(() => import('../pages/public/PrivacyPage'))
+const RadioPage = lazy(() => import('../pages/public/RadioPage'))
+const SearchPage = lazy(() => import('../pages/public/SearchPage'))
+const SectionPage = lazy(() => import('../pages/public/SectionPage'))
+const TermsPage = lazy(() => import('../pages/public/TermsPage'))
+const UserProfilePage = lazy(() => import('../pages/public/UserProfilePage'))
+
+const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage'))
+
+const EditorCommentsPage = lazy(() => import('../pages/editor/EditorCommentsPage'))
+const EditorDashboardPage = lazy(() => import('../pages/editor/EditorDashboardPage'))
+const EditorQueuePage = lazy(() => import('../pages/editor/EditorQueuePage'))
+const EditorReviewPage = lazy(() => import('../pages/editor/EditorReviewPage'))
+
+const AdminAiWriterPage = lazy(() => import('../pages/admin/AdminAiWriterPage'))
+const AdminArticlesPage = lazy(() => import('../pages/admin/AdminArticlesPage'))
+const AdminAdsPage = lazy(() => import('../pages/admin/AdminAdsPage'))
+const AdminCategoriesPage = lazy(() => import('../pages/admin/AdminCategoriesPage'))
+const AdminLoginPage = lazy(() => import('../pages/admin/AdminLoginPage'))
+const AdminMessagesPage = lazy(() => import('../pages/admin/AdminMessagesPage'))
+const AdminPayoutsPage = lazy(() => import('../pages/admin/AdminPayoutsPage'))
+const AdminSettingsPage = lazy(() => import('../pages/admin/AdminSettingsPage'))
+const AdminUserDetailPage = lazy(() => import('../pages/admin/AdminUserDetailPage'))
+const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
+const AdminWritersPage = lazy(() => import('../pages/admin/AdminWritersPage'))
+
+const WriterArticleEditorPage = lazy(() => import('../pages/writer/WriterArticleEditorPage'))
+const WriterArticlesPage = lazy(() => import('../pages/writer/WriterArticlesPage'))
+const WriterDashboardPage = lazy(() => import('../pages/writer/WriterDashboardPage'))
+const WriterEarningsPage = lazy(() => import('../pages/writer/WriterEarningsPage'))
+
+// A page behind a role check can now be a chunk that has to be fetched, and the
+// gate that decides whether to render it is not that fetch. So the boundary sits
+// outside the gate, at the route, and the fallback is the same quiet placeholder
+// the public pages use.
+function DelayedPage({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<RouteFallback />}>{children}</Suspense>
+}
 
 function RequireRole({ children }: { role?: 'WRITER'; children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -209,7 +232,9 @@ export const router = createBrowserRouter([
           { path: 'settings', element: <RequireAdmin><AdminSettingsPage /></RequireAdmin> },
         ],
       },
-      { path: '/mugishaimekevin/login', element: <AdminLoginPage /> },
+      // The admin sign-in sits outside every layout, so it is the one route that
+      // carries its own boundary instead of borrowing the layout's.
+      { path: '/mugishaimekevin/login', element: <DelayedPage><AdminLoginPage /></DelayedPage> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

@@ -196,3 +196,33 @@ themselves, the sitemap just cannot be used yet. Nothing on the site depends on 
 - Before any push, `git status` must not list `.env.render`, `backend/.env`,
   `frontend/.env` or `frontend/.env.local`. `frontend/.env.production` **is**
   tracked, so keep secrets out of it.
+
+## 12. Put the weather key in Render
+
+**Status: the page is shipped and waiting.** `https://ijwi-ry--ukuri.web.app/weather`
+is live, linked as **Weather** on the nav bar, and right now it says, in those
+words, that the weather desk is not connected. That is the intended behaviour
+while the key is missing: the page would rather show nothing than show a
+temperature nobody measured.
+
+1. Sign in at https://www.weatherapi.com (free plan is enough: it answers three
+   days ahead and a current reading, which is exactly what the page asks for).
+2. Copy the account's API key into Render -> `studentnews-backend` -> Environment
+   as `WEATHERAPI_KEY`, and add the same line to your local `.env.render`.
+3. Restart the service. Nothing to rebuild in the frontend — the key never goes
+   into the bundle, and the browser never calls WeatherAPI at all.
+
+Optional, both already have working defaults: `WEATHER_DEFAULT_CITY` (the city
+the page opens on, `Kigali` today) and `WEATHER_REFRESH_SECONDS` (how long a
+stored reading is trusted, 600 today).
+
+**Check.** `GET https://studentnews-backend.onrender.com/api/weather/status`
+answers `configured: true`, then open `/weather` and the numbers appear. From
+then on a city costs one upstream call per ten minutes however many readers look
+at it, because the answer is stored in Atlas and served from there; the page
+prints how old a reading is whenever it is not the freshest one.
+
+**Indexing is yours.** `/weather` is reachable, is not in any sitemap and is not
+referenced by the sitemaps the build writes, so whatever you decide about putting
+it into Google Search is a decision you make in Search Console and nothing in the
+build will undo it.

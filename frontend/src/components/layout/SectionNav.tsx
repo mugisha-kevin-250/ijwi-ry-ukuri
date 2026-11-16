@@ -25,14 +25,14 @@ const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
  * even when the chrome is read in a longer language, so every name in the bar
  * keeps its arrow again.
  *
- * These are the six the front page is built on. Trending is deliberately not one
- * of them: it is a view over the whole archive rather than a section somebody
- * files stories for, and it is already the first sort tab on every section page.
- * Nothing is lost - Entertainment, Health, Trending, the full index and any beat
- * the newsroom invents later are all listed, with their sub-sections, in the More
- * panel beside the bar, and the phone strip and the menu still show everything.
+ * Which six is the owner's call, and it has been made twice. Trending is one of
+ * them now — it is the first thing a reader arrives looking for, and it is a
+ * section the newsroom files stories in like any other — and Rwanda has taken its
+ * seat in the More panel, where it sits at the top of the list. Nothing is lost
+ * either way: whatever leaves the bar keeps its sub-sections and is listed in the
+ * More panel beside it, and the phone strip and the menu still show everything.
  */
-const BAR_SECTIONS = ['rwanda', 'world', 'politics', 'business', 'tech', 'sports']
+const BAR_SECTIONS = ['trending', 'world', 'politics', 'business', 'tech', 'sports']
 
 /** The open-panel key for the More pill, which is not a section. */
 const MORE_KEY = '__more__'
@@ -283,7 +283,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
     return first && sections.some((section) => section.slug === first) ? first : null
   })()
 
-  // The More pill is lit for whatever it is holding, so a reader on /trending or
+  // The More pill is lit for whatever it is holding, so a reader on /rwanda or
   // /articles still sees where they are, the same as on a name in the bar.
   const moreActive = moreSections.some((section) => activeSectionSlug === section.slug)
     || extraLinks.some((link) => location.pathname === link.href)

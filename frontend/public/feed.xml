@@ -5,7 +5,7 @@
     <link>https://ijwi-ry--ukuri.web.app</link>
     <description>News written by approved writers: world, politics, business, technology, sports, entertainment and health.</description>
     <language>en</language>
-    <lastBuildDate>Sun, 15 Nov 2026 16:01:57 GMT</lastBuildDate>
+    <lastBuildDate>Mon, 16 Nov 2026 03:51:09 GMT</lastBuildDate>
     <docs>https://www.rss.org/rss.xml</docs>
     <generator>RADAR build scripts</generator>
     <atom:link href="https://ijwi-ry--ukuri.web.app/feed.xml" rel="self" type="application/rss+xml" />
@@ -15,9 +15,23 @@
       <link>https://ijwi-ry--ukuri.web.app</link>
     </image>
     <item>
+      <title>Ella Langley Claims Number One on Billboard Hot 100 for November 14, 2026</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/ella-langley-claims-number-one-on-billboard-hot-100-for-november-14-2026-1794764402057</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/ella-langley-claims-number-one-on-billboard-hot-100-for-november-14-2026-1794764402057</guid>
+      <description>Ella Langley secures the top position on the Billboard Hot 100 for the week of November 14, 2026, while Michael Jackson surges.</description>
+      <pubDate>Sun, 15 Nov 2026 17:39:17 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Music</category>
+      <category>billboard hot 100</category>
+      <category>ella langley</category>
+      <category>michael jackson</category>
+      <category>music charts</category>
+      <media:content url="https://studentnews-backend.onrender.com/uploads/1794764389345-67275752.webp" medium="image" />
+    </item>
+    <item>
       <title>Scott Colom Argues Democrats Can Win More in Mississippi with Funding</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/scott-colom-argues-democrats-can-win-more-in-mississippi-with-funding-1794762024870</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/scott-colom-argues-democrats-can-win-more-in-mississippi-with-funding-1794762024870</guid>
+      <link>https://ijwi-ry--ukuri.web.app/article/scott-colom-argues-democrats-can-win-more-in-mississippi-with-funding-1794763697334</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/scott-colom-argues-democrats-can-win-more-in-mississippi-with-funding-1794763697334</guid>
       <description>District Attorney Scott Colom contends that strategic financial investment from the national party could help Democrats win more competitive elections in Mississippi.</description>
       <pubDate>Sun, 15 Nov 2026 17:00:24 GMT</pubDate>
       <dc:creator>aime kevin</dc:creator>
@@ -27,6 +41,7 @@
       <category>politics</category>
       <category>elections</category>
       <category>scott colom</category>
+      <media:content url="https://studentnews-backend.onrender.com/uploads/1794763686854-825108395.webp" medium="image" />
     </item>
     <item>
       <title>The Overlooked Archive Reshaping Global History</title>
@@ -41,19 +56,6 @@
       <category>research</category>
       <category>economy</category>
       <category>global</category>
-    </item>
-    <item>
-      <title>Billboard Charts Update: Recent Activity on the Music Rankings</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/billboard-charts-update-recent-activity-on-the-music-rankings-1794761656000</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/billboard-charts-update-recent-activity-on-the-music-rankings-1794761656000</guid>
-      <description>An overview of recent data updates on standard music popularity charts, detailing chart movements and tracking methodologies.</description>
-      <pubDate>Sun, 15 Nov 2026 16:54:16 GMT</pubDate>
-      <dc:creator>aime kevin</dc:creator>
-      <category>Trending</category>
-      <category>billboard</category>
-      <category>music charts</category>
-      <category>industry news</category>
-      <category>streaming data</category>
     </item>
     <item>
       <title>Airlines Resume Select International Routes Amid Global Headlines</title>

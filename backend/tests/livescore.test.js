@@ -24,7 +24,7 @@ const SportStandings = require('../src/models/SportStandings');
 const { connectDatabase, disconnectDatabase } = require('../src/config/database');
 const liveScoreService = require('../src/services/liveScoreService');
 
-const { dayKey, scoreboard, matchDetail, standings, leagues, refreshWatched } = liveScoreService;
+const { dayKey, scoreboard, matchDetail, standings, leagues, search, refreshWatched } = liveScoreService;
 
 // The service stamps what it stores with the real clock, so the tests ask
 // questions of the same clock rather than a fixed date that would drift away
@@ -827,6 +827,155 @@ test('the watch list counts what is on the day, and names the rest from the list
   }
 });
 
+test('the page names every competition it follows, not only the ones with matches', async () => {
+  await SportScoreboard.deleteMany({});
+  const stub = dayEverywhere();
+  try {
+    const page = await scoreboard({ league: 'eng.1', now });
+    assert.equal(page.leagues.length, 1, 'one competition was asked for');
+    assert.equal(page.followed.length, 2, 'every competition on the list is still named');
+    assert.deepEqual(
+      page.followed.map((item) => item.code),
+      ['eng.1', 'esp.1'],
+    );
+    // The badge comes from the newsroom's own list so a row of chips is a row of
+    // badges from one source; the name is the competition's own, whether the day
+    // printed it or the list has been holding it all along.
+    assert.equal(page.followed[0].name, 'English Premier League');
+    assert.equal(page.followed[0].logo, 'https://a.espncdn.com/i/leaguelogos/soccer/500/23.png');
+    assert.equal(page.followed[1].name, 'Spanish LALIGA');
+    assert.equal(page.followed[1].logo, 'https://a.espncdn.com/i/leaguelogos/soccer/500/15.png');
+    assert.equal(JSON.stringify(page.followed).includes('site.api.espn.com'), false);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('a team or a competition can be searched out of the days already read', async () => {
+  await SportScoreboard.deleteMany({});
+  // The whole point of this search is that it is free: it reads what this server
+  // already holds. The stub below is not an answer, it is a tripwire.
+  const stub = stubFetch(() => jsonResponse(scoreboardFeed('English Premier League')));
+  try {
+    await SportScoreboard.create([
+      {
+        code: 'eng.1',
+        dateKey: TODAY,
+        league: { name: 'English Premier League' },
+        matches: [
+          {
+            id: '11',
+            name: 'Leeds United at Arsenal',
+            shortName: 'Leeds at Arsenal',
+            state: 'in',
+            statusText: "1st 25'",
+            clock: "25'",
+            period: 1,
+            start: minutes(-25),
+            home: { name: 'Arsenal', short: 'ARS', score: '1' },
+            away: { name: 'Leeds United', short: 'LEE', score: '0' },
+          },
+        ],
+        fetchedAt: now,
+        watchedAt: now,
+      },
+      {
+        code: 'eng.1',
+        dateKey: YESTERDAY,
+        league: { name: 'English Premier League' },
+        matches: [
+          {
+            id: '12',
+            name: 'Hull City at Arsenal',
+            shortName: 'Hull at Arsenal',
+            state: 'post',
+            statusText: 'FT',
+            clock: '',
+            period: 2,
+            start: minutes(-26 * 60),
+            home: { name: 'Arsenal', short: 'ARS', score: '3' },
+            away: { name: 'Hull City', short: 'HUL', score: '1' },
+          },
+        ],
+        fetchedAt: now,
+        watchedAt: now,
+      },
+      {
+        // A competition this newsroom does not follow cannot be searched, and a
+        // club that plays in it must not walk into somebody else's answer.
+        code: 'ita.1',
+        dateKey: TODAY,
+        league: { name: 'Italian Serie A' },
+        matches: [
+          {
+            id: '13',
+            name: 'Roma at Arsenal',
+            shortName: 'Roma at Arsenal',
+            state: 'pre',
+            start: minutes(200),
+            home: { name: 'Roma', short: 'ROM' },
+            away: { name: 'Arsenal', short: 'ARS' },
+          },
+        ],
+        fetchedAt: now,
+        watchedAt: now,
+      },
+    ]);
+
+    const team = await search({ q: 'Arsenal', now });
+    assert.equal(team.ok, true);
+    assert.equal(team.term, 'Arsenal');
+    assert.equal(team.competitions.length, 0, 'no competition is called Arsenal');
+    assert.equal(team.matches.length, 2, 'the two English days, not the Italian one');
+    assert.deepEqual(team.matches.map((row) => row.id), ['11', '12'], 'newest first');
+    assert.equal(team.matches[0].code, 'eng.1');
+    assert.equal(team.matches[0].leagueName, 'English Premier League');
+    assert.equal(team.matches[0].dateKey, TODAY);
+    assert.equal(team.matches[1].dateKey, YESTERDAY);
+    // The window the answer can speak for travels with it, so a page that finds
+    // nothing can say what it did not look at. Written as the days themselves:
+    // a week back and three forward is what the page promises a reader.
+    assert.equal(team.earliest, dayKey(7, now));
+    assert.equal(team.latest, dayKey(-21, now));
+
+    // The three letters a fixture list prints are a name a reader types.
+    const short = await search({ q: 'lee', now });
+    assert.deepEqual(short.matches.map((row) => row.id), ['11']);
+
+    // A competition is found by its own name, whether or not it has a match on
+    // a day anybody has opened.
+    const trophy = await search({ q: 'laliga', now });
+    assert.deepEqual(
+      trophy.competitions.map((item) => [item.code, item.name]),
+      [['esp.1', 'Spanish LALIGA']],
+    );
+    assert.equal(trophy.matches.length, 0);
+
+    // The code itself is a search term, and a dot is a dot and not a wildcard.
+    const byCode = await search({ q: 'eng.1', now });
+    assert.deepEqual(byCode.competitions.map((item) => item.code), ['eng.1']);
+    assert.equal(byCode.matches.length, 0);
+
+    // Two letters is where a name stops being an accident.
+    for (const term of ['a', '  ', '']) {
+      const refused = await search({ q: term, now });
+      assert.equal(refused.ok, true, `${JSON.stringify(term)} is answered, not rejected`);
+      assert.equal(refused.competitions.length, 0);
+      assert.equal(refused.matches.length, 0);
+      assert.equal(refused.earliest, null);
+    }
+
+    const nobody = await search({ q: 'Kigali', now });
+    assert.equal(nobody.ok, true);
+    assert.equal(nobody.matches.length, 0);
+    assert.equal(nobody.earliest, dayKey(7, now), 'an empty answer still says its window');
+
+    assert.equal(stub.calls.length, 0, 'a search asked the feed nothing');
+  } finally {
+    stub.restore();
+  }
+});
+
 test('the scores page is public and a stranger cannot ask it for anything', async () => {
   await SportScoreboard.deleteMany({});
   const stub = stubFetch((url) => jsonResponse(scoreboardFeed('English Premier League')));
@@ -851,6 +1000,66 @@ test('the scores page is public and a stranger cannot ask it for anything', asyn
 
     const standingsRefused = await request(app).get('/api/scores/standings?league=not%20a%20league');
     assert.equal(standingsRefused.status, 400);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('the search route answers a stranger from the cache alone', async () => {
+  await SportScoreboard.deleteMany({});
+  const stub = stubFetch(() => jsonResponse(scoreboardFeed('English Premier League')));
+  try {
+    await SportScoreboard.create({
+      code: 'esp.1',
+      dateKey: TOMORROW,
+      league: { name: 'Spanish LALIGA' },
+      matches: [
+        {
+          id: '21',
+          name: 'Girona at Barcelona',
+          shortName: 'Girona at Barcelona',
+          state: 'pre',
+          statusText: 'Scheduled',
+          start: minutes(300),
+          home: { name: 'Girona', short: 'GIR' },
+          away: { name: 'Barcelona', short: 'BAR' },
+        },
+      ],
+      fetchedAt: now,
+      watchedAt: now,
+    });
+
+    const found = await request(app).get('/api/scores/search?q=barcelona');
+    assert.equal(found.status, 200);
+    assert.equal(found.body.data.term, 'barcelona');
+    assert.equal(found.body.data.matches.length, 1);
+    assert.equal(found.body.data.matches[0].name, 'Girona at Barcelona');
+    assert.equal(found.body.data.matches[0].dateKey, TOMORROW, 'the row says which day to open');
+    assert.equal(found.body.data.competitions.length, 0, 'a club is not a competition');
+    // The competition is found by its own name, from the newsroom's list, whether
+    // or not the cache holds a single match of it.
+    const trophy = await request(app).get('/api/scores/search?q=laliga');
+    assert.equal(trophy.status, 200);
+    assert.equal(trophy.body.data.competitions.length, 1);
+    assert.equal(trophy.body.data.competitions[0].code, 'esp.1');
+    // As everywhere else on this page, the browser is handed our database's
+    // answer and never the feed's address.
+    assert.equal(JSON.stringify(found.body).includes('site.api.espn.com'), false);
+
+    const nothing = await request(app).get('/api/scores/search?q=%20mid%20');
+    assert.equal(nothing.status, 200);
+    assert.equal(nothing.body.data.term, 'mid');
+
+    // No term, and a term too short to be a name, are both answered rather than
+    // treated as a mistake the reader has to be told about.
+    for (const query of ['', '?q=a']) {
+      const refused = await request(app).get(`/api/scores/search${query}`);
+      assert.equal(refused.status, 200);
+      assert.equal(refused.body.data.matches.length, 0);
+      assert.equal(refused.body.data.competitions.length, 0);
+    }
+
+    assert.equal(stub.calls.length, 0, 'the search route asked the feed nothing');
   } finally {
     stub.restore();
   }

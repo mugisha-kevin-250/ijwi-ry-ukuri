@@ -78,6 +78,23 @@ router.get('/match/:id', async (req, res, next) => {
   }
 });
 
+/**
+ * A team or a competition, looked up in the days the scores desk has read.
+ *
+ * This is a read of our own cache and nothing else: no upstream call is made for
+ * a search, so a reader hunting for a club costs the newsroom the same as a
+ * reader browsing the page. An empty answer is a real answer about the days we
+ * hold, which is why the window travels with it.
+ */
+router.get('/search', async (req, res, next) => {
+  try {
+    const payload = await liveScoreService.search({ q: req.query.q, now: new Date() });
+    return successResponse(res, 200, 'Scores search', payload);
+  } catch (error) {
+    return next(error);
+  }
+});
+
 /** One competition's league table. */
 router.get('/standings', async (req, res, next) => {
   try {

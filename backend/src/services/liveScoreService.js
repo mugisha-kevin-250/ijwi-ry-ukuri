@@ -804,6 +804,24 @@ async function scoreboard({ date, league, live = false, now = new Date() } = {})
     dateKey,
     dayClock: wallClock(now, env.SCHEDULER_TZ).dateKey,
     leagues: filtered,
+    // Everything this newsroom follows, named, whether or not it has anything on
+    // this day. A page that only lists the competitions with matches reads as
+    // though the others were never followed at all, and the reader who wants the
+    // Turkish table has no way to say so.
+    //
+    // The badge comes from the newsroom's own list first, because a row of chips
+    // printed from one source is a row of badges that actually match each other,
+    // and because the list still has a name for a competition whose day has not
+    // been read yet. The feed's name wins where it has one: it is the competition
+    // calling itself that, on that day, in that season.
+    followed: leagueList().map((item) => {
+      const doc = byCode.get(item.code);
+      return {
+        code: item.code,
+        name: (doc && doc.league && doc.league.name) || item.name || item.code,
+        logo: item.logo || (doc && doc.league && doc.league.logo) || '',
+      };
+    }),
     counts: counts(filtered),
     pendingLeagues: pending,
     errors,
@@ -1243,6 +1261,106 @@ async function leagues({ now = new Date() } = {}) {
 }
 
 /**
+ * Find a team or a competition in what the scores desk has already read.
+ *
+ * A reader who types "Arsenal" wants the Arsenal rows; one who types "Champions"
+ * wants the competition. Both are answered out of our own database and our own
+ * list of leagues, and the feed is never asked - which is what makes this search
+ * free. A thousand people searching at once is a thousand reads of a collection
+ * this server already holds, not a thousand more requests to somebody else.
+ *
+ * The days it can see are the days the page can see: the last week and the three
+ * weeks ahead, and only the ones somebody has opened, because a day nobody
+ * looked at was never fetched. A team that is not in the answer is not in those
+ * days, and the page says exactly that rather than guessing at a fixture list.
+ */
+const SEARCH_LIMIT = 30;
+const SEARCH_COMPETITION_LIMIT = 8;
+
+function escapeForRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function search({ q, now = new Date() } = {}) {
+  const term = String(q || '').trim().slice(0, 60);
+  const needle = term.toLowerCase();
+  if (needle.length < 2) {
+    // Two letters is where a name stops being an accident. Below it the answer
+    // is a wall of rows nobody asked for, so nothing is searched at all.
+    return { ok: true, term, competitions: [], matches: [], earliest: null, latest: null };
+  }
+
+  const pattern = new RegExp(escapeForRegex(needle), 'i');
+  const list = leagueList();
+  const competitions = list
+    .filter((league) => `${league.name} ${league.code}`.toLowerCase().includes(needle))
+    .slice(0, SEARCH_COMPETITION_LIMIT)
+    .map((league) => ({ code: league.code, name: league.name || league.code, logo: league.logo || '' }));
+
+  const earliest = dayKey(KEEP_DAYS - 1, now);
+  const latest = dayKey(-AHEAD_DAYS, now);
+  // The codes come first so the read uses the same index every other read on
+  // this collection uses, instead of walking the whole cache for one name.
+  const stored = await SportScoreboard
+    .find({
+      code: { $in: list.map((league) => league.code) },
+      dateKey: { $gte: earliest, $lte: latest },
+      $or: [
+        { 'matches.home.name': pattern },
+        { 'matches.away.name': pattern },
+        { 'matches.home.short': pattern },
+        { 'matches.away.short': pattern },
+      ],
+    })
+    .select('code dateKey league matches')
+    .lean();
+
+  const matches = [];
+  for (const doc of stored) {
+    for (const match of doc.matches || []) {
+      const home = match.home || {};
+      const away = match.away || {};
+      const named = `${home.name || ''} ${home.short || ''} ${away.name || ''} ${away.short || ''}`;
+      // The database said one of the four sides matched; the row is checked
+      // against the whole sentence here so the answer is the name the reader
+      // typed and not a sibling that happened to share a substring.
+      if (!pattern.test(named)) continue;
+      matches.push({
+        id: match.id,
+        name: match.name,
+        shortName: match.shortName,
+        start: match.start || null,
+        state: match.state,
+        statusText: match.statusText || '',
+        clock: match.clock || '',
+        period: match.period || 0,
+        venue: match.venue || '',
+        home,
+        away,
+        code: doc.code,
+        leagueName: (doc.league && doc.league.name) || doc.code,
+        dateKey: doc.dateKey,
+      });
+    }
+  }
+
+  // Newest first: somebody looking for a club wants to see what it did last.
+  // What is still to come is on the day they land on when they open the row.
+  matches.sort((a, b) => new Date(b.start || 0) - new Date(a.start || 0));
+
+  return {
+    ok: true,
+    term,
+    competitions,
+    matches: matches.slice(0, SEARCH_LIMIT),
+    // What the search could see, printed so an empty answer can say why it is
+    // empty instead of looking like a broken one.
+    earliest,
+    latest,
+  };
+}
+
+/**
  * Forgets who is fetching what and which league the feed recently refused.
  *
  * The suite needs this because those two memories are the design: without
@@ -1260,6 +1378,7 @@ module.exports = {
   matchDetail,
   standings,
   leagues,
+  search,
   refreshWatched,
   resetCaches,
   leagueList,

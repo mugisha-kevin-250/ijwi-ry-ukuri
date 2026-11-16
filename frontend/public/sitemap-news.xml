@@ -1,7 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
   <url>
-    <loc>https://ijwi-ry--ukuri.web.app/article/scott-colom-argues-democrats-can-win-more-in-mississippi-with-funding-1794762024870</loc>
+    <loc>https://ijwi-ry--ukuri.web.app/article/ella-langley-claims-number-one-on-billboard-hot-100-for-november-14-2026-1794764402057</loc>
+    <news:news>
+      <news:publication>
+        <news:name>RADAR</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-11-15T17:39:17Z</news:publication_date>
+      <news:title>Ella Langley Claims Number One on Billboard Hot 100 for November 14, 2026</news:title>
+      <news:keywords>Music, billboard hot 100, ella langley, michael jackson, music charts</news:keywords>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://ijwi-ry--ukuri.web.app/article/scott-colom-argues-democrats-can-win-more-in-mississippi-with-funding-1794763697334</loc>
     <news:news>
       <news:publication>
         <news:name>RADAR</news:name>
@@ -22,18 +34,6 @@
       <news:publication_date>2026-11-15T16:54:49Z</news:publication_date>
       <news:title>The Overlooked Archive Reshaping Global History</news:title>
       <news:keywords>Trending, history, archives, research, economy, global</news:keywords>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://ijwi-ry--ukuri.web.app/article/billboard-charts-update-recent-activity-on-the-music-rankings-1794761656000</loc>
-    <news:news>
-      <news:publication>
-        <news:name>RADAR</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-11-15T16:54:16Z</news:publication_date>
-      <news:title>Billboard Charts Update: Recent Activity on the Music Rankings</news:title>
-      <news:keywords>Trending, billboard, music charts, industry news, streaming data</news:keywords>
     </news:news>
   </url>
   <url>

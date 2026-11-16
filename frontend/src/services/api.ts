@@ -1343,6 +1343,12 @@ export interface ScoreGroup {
   error: string | null
 }
 
+export interface ScoreLeague {
+  code: string
+  name: string
+  logo: string
+}
+
 export interface Scoreboard {
   ok: boolean
   provider: string
@@ -1351,6 +1357,8 @@ export interface Scoreboard {
   /** The day the server is on. A reader crossing midnight sees this move. */
   dayClock: string
   groups: ScoreGroup[]
+  /** Every competition the newsroom follows, named, even with nothing on this day. */
+  followed: ScoreLeague[]
   counts: { total: number; live: number; upcoming: number; finished: number }
   pendingLeagues: string[]
   errors: { code: string; reason: string }[]
@@ -1361,6 +1369,22 @@ export interface Scoreboard {
   pollSeconds: number
   refreshSeconds: number
   nextRefreshAt: string | null
+}
+
+/** A row the search found, which knows the day and the competition it came from. */
+export interface ScoreSearchRow extends ScoreRow {
+  code: string
+  leagueName: string
+  dateKey: string
+}
+
+export interface ScoreSearch {
+  term: string
+  competitions: ScoreLeague[]
+  matches: ScoreSearchRow[]
+  /** The window the server searched, as day keys, so an empty answer can say so. */
+  earliest: string | null
+  latest: string | null
 }
 
 export interface ScoreMatch {
@@ -1477,7 +1501,13 @@ function normaliseRow(value: unknown): ScoreRow {
   }
 }
 
-/** A league the server could not name at all still gets its code, not a blank. */
+/** A competition the server could not name still gets its code, not a blank. */
+function normaliseLeague(value: unknown): ScoreLeague {
+  const league = (value || {}) as Partial<ScoreLeague>
+  return { code: text(league.code), name: text(league.name) || text(league.code), logo: text(league.logo) }
+}
+
+/** The same promise for a whole group's row, which is what the page draws. */
 function normaliseGroup(value: unknown): ScoreGroup {
   const group = (value || {}) as Partial<ScoreGroup>
   return {
@@ -1593,6 +1623,7 @@ export const scoresAPI = {
       dateKey: text(payload.dateKey),
       dayClock: text(payload.dayClock),
       groups,
+      followed: Array.isArray(payload.followed) ? payload.followed.map(normaliseLeague) : [],
       counts: {
         total: figure(counts.total) ?? groups.reduce((n, group) => n + group.matches.length, 0),
         live: figure(counts.live) ?? 0,
@@ -1614,6 +1645,35 @@ export const scoresAPI = {
       pollSeconds: Math.min(Math.max(poll ?? 30, 15), 300),
       refreshSeconds: figure(payload.refreshSeconds) ?? 60,
       nextRefreshAt: text(payload.nextRefreshAt) || null,
+    }
+  },
+
+  /**
+   * A team or a competition, answered from the days our own server has read.
+   *
+   * The page calls this on the reader's typing, so it is one read of a small
+   * cached collection and never a request to the feed behind it.
+   */
+  search: async (q: string): Promise<ScoreSearch> => {
+    const response = await apiClient.get('/scores/search', { q })
+    const payload = (response.data?.data || {}) as Record<string, unknown>
+    const rows = Array.isArray(payload.matches)
+      ? payload.matches.map((item) => {
+          const raw = (item || {}) as Record<string, unknown>
+          return {
+            ...normaliseRow(item),
+            code: text(raw.code),
+            leagueName: text(raw.leagueName) || text(raw.code),
+            dateKey: text(raw.dateKey),
+          }
+        })
+      : []
+    return {
+      term: text(payload.term) || q,
+      competitions: Array.isArray(payload.competitions) ? payload.competitions.map(normaliseLeague) : [],
+      matches: rows,
+      earliest: text(payload.earliest) || null,
+      latest: text(payload.latest) || null,
     }
   },
 

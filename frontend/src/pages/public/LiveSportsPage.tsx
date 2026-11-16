@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, Home, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, Home, RefreshCw, Search, X } from 'lucide-react'
 import { scoresAPI } from '../../services/api'
-import type { Scoreboard, ScoreEvent, ScoreGroup, ScoreMatch, ScoreRow, ScoreSide, Standings, StandingsRow } from '../../services/api'
+import type { Scoreboard, ScoreEvent, ScoreGroup, ScoreMatch, ScoreRow, ScoreSearch, ScoreSide, Standings, StandingsRow } from '../../services/api'
 import { serverMessage } from '../../services/apiClient'
 import { useI18n } from '../../context/I18nContext'
 import { Loading } from '../../components/common/Loading'
@@ -32,6 +32,9 @@ const TABS: { id: Tab; key: string }[] = [
   { id: 'finished', key: 'liveSports.finished' },
   { id: 'upcoming', key: 'liveSports.upcoming' },
 ]
+
+/** How long the search box waits for the reader to stop typing. */
+const SEARCH_DEBOUNCE_MS = 300
 
 /** The feed's cache key for a day, `YYYYMMDD`, on the reader's own calendar. */
 function dayKey(date: Date): string {
@@ -561,6 +564,12 @@ export default function LiveSportsPage() {
   const { t } = useI18n()
   const [day, setDay] = useState(() => new Date())
   const [tab, setTab] = useState<Tab>('all')
+  // Null is "every competition we follow"; a code is the chip the reader picked.
+  const [league, setLeague] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<ScoreSearch | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchFailed, setSearchFailed] = useState(false)
   const [board, setBoard] = useState<Scoreboard | null>(null)
   const [failed, setFailed] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -568,32 +577,34 @@ export default function LiveSportsPage() {
 
   const key = dayKey(day)
   // The last request a reader still wants an answer from. A poll that lands
-  // after they have moved to tomorrow must not repaint today.
+  // after they have moved to tomorrow, or to one competition, must not repaint
+  // the page they left.
   const asking = useRef('')
 
-  const load = useCallback(async (dateKey: string, quiet = false) => {
-    asking.current = dateKey
+  const load = useCallback(async (dateKey: string, code: string | null, quiet = false) => {
+    const token = `${dateKey}|${code || ''}`
+    asking.current = token
     if (!quiet) setIsLoading(true)
     try {
-      const payload = await scoresAPI.scoreboard({ date: dateKey })
-      if (asking.current !== dateKey) return
+      const payload = await scoresAPI.scoreboard({ date: dateKey, league: code || undefined })
+      if (asking.current !== token) return
       setBoard(payload)
       setFailed('')
     } catch (error) {
-      if (asking.current !== dateKey) return
+      if (asking.current !== token) return
       // A date outside the window is the server's own sentence, and it is the
       // true reason the page is empty - so it is printed rather than replaced
       // with a generic "could not load".
       setFailed(serverMessage(error, t('liveSports.failedHint')))
       if (!quiet) setBoard(null)
     } finally {
-      if (asking.current === dateKey) setIsLoading(false)
+      if (asking.current === token) setIsLoading(false)
     }
   }, [t])
 
   useEffect(() => {
-    load(key)
-  }, [key, load])
+    load(key, league)
+  }, [key, league, load])
 
   // The interval comes from the payload, not from a number written here: the
   // server knows whether a match is being played, and says thirty seconds when
@@ -607,20 +618,53 @@ export default function LiveSportsPage() {
       // Nobody is watching a hidden tab; asking for it would be spending the
       // one-minute upstream budget on an empty screen.
       if (document.hidden) return
-      load(key, true)
+      load(key, league, true)
     }, every)
     return () => window.clearInterval(timer)
-  }, [board, key, load])
+  }, [board, key, league, load])
 
   // Coming back to the tab is the moment a reader expects the newest score, and
   // the interval may be minutes away.
   useEffect(() => {
     const onVisible = () => {
-      if (!document.hidden) load(key, true)
+      if (!document.hidden) load(key, league, true)
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [key, load])
+  }, [key, league, load])
+
+  // Searching waits for the reader to stop typing. Every word is one read of our
+  // own cached collection - the feed is never asked anything on somebody's
+  // keystroke - so this is cheap, but it is still not worth doing forty times
+  // for one name.
+  const searchToken = useRef(0)
+  useEffect(() => {
+    const term = query.trim()
+    const token = searchToken.current + 1
+    searchToken.current = token
+    if (term.length < 2) {
+      setResults(null)
+      setIsSearching(false)
+      setSearchFailed(false)
+      return undefined
+    }
+    setIsSearching(true)
+    const timer = window.setTimeout(async () => {
+      try {
+        const found = await scoresAPI.search(term)
+        if (searchToken.current !== token) return
+        setResults(found)
+        setSearchFailed(false)
+      } catch (error) {
+        if (searchToken.current !== token) return
+        setResults(null)
+        setSearchFailed(true)
+      } finally {
+        if (searchToken.current === token) setIsSearching(false)
+      }
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [query])
 
   const visible = useMemo(() => {
     const groups = board?.groups || []
@@ -638,6 +682,19 @@ export default function LiveSportsPage() {
   }, [board, tab])
 
   const shown = visible.reduce((count, group) => count + group.matches.length, 0)
+
+  // A reader who is looking at search results does not also need to be told that
+  // the day underneath is empty: those answer two different questions, and
+  // printing both makes the list look like a note beside nothing.
+  const quietDay = shown === 0 && Boolean(results && (results.matches.length > 0 || results.competitions.length > 0))
+
+  const leagueChip = (active: boolean) =>
+    cn(
+      'shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition',
+      active
+        ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+        : 'border-blue-100 bg-white text-blue-700 hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-900 dark:text-blue-200 dark:hover:bg-gray-800',
+    )
 
   const label = useMemo(() => {
     const today = dayKey(new Date())
@@ -753,6 +810,30 @@ export default function LiveSportsPage() {
               {t('liveSports.today')}
             </button>
           )}
+          {/* The way to "where is my club" without walking fourteen competitions
+              one tab at a time. It searches what this server has already read. */}
+          <div className="relative ml-auto min-w-0 flex-1 sm:max-w-[15rem]">
+            <label htmlFor="scores-search" className="sr-only">{t('liveSports.search')}</label>
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-blue-400" aria-hidden="true" />
+            <input
+              id="scores-search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('liveSports.search')}
+              className="w-full rounded-lg border border-blue-100 bg-white py-1.5 pl-8 pr-7 text-xs font-medium text-[#062b52] outline-none transition placeholder:font-normal placeholder:text-blue-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-blue-100 dark:placeholder:text-gray-500 dark:focus:ring-blue-950"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label={t('liveSports.clearSearch')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-blue-400 transition hover:text-blue-700 dark:hover:text-blue-200"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mx-auto flex max-w-3xl gap-1 border-t border-blue-50 px-3 dark:border-gray-800 sm:px-4">
@@ -801,7 +882,7 @@ export default function LiveSportsPage() {
             <p className="mt-1 text-xs text-blue-500 dark:text-gray-400">{failed}</p>
             <button
               type="button"
-              onClick={() => load(key)}
+              onClick={() => load(key, league)}
               className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -817,6 +898,87 @@ export default function LiveSportsPage() {
           </p>
         )}
 
+        {/*
+          Every competition the newsroom follows, named, on one line. The list
+          below only draws the leagues that have something on the day, which is
+          right for reading and wrong for finding: without this row a reader
+          cannot tell "we do not follow Turkey" from "Turkey has nothing today",
+          and has no way to ask for one competition instead of scrolling thirteen.
+        */}
+        {board && board.followed.length > 0 && (
+          <div
+            className="mb-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            aria-label={t('liveSports.competitions')}
+          >
+            <button type="button" onClick={() => setLeague(null)} aria-pressed={!league} className={leagueChip(!league)}>
+              {t('liveSports.all')}
+            </button>
+            {board.followed.map((item) => (
+              <button
+                key={item.code}
+                type="button"
+                onClick={() => setLeague(league === item.code ? null : item.code)}
+                aria-pressed={league === item.code}
+                className={leagueChip(league === item.code)}
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {query.trim().length >= 2 && (
+          <div className="mb-3 rounded-xl border border-blue-100 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-blue-400">
+              {isSearching && <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />}
+              {searchFailed
+                ? t('liveSports.searchFailed')
+                : results
+                  ? t('liveSports.searchResults')
+                  : t('liveSports.searching')}
+            </p>
+
+            {results && results.competitions.length > 0 && (
+              <div className="mt-2">
+                <p className="text-[11px] font-bold text-blue-500 dark:text-blue-300">{t('liveSports.searchCompetitions')}</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {results.competitions.map((item) => (
+                    <button
+                      key={item.code}
+                      type="button"
+                      onClick={() => {
+                        setLeague(item.code)
+                        setQuery('')
+                      }}
+                      className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200 dark:hover:bg-blue-900/50"
+                    >
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {results && results.matches.length > 0 && (
+              <div className="mt-2 space-y-2">
+                <p className="text-[11px] font-bold text-blue-500 dark:text-blue-300">{t('liveSports.searchMatches')}</p>
+                {results.matches.map((row) => (
+                  <div key={`${row.dateKey}-${row.id}`}>
+                    <p className="mb-0.5 px-1 text-[10px] font-bold uppercase tracking-wide text-blue-300 dark:text-blue-400">
+                      {row.leagueName} · {dateFromKey(row.dateKey).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                    </p>
+                    <MatchRow row={row} code={row.code} ft={t('liveSports.ft')} onOpen={(picked, code) => setOpen({ row: picked, code })} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {results && !isSearching && !results.matches.length && !results.competitions.length && (
+              <p className="mt-1 text-xs leading-5 text-blue-500 dark:text-gray-400">{t('liveSports.searchEmpty')}</p>
+            )}
+          </div>
+        )}
+
         {board && !failed && (
           <div className="space-y-3">
             {shown === 0 && board.refreshing ? (
@@ -829,14 +991,24 @@ export default function LiveSportsPage() {
                 <p className="text-sm font-bold text-[#062b52] dark:text-blue-200">{t('liveSports.refreshing')}</p>
               </div>
             ) : shown === 0 ? (
+              quietDay ? null : (
               <div className="rounded-xl border border-blue-100 bg-white p-6 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <p className="text-sm font-bold text-[#062b52] dark:text-blue-200">
-                  {tab === 'live' ? t('liveSports.noLive') : tab === 'finished' ? t('liveSports.noFinished') : tab === 'upcoming' ? t('liveSports.noUpcoming') : t('liveSports.noMatches')}
+                  {league && tab === 'all'
+                    ? t('liveSports.noLeagueMatches')
+                    : tab === 'live'
+                      ? t('liveSports.noLive')
+                      : tab === 'finished'
+                        ? t('liveSports.noFinished')
+                        : tab === 'upcoming'
+                          ? t('liveSports.noUpcoming')
+                          : t('liveSports.noMatches')}
                 </p>
                 <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-blue-500 dark:text-gray-400">
                   {tab === 'live' ? t('liveSports.noLiveHint') : t('liveSports.noMatchesHint')}
                 </p>
               </div>
+              )
             ) : (
               visible.map((group) => <LeagueSection key={group.code} group={group} ft={t('liveSports.ft')} onOpen={(row, code) => setOpen({ row, code })} />)
             )}

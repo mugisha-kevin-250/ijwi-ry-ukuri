@@ -14,6 +14,29 @@ import { sectionLabel, useSections } from '../../utils/sectionsStore'
 const DESKTOP_DROPDOWNS_QUERY = '(min-width: 768px)'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
+/**
+ * The six names the desktop bar keeps.
+ *
+ * Six is the whole argument: the row is measured before any sub-section panel is
+ * allowed to open, and a row holding nine names plus a duplicate "News" link does
+ * not fit at a tablet's width, so the panels switched themselves off and Middle
+ * East, Africa and the rest became unreachable without anybody saying so. Six
+ * beats leave the row about 450px of the 736px it has, which is room to spare
+ * even when the chrome is read in a longer language, so every name in the bar
+ * keeps its arrow again.
+ *
+ * These are the six the front page is built on. Trending is deliberately not one
+ * of them: it is a view over the whole archive rather than a section somebody
+ * files stories for, and it is already the first sort tab on every section page.
+ * Nothing is lost - Entertainment, Health, Trending, the full index and any beat
+ * the newsroom invents later are all listed, with their sub-sections, in the More
+ * panel beside the bar, and the phone strip and the menu still show everything.
+ */
+const BAR_SECTIONS = ['rwanda', 'world', 'politics', 'business', 'tech', 'sports']
+
+/** The open-panel key for the More pill, which is not a section. */
+const MORE_KEY = '__more__'
+
 /** How fast the phone strip drifts, how long it rests at each end, and how long
  * it stays still after a reader touches it. */
 const MARQUEE_SPEED = 30
@@ -238,11 +261,20 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
   const listRef = useRef<HTMLUListElement>(null)
   const fitsInRow = useFitsInRow(rowRef, listRef, layout)
   const canOpenPanels = allowsDropdowns && fitsInRow
-  // The phone strip always drifts; the masthead row drifts only when it has run
-  // out of room, which is the case it used to fail at by drawing through the
-  // buttons beside it. A row with room for every name stays exactly where it is.
-  const drifts = layout === 'marquee' || (layout === 'bar' && !fitsInRow)
+  // Only the phone strip drifts. The desktop bar is navigation, not a ticker: a
+  // reader cannot catch a link that is moving under the cursor, and a name that
+  // slides past is a name they have to wait for. When the desktop names do not
+  // fit, the row scrolls for the reader's own hand and the arrows hide, which is
+  // the case the shortened bar plus the More panel exists to avoid.
+  const drifts = layout === 'marquee'
   const marquee = useSelfScroll(drifts && !reducedMotion)
+
+  // The bar shows six beats and hands the rest to the More panel; the phone
+  // strip and the menu keep showing everything, because there the row scrolls
+  // anyway and a panel has no room to open in.
+  const isBarSection = (section: SectionNode) => BAR_SECTIONS.includes(section.slug)
+  const barSections = layout === 'bar' ? sections.filter(isBarSection) : sections
+  const moreSections = sections.filter((section) => !isBarSection(section))
 
   // Whichever section the reader is looking at stays lit, including when they are
   // three levels deep on /world/africa.
@@ -250,6 +282,21 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
     const first = location.pathname.split('/')[1]
     return first && sections.some((section) => section.slug === first) ? first : null
   })()
+
+  // The More pill is lit for whatever it is holding, so a reader on /trending or
+  // /articles still sees where they are, the same as on a name in the bar.
+  const moreActive = moreSections.some((section) => activeSectionSlug === section.slug)
+    || extraLinks.some((link) => location.pathname === link.href)
+  // It pays for an arrow seat whether or not the arrow is showing, for the same
+  // reason the sections do: the width of the row is what decides if the panels
+  // are allowed, so the row may not change width because of that decision.
+  const morePill = cn(
+    'whitespace-nowrap rounded-lg py-1.5 pl-1.5 pr-[17px] text-left text-[13px] font-bold underline-offset-4 transition',
+    moreActive
+      ? 'bg-brand-600 text-white shadow-sm dark:bg-blue-600'
+      : 'text-gray-800 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400',
+  )
+  const hasMore = moreSections.length > 0 || extraLinks.length > 0
 
   useEffect(() => {
     if (layout === 'bar') setOpenSlug(null)
@@ -417,21 +464,19 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
       ref={(node) => {
         rootRef.current = node
         rowRef.current = node
-        marquee.scrollRef.current = node
       }}
-      {...marquee.handlers}
       className={cn(
         'min-w-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-        // Room for every name: draw them all and let a sub-section panel escape
-        // the row. No room: the row scrolls itself instead of spilling over the
-        // buttons beside it, and the arrows go, because a panel cannot be seen
-        // through a scroller.
+        // Room for the names that are drawn: they sit still and a sub-section
+        // panel is allowed to escape the row. No room: the row scrolls for the
+        // reader's own hand instead of spilling over the buttons beside it, and
+        // the arrows go, because a panel cannot be seen through a scroller.
         fitsInRow ? 'overflow-visible' : 'overflow-x-auto',
         className,
       )}
     >
       <ul ref={listRef} role="list" aria-label={t('nav.sections')} className="flex w-max min-w-full items-center">
-        {sections.map((section) => {
+        {barSections.map((section) => {
           const isOpen = canOpenPanels && openSlug === section.slug
           const isActive = activeSectionSlug === section.slug
           // The right padding is the arrow's seat, and only the sections that have
@@ -439,9 +484,10 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
           // whether it is showing or not the row costs the same width - otherwise
           // the measurement that decides if the names fit would change the room they
           // have to fit in, and the strip would pulse between the two answers.
-          // The seats are deliberately tight: nine names cost 735px at a tablet's
-          // width and the row has 720px, and paying four pixels back to the padding
-          // is what lets a 768px screen have its dropdowns instead of a scroller.
+          // The seats are deliberately tight: the six beats and the More pill
+          // cost about 450px at a tablet's width, where the row has 736px, and
+          // that margin is what a section name has left to grow into when the
+          // reader is reading the chrome in another language.
           const pill = cn(
             'whitespace-nowrap rounded-lg py-1.5 pl-1.5 text-[13px] font-bold underline-offset-4 transition',
             section.children.length > 0 ? 'pr-[17px]' : 'pr-1.5',
@@ -521,23 +567,111 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
             </li>
           )
         })}
-        {extraLinks.map((link) => (
-          <li key={link.href} className="shrink-0">
-            <NavLink
-              to={link.href}
-              className={({ isActive }) =>
-                cn(
-                  'block whitespace-nowrap rounded-lg px-2 py-1.5 text-[13px] font-bold underline-offset-4 transition',
-                  isActive
-                    ? 'bg-brand-600 text-white shadow-sm dark:bg-blue-600'
-                    : 'text-gray-800 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400',
-                )
-              }
-            >
-              {link.label}
-            </NavLink>
+        {hasMore && (
+          <li
+            className="relative shrink-0"
+            onPointerEnter={() => canOpenPanels && setOpenSlug(MORE_KEY)}
+            onPointerLeave={() => canOpenPanels && setOpenSlug(null)}
+          >
+            <div className="flex items-center">
+              {/* Where the row has room for a panel, More opens one. Where it does
+                  not, the panel would be clipped by the scroller, so the same word
+                  is a link to the full index instead: it always goes somewhere
+                  real, and it costs the same width either way. */}
+              {canOpenPanels ? (
+                <button
+                  type="button"
+                  onClick={() => setOpenSlug(openSlug === MORE_KEY ? null : MORE_KEY)}
+                  aria-expanded={openSlug === MORE_KEY}
+                  aria-haspopup="true"
+                  aria-label={t('section.more')}
+                  className={morePill}
+                >
+                  {t('nav.more')}
+                </button>
+              ) : (
+                <NavLink to="/categories" className={morePill} aria-label={t('section.more')}>
+                  {t('nav.more')}
+                </NavLink>
+              )}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute right-0.5 top-1/2 -translate-y-1/2 p-px text-gray-500 dark:text-gray-400',
+                  !canOpenPanels && 'invisible',
+                )}
+              >
+                <ChevronDown className={cn('h-3 w-3 transition-transform', openSlug === MORE_KEY && 'rotate-180')} />
+              </span>
+            </div>
+            {canOpenPanels && openSlug === MORE_KEY && (
+              <div className="absolute right-0 top-full z-50 pt-1">
+                <div className="max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                  {moreSections.map((section) => (
+                    <div key={section.slug} className="mb-1 last:mb-0">
+                      <NavLink
+                        to={sectionHref(section)}
+                        onClick={() => setOpenSlug(null)}
+                        className={({ isActive: onRow }) =>
+                          cn(
+                            'block rounded-lg px-3 py-2 text-sm font-bold transition',
+                            onRow || activeSectionSlug === section.slug
+                              ? 'bg-brand-50 text-brand-700 dark:bg-blue-900/40 dark:text-blue-300'
+                              : 'text-gray-800 hover:bg-gray-100 hover:text-brand-600 dark:text-gray-100 dark:hover:bg-gray-700 dark:hover:text-brand-400',
+                          )
+                        }
+                      >
+                        {sectionLabel(section, t)}
+                      </NavLink>
+                      {/* The six that left the bar do not lose their shelves: a
+                          section in this panel carries its sub-sections with it,
+                          so the panel that came back with the shortened row is
+                          not the only way in. */}
+                      {section.children.length > 0 && (
+                        <div className="ml-3 border-l border-gray-200 pl-2 dark:border-gray-700">
+                          {section.children.map((child) => (
+                            <NavLink
+                              key={child.slug}
+                              to={childHref(section, child)}
+                              onClick={() => setOpenSlug(null)}
+                              className={({ isActive: onChild }) =>
+                                cn(
+                                  'block rounded-lg px-3 py-1.5 text-sm font-medium transition',
+                                  onChild
+                                    ? 'bg-brand-50 text-brand-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                    : 'text-gray-600 hover:bg-gray-100 hover:text-brand-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-brand-400',
+                                )
+                              }
+                            >
+                              {sectionLabel(child, t)}
+                            </NavLink>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {extraLinks.map((link) => (
+                    <NavLink
+                      key={link.href}
+                      to={link.href}
+                      onClick={() => setOpenSlug(null)}
+                      className={({ isActive: onRow }) =>
+                        cn(
+                          'mt-1 block rounded-lg px-3 py-2 text-sm font-bold transition',
+                          onRow
+                            ? 'bg-brand-50 text-brand-700 dark:bg-blue-900/40 dark:text-blue-300'
+                            : 'text-gray-800 hover:bg-gray-100 hover:text-brand-600 dark:text-gray-100 dark:hover:bg-gray-700 dark:hover:text-brand-400',
+                        )
+                      }
+                    >
+                      {link.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            )}
           </li>
-        ))}
+        )}
       </ul>
     </div>
   )

@@ -10,6 +10,9 @@
 //                            does not already publish at its own address
 //   sitemap-sections.xml     one URL per section and sub-section page
 //   sitemap-writers.xml      one URL per author profile page
+//   sitemap-images.xml       Google's image sitemap: the photo the newsroom
+//                            attached to each story, tied to the page a reader
+//                            lands on when they open it from an image search
 //   sitemap-news.xml         Google News sitemap: English stories from the last
 //                            two days (Google only reads that window)
 //   feed.xml                 RSS 2.0 feed of the latest 30 published stories
@@ -203,6 +206,46 @@ ${entries.join('\n')}
   return { xml, count: recent.length }
 }
 
+// Google's image sitemap: each picture tied to the page it belongs to, so an image
+// search sends a reader to the story rather than to a bare file. The newsroom stores
+// one photo per story, so this is one <image:image> per <url>.
+//
+// The caption is written only when someone recorded a credit. A description invented
+// for a photograph is how a picture search starts lying about what is in it.
+//
+// The cap is not one the archive has come near; it is Google's own ceiling, applied
+// so that the day it matters the answer is visibly to split the file rather than to
+// leave a crawler with a silently truncated one. Newest first, so what a picture
+// search would actually serve is what stays.
+const IMAGE_SITEMAP_LIMIT = 1000
+
+function imageSitemap(items) {
+  const entries = []
+  for (const article of items) {
+    if (entries.length >= IMAGE_SITEMAP_LIMIT) break
+    if (!article?.slug) continue
+    const image = mediaUrl(article.featuredImage)
+    if (!image) continue
+    entries.push([
+      '  <url>',
+      `    <loc>${escape(articleUrl(article))}</loc>`,
+      '    <image:image>',
+      `      <image:loc>${escape(image)}</image:loc>`,
+      article.title ? `      <image:title>${escape(article.title)}</image:title>` : null,
+      article.imageCredit ? `      <image:caption>${escape(String(article.imageCredit))}</image:caption>` : null,
+      '    </image:image>',
+      '  </url>',
+    ].filter(Boolean).join('\n'))
+  }
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+${entries.join('\n')}
+</urlset>
+`
+  return { xml, count: entries.length }
+}
+
 async function main() {
   const base = apiBase()
   const today = isoDate(new Date().toISOString())
@@ -324,6 +367,8 @@ async function main() {
   const newest = byNewest(articles.filter((a) => a?.slug))
   const news = newsSitemap(newest)
   if (news.count) files.push({ name: 'sitemap-news.xml', xml: news.xml })
+  const images = imageSitemap(newest)
+  if (images.count) files.push({ name: 'sitemap-images.xml', xml: images.xml })
   const feedUrl = write('feed.xml', rssFeed(newest))
 
   const written = files.map((file) => ({ name: file.name, url: write(file.name, file.xml) }))
@@ -332,7 +377,7 @@ async function main() {
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${written
   .map(({ name }) => {
-    const lastmod = name === 'sitemap-articles.xml' || name === 'sitemap-pages.xml' ? latestArticle : null
+    const lastmod = name === 'sitemap-articles.xml' || name === 'sitemap-pages.xml' || name === 'sitemap-images.xml' ? latestArticle : null
     return ['  <sitemap>', `    <loc>${escape(`${SITE_URL}/${name}`)}</loc>`, lastmod ? `    <lastmod>${lastmod}</lastmod>` : null, '  </sitemap>']
       .filter(Boolean)
       .join('\n')
@@ -350,6 +395,7 @@ ${written
       // Home, News, Categories, TV, Search and the scores desk - the six addresses
       // the site publishes that are not a story, a section or a policy page.
       `${6 + publisherPages.length} static pages, ${news.count} stories in the News sitemap, ` +
+      `${images.count} pictures in the image sitemap, ` +
       `${Math.min(newest.length, 30)} stories in the feed`
   )
 }

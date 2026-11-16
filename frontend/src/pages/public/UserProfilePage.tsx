@@ -9,6 +9,7 @@ import LanguageSelector from '../../components/layout/LanguageSelector'
 import { uploadImage } from '../../services/apiClient'
 import Avatar from '../../components/common/Avatar'
 import NewsAlertsCard from '../../components/pwa/NewsAlertsCard'
+import { useSeo, absoluteSiteUrl } from '../../utils/useSeo'
 import { toast } from 'react-toastify'
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string; icon: typeof Sun }[] = [
@@ -27,6 +28,52 @@ export default function UserProfilePage() {
   const { theme, setTheme } = useTheme()
   const profileId = id ?? user?._id
   const isOwnProfile = !!user && !!profileId && user._id === profileId
+
+  // This address is published in the sitemap, and it is where a reader goes when they
+  // want to know who wrote the story they just finished. Before this it was an
+  // untagged route, so it inherited the home page's title, description and canonical -
+  // which is how every author page on the site was quietly telling Google it was a
+  // duplicate of the front page. It now says who it is, and carries the Person record
+  // the publisher pages have been waiting for, built only from what the profile
+  // actually holds: the name, the handle, the line they wrote about themselves, the
+  // picture they chose.
+  //
+  // A profile with nothing published under it is somebody's own account rather than a
+  // byline, and that belongs out of the index instead - see useSeo.
+  const author = data?.user
+  const publishedCount = Array.isArray(data?.articles) ? data.articles.length : 0
+  const isWriter = publishedCount > 0
+  useSeo({
+    title: author?.fullName,
+    description: author?.bio
+      || (author?.fullName && isWriter
+        ? `${publishedCount} ${publishedCount === 1 ? 'story' : 'stories'} published on RADAR by ${author.fullName}.`
+        : undefined),
+    path: profileId ? `/user/${profileId}` : undefined,
+    image: author?.avatar,
+    // Only once the page knows what it is. A profile that is still being fetched is
+    // not yet known to be empty, and a crawler that renders during that second
+    // would be told to drop a byline that was about to turn out to hold thirty
+    // stories. A profile that has finished loading with nothing published under it
+    // - or that failed to load at all - is the one that stays out of the index.
+    noindex: !loading && !isWriter,
+    jsonLd: author && isWriter && profileId
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'ProfilePage',
+          url: absoluteSiteUrl(`/user/${profileId}`),
+          mainEntity: {
+            '@type': 'Person',
+            name: author.fullName,
+            url: absoluteSiteUrl(`/user/${profileId}`),
+            ...(author.avatar ? { image: author.avatar } : {}),
+            ...(author.bio ? { description: author.bio } : {}),
+            ...(author.username ? { identifier: `@${author.username}` } : {}),
+          },
+          publisher: { '@type': 'Organization', name: 'RADAR', url: absoluteSiteUrl('/') },
+        }
+      : undefined,
+  })
 
   useEffect(() => {
     const load = async () => {

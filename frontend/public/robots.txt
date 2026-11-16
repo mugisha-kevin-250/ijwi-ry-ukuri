@@ -5,11 +5,15 @@ Allow: /article/
 Allow: /categories
 Allow: /category/
 Allow: /search
+# An author's public profile is in the sitemap (sitemap-writers.xml), so it cannot
+# also be disallowed here: a URL a sitemap publishes and robots.txt blocks is an
+# error in Search Console and a page Google is told to want and then told to stay
+# out of. The reader's own library and settings live under /writer and /editor.
+Allow: /user/
 # Authenticated areas and the admin portal must never be crawled.
 Disallow: /mugishaimekevin
 Disallow: /writer
 Disallow: /editor
-Disallow: /user/
 Disallow: /login
 Disallow: /register
 

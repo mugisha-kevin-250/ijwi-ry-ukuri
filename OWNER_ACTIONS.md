@@ -155,7 +155,33 @@ behind: writers, editors and the database always see English, `/api/articles` wi
 no `?lang` is byte-for-byte what it was before (so crawlers, RSS and the sitemaps
 are unaffected), and the spoken news and the radio desk still read English copy.
 
-## 10. Housekeeping
+## 10. Let Google Image Search find the pictures
+
+`/sitemap-images.xml` is generated on every build and is listed in `/sitemap.xml`, so
+Google discovers it without being told. It carries one entry per story that has a photo
+(88 of 92 today) and, when someone recorded one, the image credit as the caption. Nothing
+is written for a photo nobody credited — a description invented by the build is how an
+image search starts lying about what a photograph shows.
+
+**The one thing that is yours to do.** The pictures themselves are served by the API
+origin (`studentnews-backend.onrender.com/uploads/...`), not by the site's domain, and
+Google only reads image entries from a host it recognises. So either:
+
+1. Search Console -> Add property -> verify
+   `https://studentnews-backend.onrender.com` as a **Domain** or **URL-prefix** property
+   with the same Google account that holds the site property. That is the whole fix; the
+   sitemap is already correct, and Render's free service has no place to put a
+   verification file, so use the DNS/TXT or tag method that the URL-prefix option allows.
+2. Or, when the custom domain arrives (action 1), put `/uploads` behind it — a
+   same-origin image URL needs no verification at all, and the file keeps being written
+   by the API.
+
+**Check.** After either, Search Console -> Pages -> Image (or Sitemaps -> open
+`sitemap-images.xml`) reports the file as read with zero errors. Until then the site
+still works exactly as it does now: the images are indexed by Google crawling the pages
+themselves, the sitemap just cannot be used yet. Nothing on the site depends on it.
+
+## 11. Housekeeping
 
 - Delete `JWT_REFRESH_SECRET` from the Render dashboard: there is no refresh
   endpoint and the code no longer reads it. `render.yaml` keeps its entry on

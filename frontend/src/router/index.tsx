@@ -41,6 +41,7 @@ const SearchPage = lazy(() => import('../pages/public/SearchPage'))
 const SectionPage = lazy(() => import('../pages/public/SectionPage'))
 const TermsPage = lazy(() => import('../pages/public/TermsPage'))
 const UserProfilePage = lazy(() => import('../pages/public/UserProfilePage'))
+const WeatherPage = lazy(() => import('../pages/public/WeatherPage'))
 
 const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage'))
 
@@ -160,6 +161,10 @@ export const router = createBrowserRouter([
           // section of the archive, and because the name a search engine indexes
           // has to be the one on the tin.
           { path: 'live-sports', element: <LiveSportsPage /> },
+          // RADAR Weather. Its own address because the owner indexes it himself,
+          // and because a reader who wants the rain is not looking for a section
+          // of the archive.
+          { path: 'weather', element: <WeatherPage /> },
           // RADAR Audio: the stories read aloud. A page, not a fake station.
           { path: 'radio', element: <RadioPage /> },
           { path: 'category/:slug', element: <CategorySectionRoute /> },

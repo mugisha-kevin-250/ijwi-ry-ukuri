@@ -136,6 +136,28 @@ export function featuresFor(sectionSlug: string): SectionFeature[] {
   return SECTION_FEATURES.filter((feature) => feature.parent === sectionSlug)
 }
 
+/**
+ * A link on the section line itself, next to the beats, rather than inside one
+ * of their panels.
+ *
+ * Weather is here because it is a desk of the newsroom, not a shelf of the
+ * archive: there is no "Weather" category a story can be filed under, so it
+ * cannot be a section, and it does not belong under one either. It is the same
+ * shape as a section - an address, a name that translates - and it is printed
+ * wherever sections are printed, which is why it has its own table instead of
+ * being folded into `extraLinks`: those are only ever shown inside the More
+ * panel, and this is meant to be on the bar.
+ */
+export interface BarFeature {
+  slug: string
+  labelKey: string
+  href: string
+}
+
+export const BAR_FEATURES: BarFeature[] = [
+  { slug: 'weather', labelKey: 'nav.weather', href: '/weather' },
+]
+
 function normalize(value: string): string {
   return value
     .toLowerCase()

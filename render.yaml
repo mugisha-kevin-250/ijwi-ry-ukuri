@@ -156,6 +156,19 @@ services:
       - key: GEMINI_MODEL
         value: gemini-flash-lite-latest
 
+      # --- WeatherAPI (the /weather page) ---
+      # Paste the key from https://www.weatherapi.com/ into the dashboard. It is
+      # read only by the backend: the browser never calls WeatherAPI and the key is
+      # never inlined into the bundle, so the free monthly quota is spent once per
+      # city per ten minutes however many readers are looking. Without it the page
+      # says the desk is not connected and prints no numbers.
+      - key: WEATHERAPI_KEY
+        sync: false
+        value: REPLACE_WITH_WEATHERAPI_KEY
+      # The city the page opens on before anybody types one.
+      - key: WEATHER_DEFAULT_CITY
+        value: Kigali
+
     # Persistent disk — ONLY available on paid plans. To use it: set
     # `plan: starter` above, uncomment this block, and change UPLOAD_DIR to
     # /var/uploads (the mount path must be absolute and outside the source dir).

@@ -4,7 +4,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
 import { cn } from '../../utils/cn'
-import { type SectionFeature, type SectionNode, featuresFor } from '../../data/sections'
+import { BAR_FEATURES, type SectionFeature, type SectionNode, featuresFor } from '../../data/sections'
 import { sectionLabel, useSections } from '../../utils/sectionsStore'
 
 // The section line is drawn from `md` up, so that is the width where its
@@ -15,24 +15,27 @@ const DESKTOP_DROPDOWNS_QUERY = '(min-width: 768px)'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 /**
- * The six names the desktop bar keeps.
+ * The beats the desktop bar keeps.
  *
  * Six is the whole argument: the row is measured before any sub-section panel is
  * allowed to open, and a row holding nine names plus a duplicate "News" link does
  * not fit at a tablet's width, so the panels switched themselves off and Middle
- * East, Africa and the rest became unreachable without anybody saying so. Six
- * beats leave the row about 450px of the 736px it has, which is room to spare
- * even when the chrome is read in a longer language, so every name in the bar
- * keeps its arrow again.
+ * East, Africa and the rest became unreachable without anybody saying so. What
+ * sits here now is every beat that actually has a panel to open - World,
+ * Politics, Business, Tech, Sports, Entertainment, Health - because an arrow is
+ * the only honest way to say "there is more under this name", and Trending and
+ * Rwanda, which have nothing under them, go in the More panel beside the rest of
+ * the index.
  *
- * Which six is the owner's call, and it has been made twice. Trending is one of
- * them now — it is the first thing a reader arrives looking for, and it is a
- * section the newsroom files stories in like any other — and Rwanda has taken its
- * seat in the More panel, where it sits at the top of the list. Nothing is lost
- * either way: whatever leaves the bar keeps its sub-sections and is listed in the
- * More panel beside it, and the phone strip and the menu still show everything.
+ * That is the owner's rule, made in these words, and the earlier versions of it
+ * (Trending in, Rwanda out) were steps toward it rather than separate calls.
+ * The row costs about 520px of the 736px it has at a tablet's width even with the
+ * Weather link, so the panels stay allowed and a name still has room to grow when
+ * the chrome is read in a longer language. Nothing is lost either way: whatever
+ * leaves the bar keeps its sub-sections and is listed in the More panel beside
+ * them, and the phone strip and the menu still show everything.
  */
-const BAR_SECTIONS = ['trending', 'world', 'politics', 'business', 'tech', 'sports']
+const BAR_SECTIONS = ['world', 'politics', 'business', 'tech', 'sports', 'entertainment', 'health']
 
 /** The open-panel key for the More pill, which is not a section. */
 const MORE_KEY = '__more__'
@@ -353,6 +356,15 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                 ))}
               </li>
             ))}
+            {BAR_FEATURES.map((feature) => (
+              <li key={feature.slug} className="shrink-0">
+                {/* On the phone strip the desks ride at the end of the sections,
+                    which is where a reader scrolling past the names reaches them. */}
+                <NavLink to={feature.href} onClick={onNavigate} className={chip}>
+                  {t(feature.labelKey)}
+                </NavLink>
+              </li>
+            ))}
             {extraLinks.map((link) => (
               <li key={link.href} className="shrink-0">
                 <NavLink to={link.href} onClick={onNavigate} className={chip}>
@@ -438,6 +450,23 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
             </div>
           )
         })}
+        {BAR_FEATURES.map((feature) => (
+          <NavLink
+            key={feature.slug}
+            to={feature.href}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              cn(
+                'rounded-lg px-3 py-2 text-sm font-bold transition',
+                isActive
+                  ? 'bg-brand-600 text-white dark:bg-blue-600'
+                  : 'text-gray-800 hover:text-brand-600 dark:text-gray-200 dark:hover:text-brand-400',
+              )
+            }
+          >
+            {t(feature.labelKey)}
+          </NavLink>
+        ))}
         {extraLinks.map((link) => (
           <NavLink
             key={link.href}
@@ -484,10 +513,10 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
           // whether it is showing or not the row costs the same width - otherwise
           // the measurement that decides if the names fit would change the room they
           // have to fit in, and the strip would pulse between the two answers.
-          // The seats are deliberately tight: the six beats and the More pill
-          // cost about 450px at a tablet's width, where the row has 736px, and
-          // that margin is what a section name has left to grow into when the
-          // reader is reading the chrome in another language.
+          // The seats are deliberately tight: the beats in the bar, the Weather
+          // link and the More pill cost about 520px at a tablet's width, where
+          // the row has 736px, and that margin is what a section name has left to
+          // grow into when the reader is reading the chrome in another language.
           const pill = cn(
             'whitespace-nowrap rounded-lg py-1.5 pl-1.5 text-[13px] font-bold underline-offset-4 transition',
             section.children.length > 0 ? 'pr-[17px]' : 'pr-1.5',
@@ -567,6 +596,27 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
             </li>
           )
         })}
+        {BAR_FEATURES.map((feature) => (
+          <li key={feature.slug} className="shrink-0">
+            {/* Same seat and the same arithmetic as a section without children:
+                no arrow, because nothing opens under it, and the row pays for it
+                before the panels are measured, so a desk link can never be the
+                thing that pushes the arrows off the screen. */}
+            <NavLink
+              to={feature.href}
+              className={({ isActive }) =>
+                cn(
+                  'whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] font-bold underline-offset-4 transition',
+                  isActive
+                    ? 'bg-brand-600 text-white shadow-sm dark:bg-blue-600'
+                    : 'text-gray-800 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400',
+                )
+              }
+            >
+              {t(feature.labelKey)}
+            </NavLink>
+          </li>
+        ))}
         {hasMore && (
           <li
             className="relative shrink-0"
@@ -623,7 +673,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                       >
                         {sectionLabel(section, t)}
                       </NavLink>
-                      {/* The six that left the bar do not lose their shelves: a
+                      {/* Whatever left the bar does not lose its shelves: a
                           section in this panel carries its sub-sections with it,
                           so the panel that came back with the shortened row is
                           not the only way in. */}

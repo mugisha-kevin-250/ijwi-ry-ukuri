@@ -102,5 +102,19 @@ module.exports = {
   // how often the cron wakes for the leagues readers are actually looking at.
   // Sixty seconds is what a scores page is worth: a goal is either on the page or
   // it is stale news.
-  LIVESCORE_REFRESH_SECONDS: Number(process.env.LIVESCORE_REFRESH_SECONDS || 60)
+  LIVESCORE_REFRESH_SECONDS: Number(process.env.LIVESCORE_REFRESH_SECONDS || 60),
+  // The weather desk. One free key from https://www.weatherapi.com, held here and
+  // never sent to a browser: the quota belongs to the key and the page is read by
+  // a crowd, so OUR server asks once per city every few minutes and every reader
+  // after that is answered from our own database.
+  WEATHERAPI_KEY: process.env.WEATHERAPI_KEY || '',
+  WEATHER_BASE_URL: process.env.WEATHER_BASE_URL || 'https://api.weatherapi.com',
+  // The city a reader who has not chosen one is shown. Kigali, because that is the
+  // newsroom's own weather.
+  WEATHER_DEFAULT_CITY: process.env.WEATHER_DEFAULT_CITY || 'Kigali',
+  WEATHER_TIMEOUT_MS: Number(process.env.WEATHER_TIMEOUT_MS || 10000),
+  // How long a stored forecast is accepted before somebody has to ask again. Ten
+  // minutes, not sixty seconds: a city's weather does not move that fast, and the
+  // free plan is counted in calls a month rather than a second.
+  WEATHER_REFRESH_SECONDS: Number(process.env.WEATHER_REFRESH_SECONDS || 600)
 };

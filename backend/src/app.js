@@ -21,6 +21,7 @@ const radioRoutes = require('./routes/radioRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const translateRoutes = require('./routes/translateRoutes');
 const scoreRoutes = require('./routes/scoreRoutes');
+const weatherRoutes = require('./routes/weatherRoutes');
 const uploadStore = require('./services/uploadStore');
 const clientIp = require('./utils/clientIp');
 
@@ -175,6 +176,19 @@ const scoresLimiter = rateLimit({
   message: tooMany('The scores page is catching up, please wait a moment before asking again.')
 });
 
+// The weather page is read once per visit rather than polled, so a modest ceiling
+// per address is enough to stop a script turning one reader's curiosity into a
+// hundred different cities - and every city this database has not seen costs the
+// newsroom one call against a monthly quota the whole site shares.
+const weatherLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('The weather desk is catching up, please try again in a minute.')
+});
+
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -203,6 +217,9 @@ app.use('/api/translate', translateRoutes);
 // from our own database, so it is mounted here - ahead of the catch-all public
 // story routes - with its own ceiling instead of the shared one.
 app.use('/api/scores', scoresLimiter, scoreRoutes);
+// Same reason as the scores page, and the same place: mounted ahead of the
+// catch-all public story routes so /api/weather is answered here.
+app.use('/api/weather', weatherLimiter, weatherRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/writers', writerRoutes);
 app.use('/api/editor', editorRoutes);

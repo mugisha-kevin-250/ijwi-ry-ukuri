@@ -24,5 +24,6 @@ module.exports = {
   AiResearchChat: require('./AiResearchChat'),
   RadioSchedule: require('./RadioSchedule'),
   RadioBulletin: require('./RadioBulletin'),
-  Ad: require('./Ad')
+  Ad: require('./Ad'),
+  WeatherReport: require('./WeatherReport')
 };

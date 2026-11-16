@@ -1754,3 +1754,261 @@ export const translateAPI = {
     }
   },
 }
+
+/**
+ * The weather desk.
+ *
+ * Read from our own API only. The browser is never given a weather key and never
+ * talks to the upstream, which is what keeps a monthly quota enough for a whole
+ * readership: this server asks once per city every few minutes and everybody else
+ * is served from the report it stored.
+ *
+ * Every field is optional and normalised rather than trusted, because the page is
+ * a picture of the sky: a missing rain chance must read as nothing at all, not as
+ * zero percent, and a zero is a claim nobody measured.
+ */
+export interface WeatherCondition {
+  text: string
+  code: number | null
+}
+
+export interface WeatherHour {
+  time: string
+  timeEpoch: number | null
+  tempC: number | null
+  tempF: number | null
+  feelsC: number | null
+  feelsF: number | null
+  isDay: boolean
+  condition: WeatherCondition
+  chanceOfRain: number | null
+  precipMm: number | null
+  windKph: number | null
+  windDir: string
+  humidity: number | null
+  visKm: number | null
+  uv: number | null
+}
+
+export interface WeatherDay {
+  date: string
+  dateEpoch: number | null
+  maxTempC: number | null
+  maxTempF: number | null
+  minTempC: number | null
+  minTempF: number | null
+  condition: WeatherCondition
+  chanceOfRain: number | null
+  willItRain: boolean
+  totalPrecipMm: number | null
+  maxWindKph: number | null
+  avgHumidity: number | null
+  uv: number | null
+  sunrise: string
+  sunset: string
+  moonrise: string
+  moonset: string
+  moonPhase: string
+  moonIllumination: number | null
+  hours: WeatherHour[]
+}
+
+export interface WeatherCurrent {
+  lastUpdated: string
+  tempC: number | null
+  tempF: number | null
+  feelsC: number | null
+  feelsF: number | null
+  isDay: boolean
+  condition: WeatherCondition
+  humidity: number | null
+  windKph: number | null
+  windDir: string
+  pressureMb: number | null
+  precipMm: number | null
+  visKm: number | null
+  uv: number | null
+  cloud: number | null
+  dewpointC: number | null
+  chanceOfRain: number | null
+}
+
+export interface WeatherLocation {
+  name: string
+  region: string
+  country: string
+  lat: number | null
+  lon: number | null
+  tzId: string
+  localtime: string
+  localtimeEpoch: number | null
+}
+
+export interface WeatherReport {
+  q: string
+  location: WeatherLocation
+  current: WeatherCurrent
+  days: WeatherDay[]
+  fetchedAt: string
+  lastError: string | null
+}
+
+export interface WeatherRead {
+  ok: boolean
+  configured: boolean
+  city: string
+  reason: string | null
+  stale: boolean
+  loading: boolean
+  report: WeatherReport | null
+}
+
+export interface WeatherStatus {
+  configured: boolean
+  source: string
+  defaultCity: string
+  forecastDays: number
+  refreshSeconds: number
+  lastFetchAt: string | null
+  lastError: string | null
+}
+
+function normaliseCondition(value: unknown): WeatherCondition {
+  const node = (value || {}) as Record<string, unknown>
+  return { text: text(node.text), code: figure(node.code) }
+}
+
+function normaliseHour(value: unknown): WeatherHour {
+  const node = (value || {}) as Record<string, unknown>
+  return {
+    time: text(node.time),
+    timeEpoch: figure(node.timeEpoch),
+    tempC: figure(node.tempC),
+    tempF: figure(node.tempF),
+    feelsC: figure(node.feelsC),
+    feelsF: figure(node.feelsF),
+    isDay: node.isDay === 1,
+    condition: normaliseCondition(node.condition),
+    chanceOfRain: figure(node.chanceOfRain),
+    precipMm: figure(node.precipMm),
+    windKph: figure(node.windKph),
+    windDir: text(node.windDir),
+    humidity: figure(node.humidity),
+    visKm: figure(node.visKm),
+    uv: figure(node.uv),
+  }
+}
+
+function normaliseDay(value: unknown): WeatherDay {
+  const node = (value || {}) as Record<string, unknown>
+  return {
+    date: text(node.date),
+    dateEpoch: figure(node.dateEpoch),
+    maxTempC: figure(node.maxTempC),
+    maxTempF: figure(node.maxTempF),
+    minTempC: figure(node.minTempC),
+    minTempF: figure(node.minTempF),
+    condition: normaliseCondition(node.condition),
+    chanceOfRain: figure(node.chanceOfRain),
+    willItRain: node.willItRain === 1,
+    totalPrecipMm: figure(node.totalPrecipMm),
+    maxWindKph: figure(node.maxWindKph),
+    avgHumidity: figure(node.avgHumidity),
+    uv: figure(node.uv),
+    sunrise: text(node.sunrise),
+    sunset: text(node.sunset),
+    moonrise: text(node.moonrise),
+    moonset: text(node.moonset),
+    moonPhase: text(node.moonPhase),
+    moonIllumination: figure(node.moonIllumination),
+    hours: Array.isArray(node.hours) ? node.hours.map(normaliseHour) : [],
+  }
+}
+
+function normaliseReport(value: unknown): WeatherReport | null {
+  const node = (value || {}) as Record<string, unknown>
+  if (!node || typeof node !== 'object' || !node.current) return null
+  const location = (node.location || {}) as Record<string, unknown>
+  const current = (node.current || {}) as Record<string, unknown>
+  return {
+    q: text(node.q),
+    location: {
+      name: text(location.name),
+      region: text(location.region),
+      country: text(location.country),
+      lat: figure(location.lat),
+      lon: figure(location.lon),
+      tzId: text(location.tzId),
+      localtime: text(location.localtime),
+      localtimeEpoch: figure(location.localtimeEpoch),
+    },
+    current: {
+      lastUpdated: text(current.lastUpdated),
+      tempC: figure(current.tempC),
+      tempF: figure(current.tempF),
+      feelsC: figure(current.feelsC),
+      feelsF: figure(current.feelsF),
+      isDay: current.isDay === 1,
+      condition: normaliseCondition(current.condition),
+      humidity: figure(current.humidity),
+      windKph: figure(current.windKph),
+      windDir: text(current.windDir),
+      pressureMb: figure(current.pressureMb),
+      precipMm: figure(current.precipMm),
+      visKm: figure(current.visKm),
+      uv: figure(current.uv),
+      cloud: figure(current.cloud),
+      dewpointC: figure(current.dewpointC),
+      chanceOfRain: figure(current.chanceOfRain),
+    },
+    days: Array.isArray(node.days) ? node.days.map(normaliseDay) : [],
+    fetchedAt: text(node.fetchedAt),
+    lastError: typeof node.lastError === 'string' ? node.lastError : null,
+  }
+}
+
+function normaliseRead(response: { data?: unknown }, fallbackCity: string): WeatherRead {
+  const body = (response?.data || {}) as Record<string, unknown>
+  const payload = (body.data || {}) as Record<string, unknown>
+  return {
+    ok: payload.ok === true,
+    configured: payload.configured !== false,
+    city: text(payload.city) || fallbackCity,
+    reason: typeof payload.reason === 'string' ? payload.reason : null,
+    stale: payload.stale === true,
+    loading: payload.loading === true,
+    report: normaliseReport(payload.report),
+  }
+}
+
+export const weatherAPI = {
+  status: async (): Promise<WeatherStatus> => {
+    const response = await apiClient.get('/weather/status')
+    const payload = (response.data?.data || {}) as Record<string, unknown>
+    return {
+      configured: payload.configured === true,
+      source: text(payload.source) || 'WeatherAPI.com',
+      defaultCity: text(payload.defaultCity) || 'Kigali',
+      forecastDays: figure(payload.forecastDays) ?? 3,
+      refreshSeconds: figure(payload.refreshSeconds) ?? 600,
+      lastFetchAt: typeof payload.lastFetchAt === 'string' ? payload.lastFetchAt : null,
+      lastError: typeof payload.lastError === 'string' ? payload.lastError : null,
+    }
+  },
+
+  /** One city: now, today hour by hour, and three days ahead. */
+  report: async (q?: string): Promise<WeatherRead> => {
+    const city = (q || '').trim()
+    try {
+      const response = await apiClient.get('/weather', city ? { q: city } : undefined)
+      return normaliseRead(response, city)
+    } catch (error) {
+      // A city nobody knows is the one failure the page has to speak about, and
+      // the server's 404 carries the report it did have for that place.
+      const failure = error as { response?: { data?: unknown }; message?: string }
+      const body = (failure?.response?.data || {}) as Record<string, unknown>
+      if (body?.data) return normaliseRead({ data: body }, city)
+      throw error instanceof Error ? error : new Error(failure?.message || 'Weather is unavailable')
+    }
+  },
+}

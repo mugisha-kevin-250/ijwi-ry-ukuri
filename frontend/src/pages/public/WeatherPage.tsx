@@ -211,7 +211,9 @@ export default function WeatherPage() {
   const report = read?.report || null
 
   useSeo({
-    title: `${t('weather.title')} - ${t('weather.taglineShort')}`,
+    // The tab says "Weather | RADAR" the way every other page does, while the
+    // heading on the page itself carries the desk's own name.
+    title: t('weather.taglineShort'),
     description: t('weather.metaDescription'),
     path: '/weather',
     jsonLd: {
@@ -462,7 +464,10 @@ export default function WeatherPage() {
         </div>
       </section>
 
-      {notice && (
+      {/* Only when the page has something to show: without a reading, the hero
+          above is already saying what went wrong in the same words, and a
+          sentence printed twice reads as a malfunction rather than as news. */}
+      {notice && report && (
         <p role="status" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
           {notice}
         </p>

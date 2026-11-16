@@ -7,7 +7,7 @@
  * cached shell — bump it here (and only here) or returning readers keep serving
  * the previous bundle forever.
  */
-const VERSION = 'radar-v28'
+const VERSION = 'radar-v29'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const PAGE_CACHE = `${VERSION}-pages`

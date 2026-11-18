@@ -151,6 +151,12 @@ them from the code:
 - **Advertising and analytics ids come from the owner.** They have not been provided, so
   the site loads no ad script, writes no `ads.txt` and reports nothing to GA4. Applying to
   AdSense is the owner's decision and will not be done on their behalf.
+- **The authors directory is earned by publishing, not by a switch.** `/authors` lists
+  anyone with at least one published story whose account is active, and the numbers on each
+  card - stories, paid reads, followers, last published - are counted from live rows at
+  request time rather than read from `WriterProfile.totalArticles`, which nothing keeps
+  current. There is deliberately no "featured author" or "show in directory" flag: a field
+  nobody maintains is how a directory starts lying about who writes here.
 
 - AdSense readiness checklist/report (owner-reviewed), consent-aware ad management, SEO editorial tooling, contributor/partnership workflows, audience metrics (privacy-compliant). Mobile app only after stable audience/product evidence. **No guarantees of approval/ranking/inclusion.**
 

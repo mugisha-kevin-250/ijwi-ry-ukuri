@@ -1,8 +1,9 @@
 // Writes the sitemap set into public/ from the live API, one file per kind of
 // content, plus a sitemap index at public/sitemap.xml:
 //   sitemap.xml              index  -> lists every file below
-//   sitemap-pages.xml        static pages (home, all articles, categories, live,
-//                            search, and the newsroom pages: about, contact,
+//   sitemap-pages.xml        static pages (home, all articles, categories,
+//                            authors, live, the scores desk, search, and the
+//                            newsroom pages: about, contact,
 //                            editorial-policy, corrections, advertising, privacy,
 //                            cookies, disclaimer, terms)
 //   sitemap-articles.xml     one URL per published story
@@ -395,9 +396,9 @@ ${written
   console.log(`  -> ${feedUrl}`)
   console.log(
     `${articles.length} articles, ${categories.length} categories, ${sectionHrefs.length} section pages, ${authors.size} writers, ` +
-      // Home, News, Categories, TV, Search and the scores desk - the six addresses
-      // the site publishes that are not a story, a section or a policy page.
-      `${6 + publisherPages.length} static pages, ${news.count} stories in the News sitemap, ` +
+      // Home, News, Categories, Authors, TV, the scores desk and Search - the seven
+      // addresses the site publishes that are not a story, a section or a policy page.
+      `${7 + publisherPages.length} static pages, ${news.count} stories in the News sitemap, ` +
       `${images.count} pictures in the image sitemap, ` +
       `${Math.min(newest.length, 30)} stories in the feed`
   )

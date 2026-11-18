@@ -1,8 +1,73 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Mail } from 'lucide-react'
+import { format } from 'date-fns'
 import PublisherPage, { Section } from '../../components/layout/PublisherPage'
+import { publicAPI } from '../../services/api'
 import { useSeo } from '../../utils/useSeo'
 import { contactEmail, publisherPagesUpdated } from '../../utils/siteConfig'
+
+type CorrectionEntry = { note: string; at: string }
+type CorrectedStory = { title: string; slug: string; publishedAt?: string; entries: CorrectionEntry[] }
+
+function day(value: string) {
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? '' : format(d, 'MMMM d, yyyy')
+}
+
+/** The policy above says a correction names the story and the date. This is the
+ *  record that has to back the sentence up - pulled live from the stories
+ *  themselves, so the list and the story can never disagree. */
+function PublishedCorrections() {
+  const [stories, setStories] = useState<CorrectedStory[] | null>(null)
+
+  useEffect(() => {
+    publicAPI.getCorrections()
+      .then((res: any) => {
+        const rows = res.data.data?.corrections
+        setStories(Array.isArray(rows) ? rows : [])
+      })
+      .catch(() => setStories([]))
+  }, [])
+
+  if (stories === null) {
+    return <p className="text-gray-500 dark:text-gray-400">Loading the record...</p>
+  }
+
+  if (!stories.length) {
+    return (
+      <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-[1rem] text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        No published story has needed a correction on this record yet. It is a
+        statement about what has been filed, not a claim that nothing here is ever wrong -
+        if you find one, the address below reaches the desk the same day.
+      </p>
+    )
+  }
+
+  return (
+    <ul className="space-y-5">
+      {stories.map((story) => (
+        <li key={story.slug} className="space-y-2">
+          <Link
+            to={`/article/${story.slug}`}
+            className="font-semibold text-brand-700 underline-offset-4 hover:underline dark:text-brand-300"
+          >
+            {story.title}
+          </Link>
+          <ul className="space-y-1 border-l-2 border-gray-200 pl-4 dark:border-gray-800">
+            {story.entries.map((entry) => (
+              <li key={`${story.slug}-${entry.at}`} className="text-[1rem]">
+                <span className="font-medium text-gray-900 dark:text-white">{day(entry.at)}</span>
+                <span className="mx-2 text-gray-400" aria-hidden="true">-</span>
+                {entry.note}
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 export default function CorrectionsPage() {
   useSeo({
@@ -41,6 +106,10 @@ export default function CorrectionsPage() {
           A correction here names the story, the date it was noticed, what was wrong and what is correct now. It does
           not name the writer as the reason, and it does not argue with the person who reported the error.
         </p>
+      </Section>
+
+      <Section title="The corrections we have published">
+        <PublishedCorrections />
       </Section>
 
       <Section title="Report an error">

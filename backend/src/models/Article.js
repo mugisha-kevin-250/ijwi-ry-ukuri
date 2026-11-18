@@ -15,6 +15,26 @@ const articleSchema = new mongoose.Schema({
   // source's own image, so these travel with it.
   imageCredit: String,
   imageSourceUrl: String,
+  // What the photograph shows, in the newsroom's own words. Kept apart from the
+  // credit on purpose: one line says where the picture came from, the other says
+  // what is in it, and a reader searching an image wants both.
+  imageCaption: String,
+  // Paid content has to look like paid content. A story an advertiser paid for
+  // carries who paid, and the reader sees it before the headline is finished.
+  // Only an editor or an admin can set it - a writer declaring their own copy
+  // sponsored, or an advertiser's copy declared as news, are both ways a
+  // disclosure stops being a disclosure.
+  isSponsored: { type: Boolean, default: false },
+  sponsor: String,
+  // Corrections are appended, never rewritten: the newsroom has to be able to
+  // say what it got wrong and when it said so. Newest is last, and the story
+  // shows them in order.
+  corrections: [{
+    _id: false,
+    note: String,
+    at: { type: Date, default: Date.now },
+    by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
   author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
   tags: [{ type: String, trim: true }],

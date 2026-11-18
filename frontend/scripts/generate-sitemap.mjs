@@ -175,6 +175,10 @@ function newsSitemap(items) {
   const recent = items.filter((article) => {
     const stamp = publishedStamp(article)
     if (!article.slug || !stamp) return false
+    // Paid content is not a news report, and a Google News listing is a claim
+    // that it is one. The story stays on the site, labelled; it just is not
+    // filed as news.
+    if (article.isSponsored) return false
     return Date.now() - new Date(stamp).getTime() <= NEWS_WINDOW_MS
   }).slice(0, 1000)
 
@@ -253,10 +257,29 @@ async function main() {
 
   let articles = []
   let categories = []
-  try {
-    articles = await publishedArticles(base)
-  } catch (error) {
-    console.warn(`sitemap: could not read articles from ${base} (${error.message}); writing static routes only`)
+  let articlesUnread = false
+  for (let attempt = 1; attempt <= 3 && articlesUnread !== true; attempt += 1) {
+    try {
+      articles = await publishedArticles(base)
+    } catch (error) {
+      // A sleeping server or one slow page is not a reason to give up on the
+      // whole list, and it is certainly not a reason to publish an empty one.
+      if (attempt === 3) {
+        articlesUnread = true
+        console.warn(`sitemap: could not read articles from ${base} (${error.message})`)
+      } else {
+        await new Promise((done) => setTimeout(done, attempt * 3000))
+      }
+    }
+  }
+  if (articlesUnread) {
+    // Nothing is rewritten. A server that did not answer in time is not news
+    // about the stories, and overwriting the article list with an empty one
+    // would tell a search engine that the newsroom went quiet the day it was
+    // busiest. The files already in public/ stay live; run `npm run sitemap`
+    // again once the API answers.
+    console.warn('sitemap: keeping the files already in public/, none were rewritten')
+    return
   }
   try {
     categories = (await json(`${base}/categories`))?.categories ?? []

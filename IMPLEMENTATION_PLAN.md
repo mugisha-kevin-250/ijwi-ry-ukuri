@@ -158,6 +158,19 @@ them from the code:
   current. There is deliberately no "featured author" or "show in directory" flag: a field
   nobody maintains is how a directory starts lying about who writes here.
 
+- **Who paid, who took the picture, and what we got wrong are the desk's signature, not
+  the author's.** A story now carries `imageCredit`, `imageCaption` and `imageSourceUrl`,
+  an `isSponsored`/`sponsor` pair, and an append-only `corrections[]`. The writer fills in
+  the two lines about their own photograph when they attach it; the paid-content label and
+  a new correction can only be recorded by an editor or admin through
+  `PUT /api/editor/articles/:id/disclosure`, because a disclosure set by the person who
+  sold the space is not a disclosure, and an author editing their own copy is not a
+  correction of the record. A correction is appended with its date and never rewritten, and
+  `/corrections` lists them all, read off the same stories. Sponsored copy is labelled on
+  the page, described as an `Article` rather than a `NewsArticle` in the structured data,
+  and kept out of the Google News sitemap - a News listing is a claim that the story is
+  reporting, and paid copy should not make it.
+
 - AdSense readiness checklist/report (owner-reviewed), consent-aware ad management, SEO editorial tooling, contributor/partnership workflows, audience metrics (privacy-compliant). Mobile app only after stable audience/product evidence. **No guarantees of approval/ranking/inclusion.**
 
 ## Cross-cutting execution rules (every phase)

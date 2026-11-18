@@ -19,6 +19,10 @@ export default function WriterArticleEditorPage() {
     content: '',
     category: '',
     featuredImage: '',
+    // Two lines about the photograph, and the writer is the one who has it:
+    // what it shows, and whose picture it is.
+    imageCredit: '',
+    imageCaption: '',
     tags: ''
   })
   const [loading, setLoading] = useState(false)
@@ -42,6 +46,8 @@ export default function WriterArticleEditorPage() {
             content: article.content || '',
             category: article.category?._id || article.category || '',
             featuredImage: article.featuredImage || '',
+            imageCredit: article.imageCredit || '',
+            imageCaption: article.imageCaption || '',
             tags: (article.tags || []).join(', ')
           })
           if (article.featuredImage) {
@@ -99,6 +105,10 @@ export default function WriterArticleEditorPage() {
         content: form.content,
         category: form.category,
         featuredImage: form.featuredImage,
+        // A credit without a picture credits nothing, so the lines travel with
+        // the image they describe and are cleared when it is removed.
+        imageCredit: form.featuredImage ? form.imageCredit.trim() : '',
+        imageCaption: form.featuredImage ? form.imageCaption.trim() : '',
         tags: form.tags.split(',').map((t:any) => t.trim()).filter(Boolean)
       }
       let publishRefusal = ''
@@ -172,6 +182,32 @@ export default function WriterArticleEditorPage() {
             <div className="mt-3 relative">
               <MediaImage src={form.featuredImage} alt="" className="h-48 w-full rounded-lg object-cover border border-slate-200" />
               <span className="absolute top-2 right-2 rounded-full bg-emerald-500 text-white text-xs px-2 py-1">Image ready</span>
+            </div>
+          )}
+          {/* Two honest lines about one photograph. What it shows, and whose it
+              is - a picture the newsroom did not take has to say so. */}
+          {form.featuredImage && (
+            <div className="mt-3 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">{t('writer.imageCaption')}</label>
+                <input
+                  value={form.imageCaption}
+                  onChange={(e) => setForm({ ...form, imageCaption: e.target.value })}
+                  maxLength={240}
+                  placeholder={t('writer.imageCaptionHint')}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">{t('writer.imageCredit')}</label>
+                <input
+                  value={form.imageCredit}
+                  onChange={(e) => setForm({ ...form, imageCredit: e.target.value })}
+                  maxLength={160}
+                  placeholder={t('writer.imageCreditHint')}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
             </div>
           )}
         </div>

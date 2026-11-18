@@ -37,6 +37,19 @@ export interface Article {
   /** Who took the picture, and where it came from. Printed under the image. */
   imageCredit?: string
   imageSourceUrl?: string
+  /** What the photograph shows, in the newsroom's words. Printed with the credit. */
+  imageCaption?: string
+  /**
+   * Paid content. Only an editor or an admin can set it, and a story that says
+   * it is sponsored has to say who paid.
+   */
+  isSponsored?: boolean
+  sponsor?: string
+  /**
+   * What the newsroom got wrong and said so, oldest first. Appended by staff
+   * and rendered on the story; a correction is never edited over.
+   */
+  corrections?: { note: string; at: string; by?: string }[]
   author: string | { _id: string; fullName: string; username: string; avatar?: string; bio?: string }
   category: string | { _id: string; name: string; slug: string }
   tags: string[]

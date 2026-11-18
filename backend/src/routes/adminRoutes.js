@@ -643,6 +643,7 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       tags = [],
       featuredImage,
       imageCredit,
+      imageCaption,
       imageSourceUrl,
       publish
     } = req.body || {};
@@ -672,6 +673,7 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       content: body,
       featuredImage: safeMediaUrl(featuredImage),
       imageCredit: imageCredit ? plainText(imageCredit, { maxLength: 160 }) : '',
+      imageCaption: imageCaption ? plainText(imageCaption, { maxLength: 240 }) : '',
       imageSourceUrl: safeMediaUrl(imageSourceUrl),
       author: req.user._id,
       category: categoryDoc._id,

@@ -56,15 +56,48 @@ export default function ArticleDetailPage() {
       ? [
           {
             '@context': 'https://schema.org',
-            '@type': 'NewsArticle',
+            // Paid copy is not journalism, so it is not described as a news
+            // report. The visible "Sponsored" line and this type say the same
+            // thing to the two audiences that read the page.
+            '@type': article.isSponsored ? 'Article' : 'NewsArticle',
+            mainEntityOfPage: {
+              '@type': 'WebPage',
+              '@id': absoluteSiteUrl(`/article/${slug}`),
+            },
             headline: article.title,
-            description: article.summary,
+            description: article.metaDescription || article.summary,
             image: article.featuredImage ? [article.featuredImage] : undefined,
             datePublished: article.publishedAt ?? article.createdAt,
             dateModified: article.updatedAt ?? article.createdAt,
-            inLanguage: article.language ?? 'rw',
-            author: { '@type': 'Person', name: typeof article.author === 'object' ? article.author.fullName : '' },
-            publisher: { '@type': 'Organization', name: "RADAR" },
+            // The newsroom files every story in English and a reader picks a
+            // translation, so the language a story arrives in is its own field
+            // and English is the fallback - not the other way round.
+            inLanguage: article.language ?? 'en',
+            isAccessibleForFree: true,
+            articleSection: seoCategory ? categoryLabel(seoCategory, t) : undefined,
+            keywords: article.tags?.length ? article.tags.join(', ') : undefined,
+            author:
+              typeof article.author === 'object' && article.author !== null
+                ? {
+                    '@type': 'Person',
+                    name: article.author.fullName,
+                    // The byline points at the author's page, which is also in
+                    // the directory: one person, one address, twice declared.
+                    url: absoluteSiteUrl(`/user/${article.author._id}`),
+                  }
+                : { '@type': 'Person', name: '' },
+            publisher: {
+              '@type': 'Organization',
+              name: 'RADAR',
+              url: absoluteSiteUrl('/'),
+              logo: {
+                '@type': 'ImageObject',
+                url: absoluteSiteUrl('/icons/icon-192x192.png'),
+              },
+            },
+            ...(article.isSponsored && article.sponsor
+              ? { sponsor: { '@type': 'Organization', name: article.sponsor } }
+              : {}),
           },
           {
             '@context': 'https://schema.org',
@@ -267,6 +300,20 @@ export default function ArticleDetailPage() {
       </nav>
 
       <header className="space-y-4">
+        {/* Paid content says so before the headline does. A reader who finds out
+            after finishing the story has not been told anything. */}
+        {article.isSponsored && (
+          <p className="text-xs">
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+              {t('articles.sponsored')}
+            </span>
+            {article.sponsor && (
+              <span className="ml-2 text-gray-600 dark:text-gray-300">
+                {t('articles.sponsoredPaidBy')} {article.sponsor}
+              </span>
+            )}
+          </p>
+        )}
         <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white leading-tight">{article.title}</h1>
         {/* There is no "written with AI" badge here any more. Whether a machine
             took the first draft is a newsroom fact - it is stored on the story,
@@ -330,14 +377,23 @@ export default function ArticleDetailPage() {
           </div>
           {/* A picture the newsroom did not take says whose it is, and links to
               where it was published. */}
-          {article.imageCredit && (
+          {/* The caption says what is in front of the reader; the credit says
+              whose photograph it is. Both belong to the picture, and neither is
+              invented: an uncaptioned photo is shown uncaptioned. */}
+          {(article.imageCaption || article.imageCredit) && (
             <figcaption className="mt-1.5 text-xs text-slate-500">
-              {t('articles.imageCredit')}: {article.imageSourceUrl ? (
-                <a href={article.imageSourceUrl} target="_blank" rel="noreferrer nofollow" className="underline hover:text-slate-700">
-                  {article.imageCredit}
-                </a>
-              ) : (
-                article.imageCredit
+              {article.imageCaption && <span>{article.imageCaption}</span>}
+              {article.imageCaption && article.imageCredit && <span className="mx-1.5" aria-hidden="true">·</span>}
+              {article.imageCredit && (
+                <>
+                  {t('articles.imageCredit')}: {article.imageSourceUrl ? (
+                    <a href={article.imageSourceUrl} target="_blank" rel="noreferrer nofollow" className="underline hover:text-slate-700">
+                      {article.imageCredit}
+                    </a>
+                  ) : (
+                    article.imageCredit
+                  )}
+                </>
               )}
             </figcaption>
           )}
@@ -356,6 +412,30 @@ export default function ArticleDetailPage() {
           )}
         </div>
       </div>
+
+      {/* What the newsroom got wrong, in the order it said so. A correction is
+          appended and dated rather than folded quietly back into the copy: the
+          story a reader shared is the story that was published, and the notice
+          has to travel with it. */}
+      {!!article.corrections?.length && (
+        <section
+          aria-label={t('articles.corrections')}
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/40"
+        >
+          <h2 className="text-sm font-bold uppercase tracking-wide text-amber-900 dark:text-amber-200">
+            {article.corrections.length === 1 ? t('articles.correction') : t('articles.corrections')}
+          </h2>
+          <ol className="mt-2 space-y-2">
+            {(article.corrections ?? []).map((entry, index) => (
+              <li key={`${entry.at || 'undated'}-${index}`} className="text-sm leading-relaxed text-amber-900 dark:text-amber-100">
+                {entry.at && <time dateTime={entry.at} className="font-semibold">{formatDate(entry.at)}</time>}
+                {entry.at && <span className="mx-1.5" aria-hidden="true">·</span>}
+                {entry.note}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       {/* End of the read. Before anything else competes for attention, the
           reader who wants more of this story gets a way to ask about it - and

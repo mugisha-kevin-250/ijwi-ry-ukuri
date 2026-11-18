@@ -244,6 +244,48 @@ router.get('/search', async (req, res, next) => {
 });
 
 /**
+ * Every correction the newsroom has published, newest first.
+ *
+ * `/corrections` on the site promises that "a correction here names the story,
+ * the date it was noticed, what was wrong" - and a correction recorded on one
+ * story is otherwise only readable by a reader who already knows to open that
+ * story. This is the index that makes the promise true.
+ *
+ * Only published stories are listed. The article route serves nothing else, so
+ * anything else here would be a line with a dead link, and a transparency page
+ * nobody can follow is decoration.
+ */
+router.get('/corrections', async (req, res, next) => {
+  try {
+    const rows = await Article.find({ status: 'published', 'corrections.0': { $exists: true } })
+      .select('title slug publishedAt corrections')
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
+
+    const corrections = rows
+      .map((row) => {
+        const entries = (row.corrections || [])
+          .slice()
+          .sort((a, b) => new Date(b.at) - new Date(a.at));
+        return {
+          title: row.title,
+          slug: row.slug,
+          publishedAt: row.publishedAt,
+          entries: entries.map((entry) => ({ note: entry.note, at: entry.at })),
+          latestAt: entries.length ? entries[0].at : null,
+        };
+      })
+      .sort((a, b) => new Date(b.latestAt) - new Date(a.latestAt))
+      .slice(0, 50);
+
+    return successResponse(res, 200, 'Corrections fetched', { corrections, total: corrections.length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * The authors directory.
  *
  * Every byline on the site already links to `/user/<id>`, and that page exists,

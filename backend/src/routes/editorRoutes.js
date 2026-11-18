@@ -8,7 +8,7 @@ const workflow = require('../services/articleWorkflow');
 const lifecycle = require('../utils/articleLifecycle');
 const commentState = require('../utils/commentState');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
-const { plainText, cleanText } = require('../utils/textFields');
+const { plainText, cleanText, safeMediaUrl } = require('../utils/textFields');
 
 const router = express.Router();
 
@@ -140,6 +140,71 @@ Object.entries(DECISIONS).forEach(([verb, state]) => {
   // Writers used a POST for publish and staff screens already call PUT on some
   // of these, so both spellings stay live rather than breaking an old client.
   router.post(`/articles/:id/${verb}`, (req, res, next) => decide(req, res, next, state));
+});
+
+/**
+ * The three things a story needs after it is live, all of them a desk
+ * signature and none of them a rewrite of the copy:
+ *
+ * - what the photograph says about itself (credit, caption, source link);
+ * - whether an advertiser paid for it, and who did;
+ * - a correction, appended with the date and the person who recorded it.
+ *
+ * The route is separate from the writer's edit endpoint because an editor is
+ * not the author, and because a disclosure set by the person who sold the space
+ * would not be a disclosure. The story text is untouched, so a published page
+ * keeps its address, its comments and its view count.
+ */
+router.put('/articles/:id/disclosure', async (req, res, next) => {
+  try {
+    const article = await Article.findById(req.params.id);
+    if (!article) return errorResponse(res, 404, 'Article not found');
+
+    const body = req.body || {};
+    const changes = {};
+
+    for (const [field, clean] of [
+      ['imageCredit', (value) => plainText(value, { maxLength: 160 })],
+      ['imageCaption', (value) => plainText(value, { maxLength: 240 })],
+      ['imageSourceUrl', (value) => safeMediaUrl(value)],
+    ]) {
+      if (body[field] !== undefined) changes[field] = clean(body[field]);
+    }
+
+    if (body.isSponsored !== undefined) {
+      const wantsSponsored = body.isSponsored === true || body.isSponsored === 'true';
+      const sponsor = body.sponsor === undefined ? article.sponsor : plainText(body.sponsor, { maxLength: 120 });
+      // Paid copy that does not say who paid is not a disclosure, so the flag
+      // and the name arrive together or not at all.
+      if (wantsSponsored && !sponsor) {
+        return errorResponse(res, 400, 'Say who paid for this story before marking it sponsored');
+      }
+      changes.isSponsored = wantsSponsored;
+      changes.sponsor = wantsSponsored ? sponsor : '';
+    } else if (body.sponsor !== undefined) {
+      changes.sponsor = plainText(body.sponsor, { maxLength: 120 });
+    }
+
+    const note = typeof body.correctionNote === 'string'
+      ? plainText(body.correctionNote, { maxLength: 600 })
+      : '';
+    if (note) {
+      // Appended, never edited over: the record has to keep showing what the
+      // newsroom said first and what it found out afterwards.
+      article.corrections.push({ note, at: new Date(), by: req.user._id });
+    }
+
+    Object.assign(article, changes);
+    if (!Object.keys(changes).length && !note) {
+      return errorResponse(res, 400, 'Nothing to record - write a caption, a sponsor or a correction');
+    }
+    article.updatedAt = new Date();
+    await article.save();
+
+    return successResponse(res, 200, note ? 'Correction published' : 'Story details updated', { article });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // A publish date in the future is the only reason a story sits in "approved"

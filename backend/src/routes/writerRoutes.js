@@ -87,7 +87,7 @@ router.get('/me/status', protect, async (req, res, next) => {
 
 router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
   try {
-    const { title, summary, content, category, tags = [], featuredImage } = req.body;
+    const { title, summary, content, category, tags = [], featuredImage, imageCredit, imageCaption, imageSourceUrl } = req.body;
     if (!title || !summary || !content || !category) {
       return errorResponse(res, 400, 'Title, summary, content and category are required');
     }
@@ -99,6 +99,12 @@ router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async 
       summary: cleanText(summary, { maxLength: 600 }),
       content: cleanText(content, { maxLength: 60000 }),
       featuredImage: safeMediaUrl(featuredImage),
+      // A writer attaches the picture, so a writer states where it came from and
+      // what it shows. These are the only two lines about the photograph the
+      // newsroom publishes, and they are the ones the photographer is owed.
+      imageCredit: imageCredit ? plainText(imageCredit, { maxLength: 160 }) : '',
+      imageCaption: imageCaption ? plainText(imageCaption, { maxLength: 240 }) : '',
+      imageSourceUrl: safeMediaUrl(imageSourceUrl),
       tags: cleanTags(tags)
     };
     if (!story.title || !story.summary || !story.content) {
@@ -155,6 +161,7 @@ function cleanDraft(req) {
     metaDescription: body.metaDescription ? plainText(body.metaDescription, { maxLength: 200 }) : '',
     featuredImage: safeMediaUrl(body.featuredImage),
     imageCredit: body.imageCredit ? plainText(body.imageCredit, { maxLength: 160 }) : '',
+    imageCaption: body.imageCaption ? plainText(body.imageCaption, { maxLength: 240 }) : '',
     imageSourceUrl: safeMediaUrl(body.imageSourceUrl),
     category: body.category
   };
@@ -261,8 +268,17 @@ router.get('/articles/:id', protect, async (req, res, next) => {
 // A writer owns the text of their story and nothing else. Everything that moves
 // money (validViews, earnings), decides review (status, publishedAt) or claims
 // authorship has to be set by the review endpoints or by an admin, never by the
-// body of this request.
-const WRITER_EDITABLE_FIELDS = ['title', 'summary', 'content', 'category', 'featuredImage', 'tags', 'language'];
+// body of this request. The photo lines are theirs: they attached the picture, so
+// they say who took it and what it shows.
+const WRITER_EDITABLE_FIELDS = [
+  'title', 'summary', 'content', 'category', 'featuredImage', 'tags', 'language',
+  'imageCredit', 'imageCaption', 'imageSourceUrl'
+];
+
+// What a writer may not touch is what a reader would misread as the newsroom's
+// own word: whether the copy is paid for, and whether we have corrected it.
+// Those are an editor's signature, and they live on
+// PUT /editor/articles/:id/disclosure, not on this request.
 
 // Each editable field is cleaned the way readers will see it: a headline has to
 // stay one plain line, the body keeps its paragraphs, an image stays a link.
@@ -271,6 +287,9 @@ const STORY_CLEANERS = {
   summary: (value) => cleanText(value, { maxLength: 600 }),
   content: (value) => cleanText(value, { maxLength: 60000 }),
   featuredImage: (value) => safeMediaUrl(value),
+  imageCredit: (value) => plainText(value, { maxLength: 160 }),
+  imageCaption: (value) => plainText(value, { maxLength: 240 }),
+  imageSourceUrl: (value) => safeMediaUrl(value),
   tags: (value) => cleanTags(value),
   language: (value) => plainText(value, { maxLength: 8 })
 };

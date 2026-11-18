@@ -252,6 +252,10 @@ export const publicAPI = {
   getWriters: (params?: { sort?: 'recent' | 'stories' | 'followers' | 'name'; q?: string; page?: number; limit?: number }) =>
     apiClient.get<WriterDirectory>('/writers', params),
 
+  // The site-wide corrections record, read off the stories themselves.
+  getCorrections: () =>
+    apiClient.get<{ corrections: { title: string; slug: string; publishedAt?: string; entries: { note: string; at: string }[] }[] }>('/corrections'),
+
   sendContact: (data: { name: string; email: string; phone?: string; topic: string; message: string; website?: string }) =>
     apiClient.post('/contact', data),
 }
@@ -554,6 +558,18 @@ export const editorAPI = {
 
   scheduleArticle: (id: string, scheduledAt?: string) =>
     apiClient.put(`/editor/articles/${id}/schedule`, { scheduledAt }),
+
+  // The desk signatures on a story: what its photograph says about itself, who
+  // paid for the copy, and what the newsroom is correcting. Never the text -
+  // an edit to the words goes through the writer's own endpoint.
+  updateDisclosure: (id: string, input: {
+    imageCredit?: string
+    imageCaption?: string
+    imageSourceUrl?: string
+    isSponsored?: boolean
+    sponsor?: string
+    correctionNote?: string
+  }) => apiClient.put(`/editor/articles/${id}/disclosure`, input),
 
   // The comment queue. How many readers flagged a comment is returned, never
   // which ones.
@@ -967,6 +983,7 @@ export const adminAPI = {
     tags: string[]
     featuredImage?: string
     imageCredit?: string
+    imageCaption?: string
     imageSourceUrl?: string
     publish: boolean
   }): Promise<Article> => {

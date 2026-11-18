@@ -37,6 +37,30 @@ export default function EditorReviewPage() {
   const [busy, setBusy] = useState('')
   const [note, setNote] = useState('')
 
+  // The three things the desk can say about a story without rewriting it: what
+  // its photograph shows and whose it is, whether anyone paid for it, and what
+  // we are correcting. They are held apart from `note`, which is a private
+  // comment to the writer and is never published.
+  const [photo, setPhoto] = useState({ imageCredit: '', imageCaption: '' })
+  const [paid, setPaid] = useState({ isSponsored: false, sponsor: '' })
+  const [correction, setCorrection] = useState('')
+  const [disclosureBusy, setDisclosureBusy] = useState('')
+  const [disclosureError, setDisclosureError] = useState('')
+
+  const saveDisclosure = async (patch: Record<string, string | boolean>, label: string) => {
+    setDisclosureBusy(label)
+    setDisclosureError('')
+    try {
+      await editorAPI.updateDisclosure(id, patch)
+      if ('correctionNote' in patch) setCorrection('')
+      await load()
+    } catch (err: any) {
+      setDisclosureError(err?.response?.data?.message || 'The desk note was not saved. Try again.')
+    } finally {
+      setDisclosureBusy('')
+    }
+  }
+
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -48,6 +72,8 @@ export default function EditorReviewPage() {
       const story = (storyRes.data.data as any)?.article
       if (!story) throw new Error('missing')
       setArticle(story)
+      setPhoto({ imageCredit: story.imageCredit || '', imageCaption: story.imageCaption || '' })
+      setPaid({ isSponsored: story.isSponsored === true, sponsor: story.sponsor || '' })
       setNextStates((storyRes.data.data as any)?.nextStates || [])
       setEvents((historyRes.data.data as any)?.events || [])
     } catch (err: any) {
@@ -267,6 +293,124 @@ export default function EditorReviewPage() {
           </div>
         </div>
       )}
+
+      {/* Disclosure, deliberately kept out of the decision box above: approve
+          and reject are a verdict on the copy, while these are facts a reader is
+          owed about it, and a story can need one without the other. */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <p className="text-sm font-bold text-slate-900">{t('editor.disclosure.title')}</p>
+        <p className="mt-1 text-xs text-slate-500">{t('editor.disclosure.hint')}</p>
+
+        {disclosureError && (
+          <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+            {disclosureError}
+          </p>
+        )}
+
+        <div className="mt-4 space-y-2">
+          <label className="block text-xs font-bold uppercase tracking-wide text-slate-500" htmlFor="story-caption">
+            {t('editor.disclosure.caption')}
+          </label>
+          <input
+            id="story-caption"
+            value={photo.imageCaption}
+            onChange={(event) => setPhoto((current) => ({ ...current, imageCaption: event.target.value }))}
+            maxLength={240}
+            placeholder={t('editor.disclosure.captionHint')}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <label className="block text-xs font-bold uppercase tracking-wide text-slate-500" htmlFor="story-credit">
+            {t('editor.disclosure.credit')}
+          </label>
+          <input
+            id="story-credit"
+            value={photo.imageCredit}
+            onChange={(event) => setPhoto((current) => ({ ...current, imageCredit: event.target.value }))}
+            maxLength={160}
+            placeholder={t('editor.disclosure.creditHint')}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            onClick={() => void saveDisclosure({ ...photo }, 'photo')}
+            disabled={disclosureBusy !== ''}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {disclosureBusy === 'photo' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            {t('editor.disclosure.savePhoto')}
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-2 border-t border-slate-100 pt-4">
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <input
+              type="checkbox"
+              checked={paid.isSponsored}
+              onChange={(event) => setPaid((current) => ({ ...current, isSponsored: event.target.checked }))}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            {t('editor.disclosure.isSponsored')}
+          </label>
+          {paid.isSponsored && (
+            <input
+              value={paid.sponsor}
+              onChange={(event) => setPaid((current) => ({ ...current, sponsor: event.target.value }))}
+              maxLength={120}
+              placeholder={t('editor.disclosure.sponsorHint')}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => void saveDisclosure({ isSponsored: paid.isSponsored, sponsor: paid.sponsor }, 'paid')}
+            disabled={disclosureBusy !== '' || (paid.isSponsored && !paid.sponsor.trim())}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {disclosureBusy === 'paid' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            {t('editor.disclosure.saveSponsored')}
+          </button>
+          {paid.isSponsored && !paid.sponsor.trim() && (
+            <p className="text-xs text-amber-700">{t('editor.disclosure.needsSponsor')}</p>
+          )}
+        </div>
+
+        <div className="mt-5 space-y-2 border-t border-slate-100 pt-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{t('editor.disclosure.corrections')}</p>
+          {Array.isArray(article.corrections) && article.corrections.length ? (
+            <ol className="space-y-1.5">
+              {article.corrections.map((entry: { note?: string; at?: string }, index: number) => (
+                <li key={`${entry?.at || index}-${index}`} className="text-sm text-slate-700">
+                  <span className="font-semibold">{entry?.at ? new Date(entry.at).toLocaleDateString() : ''}</span>
+                  <span className="mx-1.5" aria-hidden="true">·</span>
+                  {entry?.note}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-sm text-slate-500">{t('editor.disclosure.noCorrections')}</p>
+          )}
+          <textarea
+            value={correction}
+            onChange={(event) => setCorrection(event.target.value)}
+            rows={2}
+            maxLength={600}
+            placeholder={t('editor.disclosure.correctionHint')}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            onClick={() => void saveDisclosure({ correctionNote: correction.trim() }, 'correction')}
+            disabled={disclosureBusy !== '' || !correction.trim()}
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {disclosureBusy === 'correction'
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Megaphone className="h-4 w-4" />}
+            {t('editor.disclosure.publishCorrection')}
+          </button>
+          <p className="text-xs text-slate-500">{t('editor.disclosure.correctionNote')}</p>
+        </div>
+      </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5">
         <p className="text-sm font-bold text-slate-900">{t('editor.review.history')}</p>

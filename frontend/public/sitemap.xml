@@ -2,11 +2,11 @@
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
     <loc>https://ijwi-ry--ukuri.web.app/sitemap-pages.xml</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-18</lastmod>
   </sitemap>
   <sitemap>
     <loc>https://ijwi-ry--ukuri.web.app/sitemap-articles.xml</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-18</lastmod>
   </sitemap>
   <sitemap>
     <loc>https://ijwi-ry--ukuri.web.app/sitemap-sections.xml</loc>
@@ -18,7 +18,10 @@
     <loc>https://ijwi-ry--ukuri.web.app/sitemap-writers.xml</loc>
   </sitemap>
   <sitemap>
+    <loc>https://ijwi-ry--ukuri.web.app/sitemap-news.xml</loc>
+  </sitemap>
+  <sitemap>
     <loc>https://ijwi-ry--ukuri.web.app/sitemap-images.xml</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-18</lastmod>
   </sitemap>
 </sitemapindex>

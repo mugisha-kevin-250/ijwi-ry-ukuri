@@ -9,6 +9,12 @@ interface RadarLogoProps {
   hideWordmarkOnSmallScreens?: boolean
   /** The footer is navy, so the mark has to be light there. */
   onDark?: boolean
+  /**
+   * Letters in pixels, when they must not follow the size of the mark. The
+   * masthead leaves this out and grows with the circle; the footer pins it so
+   * a smaller mark does not quietly shrink the name.
+   */
+  wordmarkFontSize?: number
   className?: string
 }
 
@@ -21,6 +27,7 @@ export default function RadarLogo({
   wordmark = false,
   hideWordmarkOnSmallScreens = false,
   onDark = false,
+  wordmarkFontSize,
   className = '',
 }: RadarLogoProps) {
   const [still, setStill] = useState(false)
@@ -124,9 +131,19 @@ export default function RadarLogo({
 
       {wordmark && (
         <span
-          className={`text-xl font-black uppercase tracking-[0.18em] ${
+          // The word used to be a fixed text-xl whatever the mark was, so the
+          // only way to make the name on the masthead bigger was to enlarge the
+          // circle and leave the letters behind. It now follows the mark -
+          // roughly three fifths of its edge, which is what text-xl happened to
+          // measure at 34px, so a header drawn before this change reads the same
+          // until someone asks for a larger one. A caller that needs a fixed
+          // size passes wordmarkFontSize: that is the footer, whose mark is
+          // smaller than the masthead's and whose letters were never meant to
+          // shrink with it.
+          className={`font-black uppercase tracking-[0.18em] ${
             onDark ? 'text-white' : 'text-[#062b52] dark:text-blue-200'
           } ${hideWordmarkOnSmallScreens ? 'hidden sm:inline' : ''}`}
+          style={{ fontSize: `${wordmarkFontSize ?? Math.round(size * 0.6)}px` }}
         >
           RADAR
         </span>

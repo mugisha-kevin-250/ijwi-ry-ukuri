@@ -265,6 +265,98 @@ async function chat(question, history = []) {
 }
 
 /**
+ * The reader's question desk.
+ *
+ * Anyone on the site - signed in or not - can ask RADAR AI about the news. The
+ * instruction here is the opposite of the research desk on purpose: an editor
+ * needs leads to chase, and a reader needs what this newsroom already published
+ * explained. So the model is handed the story the reader is standing on plus
+ * the headlines currently on the site, is told those are the only facts it has,
+ * and is told to say plainly when the answer is not among them rather than
+ * filling the gap with something plausible.
+ *
+ * The grounding is built by aiReaderService, which only ever reads published
+ * stories. A draft an editor has not approved cannot reach a reader's chat.
+ */
+const READER_SYSTEM_BASE = [
+  'You are RADAR AI, the question desk of RADAR, a Rwandan news site with readers across the region and the diaspora.',
+  'The person writing to you is a reader, not a member of staff. They are asking about the news.',
+  '',
+  'What you know about this story:',
+  '- The material the newsroom gives you below - the article the reader is reading and the list of what RADAR has published - is the only thing you may state as fact.',
+  '- You may explain what that material means: put a figure in context, define a term, say who the institutions involved are, summarise what happened, connect two stories the newsroom has both filed.',
+  '- If the answer is not in that material, say so in one sentence and say what RADAR has or has not reported on. Then point to the story that comes closest. Do not pad the silence with general knowledge about current events.',
+  '- Never invent a name, a number, a quote, a date or an event, and never extend what the newsroom reported into a development it did not report.',
+  '- You are not a journalist here and you are not a source. Anything you are unsure of is described as unsure, not presented as news.',
+  '',
+  'How to answer:',
+  '- Three short paragraphs at most, or a few lines of plain prose. No headings, no preamble, no summary of your own answer at the end.',
+  '- Answer the question that was actually asked. If the reader asks in another language, answer in that language; otherwise answer in English.',
+  '- When you rely on a specific article, name it the way a reader would recognise it - its headline - so they can go and read it.'
+].join('\n');
+
+function readerBriefing({ story, headlines } = {}) {
+  const blocks = [];
+
+  if (story && story.title) {
+    blocks.push([
+      'THE STORY THE READER IS ON',
+      `Headline: ${story.title}`,
+      story.section ? `Section: ${story.section}` : '',
+      story.publishedAt ? `Published: ${new Date(story.publishedAt).toUTCString()}` : '',
+      story.summary ? `Summary: ${story.summary}` : '',
+      story.excerpt ? 'Opening paragraphs:\n' + story.excerpt : ''
+    ].filter(Boolean).join('\n'));
+  }
+
+  const list = (Array.isArray(headlines) ? headlines : []).filter((row) => row && row.title);
+  if (list.length) {
+    blocks.push([
+      'WHAT RADAR HAS PUBLISHED RECENTLY',
+      ...list.map((row) => {
+        const when = row.publishedAt ? new Date(row.publishedAt).toISOString().slice(0, 10) : 'undated';
+        const where = row.section ? ` (${row.section})` : '';
+        const line = row.summary ? ` - ${row.summary}` : '';
+        return `- ${when}: ${row.title}${where}${line}`;
+      })
+    ].join('\n'));
+  }
+
+  if (!blocks.length) {
+    blocks.push('THE NEWSROOM HAS NO PUBLISHED MATERIAL TO GIVE YOU FOR THIS QUESTION.');
+  }
+
+  return `${blocks.join('\n\n')}\n\nRemember: the above is everything you may treat as fact.`;
+}
+
+async function askReader({ question, history = [], story = null, headlines = [] } = {}) {
+  const asked = String(question || '').trim().slice(0, 2000);
+  if (!asked) {
+    const error = new Error('Ask RADAR AI a question first');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+
+  const contents = toContents([...(Array.isArray(history) ? history : []), { role: 'user', text: asked }]);
+  if (!contents.length) {
+    const error = new Error('Ask RADAR AI a question first');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+
+  const answer = await callGemini({
+    contents,
+    systemInstruction: `${READER_SYSTEM_BASE}\n\n${readerBriefing({ story, headlines })}`,
+    temperature: 0.4,
+    topP: 0.9,
+    maxOutputTokens: 900,
+    timeoutMs: CHAT_TIMEOUT_MS
+  });
+
+  return { answer, model: activeModel(), generatedAt: new Date().toISOString() };
+}
+
+/**
  * Pictures for a story the newsroom has not taken.
  *
  * The model is asked for links to photographs that already exist and are public.
@@ -520,4 +612,4 @@ async function adCreative({ advertiser, offer, link, placement, tone, mustInclud
   return creative;
 }
 
-module.exports = { isConfigured, activeModel, writeStory, chat, photoLinks, radioScript, adCreative };
+module.exports = { isConfigured, activeModel, writeStory, chat, askReader, photoLinks, radioScript, adCreative };

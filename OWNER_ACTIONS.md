@@ -226,3 +226,33 @@ prints how old a reading is whenever it is not the freshest one.
 referenced by the sitemaps the build writes, so whatever you decide about putting
 it into Google Search is a decision you make in Search Console and nothing in the
 build will undo it.
+
+## 13. Nothing to do for RADAR AI — except know what it costs
+
+**Status: shipped and already working, provided `GEMINI_API_KEY` is in Render.**
+The red breaking strip on the home page is now an **Ask RADAR AI** bar, every
+story ends with a button that asks the desk to explain that story, and the AI
+writer is on each writer's own dashboard. No new environment variable is needed:
+these run on the same key the admin newsroom already uses. If that key is missing
+or wrong, the pages say so plainly instead of showing an empty chat box, and
+`GET https://studentnews-backend.onrender.com/api/ai/status` answers
+`configured: false`.
+
+Two things to watch, because this is the first AI feature a stranger can use:
+
+- **Readers are capped at 12 questions an hour per address** (`/api/ai/ask`).
+  Answers come only from stories with `status: 'published'` — a draft cannot be
+  talked loose — and the conversation is never stored on the server, so there is
+  no reader transcript to defend. Cost is one Gemini call per question.
+- **Writers are capped at 10 drafts an hour**, the same ceiling the admin writer
+  already had. `/api/writers/ai/draft` files what the machine wrote as that
+  author's own `draft` with `aiGenerated: true`; there is no publish path in it,
+  so "AI writes, a human publishes" is still enforced by the API and not only by
+  the interface.
+
+**Check.** `POST /api/ai/ask` with `{"q":"What is the biggest story today?"}`
+returns a paragraph that names a real headline (or says the newsroom has not
+reported it). Open a story and press the button at the bottom; the answer arrives
+with a link back to the story it was standing on. Then sign in as a writer, use
+**Draft with the AI writer** on their dashboard, and confirm the result appears in
+their shelf as a draft — never as a published page.

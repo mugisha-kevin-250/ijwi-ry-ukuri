@@ -60,7 +60,7 @@ export default function Footer() {
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1.3fr_1fr_1fr_1.1fr] lg:px-8">
         <div>
           <Link to="/" className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-white" aria-label="RADAR Home">
-            <RadarLogo size={28} wordmark onDark />
+            <RadarLogo size={28} wordmark wordmarkFontSize={20} onDark />
           </Link>
           <p className="mt-3 max-w-sm text-sm leading-relaxed">{t('footer.tagline')}</p>
           <div className="mt-5 flex flex-wrap gap-2">

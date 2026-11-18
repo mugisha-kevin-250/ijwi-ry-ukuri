@@ -29,9 +29,10 @@ const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
  *
  * That is the owner's rule, made in these words, and the earlier versions of it
  * (Trending in, Rwanda out) were steps toward it rather than separate calls.
- * The row costs about 520px of the 736px it has at a tablet's width even with the
- * Weather link, so the panels stay allowed and a name still has room to grow when
- * the chrome is read in a longer language. Nothing is lost either way: whatever
+ * The row costs about 590px of the 736px it has at a tablet's width, at the
+ * 15px the owner asked for, even with the Weather link - so the panels stay
+ * allowed and a name still has room to grow when the chrome is read in a longer
+ * language. Nothing is lost either way: whatever
  * leaves the bar keeps its sub-sections and is listed in the More panel beside
  * them, and the phone strip and the menu still show everything.
  */
@@ -294,7 +295,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
   // reason the sections do: the width of the row is what decides if the panels
   // are allowed, so the row may not change width because of that decision.
   const morePill = cn(
-    'whitespace-nowrap rounded-lg py-1.5 pl-1.5 pr-[17px] text-left text-[13px] font-bold underline-offset-4 transition',
+    'whitespace-nowrap rounded-lg py-1.5 pl-1.5 pr-[17px] text-left text-[15px] font-bold underline-offset-4 transition',
     moreActive
       ? 'bg-brand-600 text-white shadow-sm dark:bg-blue-600'
       : 'text-gray-800 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400',
@@ -325,7 +326,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
   if (layout === 'marquee') {
     const chip = ({ isActive }: { isActive: boolean }) =>
       cn(
-        'whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] font-bold transition',
+        'whitespace-nowrap rounded-full border px-3 py-1.5 text-[15px] font-bold transition',
         isActive
           ? 'border-brand-600 bg-brand-600 text-white dark:border-blue-600 dark:bg-blue-600'
           : 'border-transparent text-gray-800 hover:border-gray-300 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800',
@@ -514,11 +515,12 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
           // the measurement that decides if the names fit would change the room they
           // have to fit in, and the strip would pulse between the two answers.
           // The seats are deliberately tight: the beats in the bar, the Weather
-          // link and the More pill cost about 520px at a tablet's width, where
+          // link and the More pill cost about 590px at a tablet's width with the
+          // 15px type the owner asked for, where
           // the row has 736px, and that margin is what a section name has left to
           // grow into when the reader is reading the chrome in another language.
           const pill = cn(
-            'whitespace-nowrap rounded-lg py-1.5 pl-1.5 text-[13px] font-bold underline-offset-4 transition',
+            'whitespace-nowrap rounded-lg py-1.5 pl-1.5 text-[15px] font-bold underline-offset-4 transition',
             section.children.length > 0 ? 'pr-[17px]' : 'pr-1.5',
             isActive
               ? 'bg-brand-600 text-white shadow-sm dark:bg-blue-600'
@@ -606,7 +608,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
               to={feature.href}
               className={({ isActive }) =>
                 cn(
-                  'whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] font-bold underline-offset-4 transition',
+                  'whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[15px] font-bold underline-offset-4 transition',
                   isActive
                     ? 'bg-brand-600 text-white shadow-sm dark:bg-blue-600'
                     : 'text-gray-800 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400',

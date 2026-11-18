@@ -5,7 +5,7 @@
     <link>https://ijwi-ry--ukuri.web.app</link>
     <description>News written by approved writers: world, politics, business, technology, sports, entertainment and health.</description>
     <language>en</language>
-    <lastBuildDate>Mon, 16 Nov 2026 08:20:49 GMT</lastBuildDate>
+    <lastBuildDate>Wed, 18 Nov 2026 05:07:44 GMT</lastBuildDate>
     <docs>https://www.rss.org/rss.xml</docs>
     <generator>RADAR build scripts</generator>
     <atom:link href="https://ijwi-ry--ukuri.web.app/feed.xml" rel="self" type="application/rss+xml" />
@@ -14,6 +14,35 @@
       <title>RADAR</title>
       <link>https://ijwi-ry--ukuri.web.app</link>
     </image>
+    <item>
+      <title>Grand Theft Auto VI Development and Upcoming Release Details</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/grand-theft-auto-vi-development-and-upcoming-release-details-1794826780470</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/grand-theft-auto-vi-development-and-upcoming-release-details-1794826780470</guid>
+      <description>Rockstar Games prepares for the launch of Grand Theft Auto VI, a massive project involving extensive development time and significant financial investment.</description>
+      <pubDate>Mon, 16 Nov 2026 10:59:13 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Gaming</category>
+      <category>gta vi</category>
+      <category>rockstar games</category>
+      <category>video games</category>
+      <category>entertainment industry</category>
+      <media:content url="https://upload.wikimedia.org/wikipedia/commons/6/6b/Grand_Theft_Auto_Logo.png?utm_source=commons.wikimedia.org&amp;utm_campaign=imageinfo&amp;utm_content=original" medium="image" />
+    </item>
+    <item>
+      <title>Bitcoin Price USD Holds Steady Amid Changing Market Conditions</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/bitcoin-price-usd-holds-steady-amid-changing-market-conditions-1794826676283</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/bitcoin-price-usd-holds-steady-amid-changing-market-conditions-1794826676283</guid>
+      <description>Bitcoin price in USD remains a focal point for global markets as analysts evaluate ongoing shifts in institutional participation and historical cycles.</description>
+      <pubDate>Mon, 16 Nov 2026 10:57:56 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Crypto</category>
+      <category>bitcoin</category>
+      <category>cryptocurrency</category>
+      <category>markets</category>
+      <category>finance</category>
+      <category>usd</category>
+      <media:content url="https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg?utm_source=commons.wikimedia.org&amp;utm_campaign=imageinfo&amp;utm_content=original" medium="image" />
+    </item>
     <item>
       <title>East Africa Faces Unpredictable Weather Patterns</title>
       <link>https://ijwi-ry--ukuri.web.app/article/east-africa-faces-unpredictable-weather-patterns-1794813975892</link>
@@ -402,28 +431,6 @@
       <category>Sports</category>
       <category>@lamineyamal</category>
       <media:content url="https://studentnews-backend.onrender.com/uploads/1794406213156-101947697.jpg" medium="image" />
-    </item>
-    <item>
-      <title>Kigali’s Live Music Scene Booms with Major Concerts, Chart-Topping Hits, and Industry Milestones</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/kigalis-live-music-scene-booms-with-major-concerts-chart-topping-hits-and-industry-milestones-1794404677142</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/kigalis-live-music-scene-booms-with-major-concerts-chart-topping-hits-and-industry-milestones-1794404677142</guid>
-      <description>Rwanda’s music industry is experiencing an exciting wave of live performances, streaming dominance, and heartfelt artist collaborations. From sold-out arena shows to chart-topping gospel anthems, Kigali continues to cement its reputation as a vibrant East African entertainment hub.</description>
-      <pubDate>Wed, 11 Nov 2026 13:23:28 GMT</pubDate>
-      <dc:creator>DERRICK_AUTHOR</dc:creator>
-      <category>Entertainment</category>
-      <category>aimekevin</category>
-      <media:content url="https://studentnews-backend.onrender.com/uploads/1794403695181-279404959.jpg" medium="image" />
-    </item>
-    <item>
-      <title>Rwanda Promotes Its Culture Through Diplomacy, Education and Heritage Preservation</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/rwanda-promotes-its-culture-through-diplomacy-education-and-heritage-preservation-1794403187811</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/rwanda-promotes-its-culture-through-diplomacy-education-and-heritage-preservation-1794403187811</guid>
-      <description>Rwanda is strengthening its cultural identity through international cultural events, education, and heritage preservation. Initiatives such as the Rwanda Diplomatic Charity Bazaar, scheduled for November 21, 2026, promote cultural exchange and community empowerment. The country is also showcasing its traditional music, dance, crafts, and language internationally while encouraging young people to preserve Kinyarwanda and cultural values.</description>
-      <pubDate>Wed, 11 Nov 2026 13:19:50 GMT</pubDate>
-      <dc:creator>Ntagarama Teta Cynthia</dc:creator>
-      <category>Rwanda</category>
-      <category>aime kevin</category>
-      <media:content url="https://studentnews-backend.onrender.com/uploads/1794403165647-197505014.png" medium="image" />
     </item>
   </channel>
 </rss>

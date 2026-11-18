@@ -96,7 +96,9 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
       key={link.href}
       to={link.href}
       className={({ isActive }) =>
-        `shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold underline-offset-4 transition ${
+        // 15px matches the section line underneath, so "News" and the beats do
+        // not read as two different sizes of the same thing.
+        `shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-[15px] font-bold underline-offset-4 transition ${
           isActive
             ? 'bg-brand-600 text-white shadow-sm decoration-2 hover:underline dark:bg-blue-600'
             : 'text-gray-800 decoration-2 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400'
@@ -189,8 +191,13 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
           reach Middle East or Football without opening a menu.
         */}
         <div className="flex h-16 items-center justify-between gap-4 md:h-14">
-          <Link to="/" className="flex shrink-0 items-center gap-2 text-xl font-extrabold tracking-tight text-[#062b52] dark:text-blue-300" aria-label="RADAR Home">
-            <RadarLogo size={34} wordmark hideWordmarkOnSmallScreens />
+          <Link to="/" className="flex shrink-0 items-center gap-2 font-extrabold tracking-tight text-[#062b52] dark:text-blue-300" aria-label="RADAR Home">
+            {/* Bigger on purpose: the owner asked for the masthead name to carry
+                more of the page. The mark and the letters grow together, and 46px
+                still clears the 56px row this line is measured to on desktop and
+                the 64px one it uses on a phone, so nothing here pushes the search
+                box or the sign-in button off the row. */}
+            <RadarLogo size={46} wordmark hideWordmarkOnSmallScreens />
           </Link>
 
           {variant !== 'public' && (

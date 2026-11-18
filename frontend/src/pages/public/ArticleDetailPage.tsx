@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
-import { Calendar, ChevronRight, Clock, Eye, Heart, MessageSquare, Bookmark, Share2, Sparkles, Loader2, UserPlus, Flag, Trash2 } from 'lucide-react'
+import { Calendar, ChevronRight, Clock, Eye, Heart, MessageSquare, Bookmark, Share2, Loader2, UserPlus, Flag, Trash2 } from 'lucide-react'
 import type { Article, Comment } from '../../types'
 import { publicAPI, articleAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
@@ -14,6 +14,7 @@ import MediaImage from '../../components/common/MediaImage'
 import AdSlot from '../../components/ads/AdSlot'
 import ListenButton from '../../components/audio/ListenButton'
 import TranslationNotice from '../../components/news/TranslationNotice'
+import AskRadarAi from '../../components/ai/AskRadarAi'
 import { cn } from '../../utils/cn'
 import { useSeo, absoluteSiteUrl } from '../../utils/useSeo'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
@@ -267,12 +268,12 @@ export default function ArticleDetailPage() {
 
       <header className="space-y-4">
         <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white leading-tight">{article.title}</h1>
-        {article.aiGenerated && (
-          <p className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            {t('articles.aiLabel')}
-          </p>
-        )}
+        {/* There is no "written with AI" badge here any more. Whether a machine
+            took the first draft is a newsroom fact - it is stored on the story,
+            it shows in the review queue, and an editor decides what the reader
+            is told - but a label over the headline made every AI-assisted story
+            look like a different class of reporting before anyone had read a
+            line of it. */}
         <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
           {author && (
             <Link
@@ -354,6 +355,23 @@ export default function ArticleDetailPage() {
             splitParagraphs(article.content).map((block, index) => <p key={index}>{block}</p>)
           )}
         </div>
+      </div>
+
+      {/* End of the read. Before anything else competes for attention, the
+          reader who wants more of this story gets a way to ask about it - and
+          the question is already written, because what they want is more about
+          the thing they just read, not a blank box to describe it into. */}
+      <div className="pt-6">
+        <AskRadarAi
+          variant="card"
+          slug={article.slug}
+          seedQuestion={`Explain more about this story: ${article.title}`}
+          suggestions={[
+            t('ai.storySuggest1'),
+            t('ai.storySuggest2'),
+            t('ai.storySuggest3'),
+          ]}
+        />
       </div>
 
       {/* The reader has finished the story, so this is where an in-content unit

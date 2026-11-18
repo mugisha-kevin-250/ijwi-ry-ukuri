@@ -48,15 +48,23 @@ export default function EditorialPolicyPage() {
 
       <Section title="Machine-written drafts">
         <p>
-          The admin portal has one writing tool: it asks Gemini for a report on a topic the owner types. The tool is
+          The staff portals have one writing tool: it asks Gemini for a report on a topic the author types. The tool is
           told to write in English, in the order of what matters most, and never to invent a quote, a name, a
-          statistic or a document. A draft is stored only after a human reads it; the story says "written with AI"
-          above its headline; and it can be moved back to the editor at any time. No writer account has access to it.
+          statistic or a document. It answers with a draft and nothing else - it is stored only after the author reads
+          it, it belongs to them as a draft, and it reaches a reader only if an editor approves it through the normal
+          review. Inside the newsroom the story is marked as machine-drafted, so the desk always knows which line
+          started with a model; a story does not carry that as a stamp over its headline.
         </p>
         <p>
           Nothing publishes on a machine's own decision. There is one switch that lets a finished draft go out
           without the review click, it is off by default, only the owner can turn it on, and the story is still
           editable and pullable afterwards.
+        </p>
+        <p>
+          RADAR AI is a different tool with a different limit: it answers readers from stories this site has already
+          published and is told plainly that it has no facts of its own. It explains reporting; it does not make it.
+          A sentence it generates is not a source, and if a reader repeats something it got wrong, that is on the
+          reporting it was standing on - which is why every answer points back to the story itself.
         </p>
       </Section>
 

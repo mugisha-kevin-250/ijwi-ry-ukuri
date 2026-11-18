@@ -22,6 +22,7 @@ const newsletterRoutes = require('./routes/newsletterRoutes');
 const translateRoutes = require('./routes/translateRoutes');
 const scoreRoutes = require('./routes/scoreRoutes');
 const weatherRoutes = require('./routes/weatherRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 const uploadStore = require('./services/uploadStore');
 const clientIp = require('./utils/clientIp');
 
@@ -109,6 +110,20 @@ const aiChatLimiter = rateLimit({
   message: tooMany('The research desk has answered enough questions for this hour, please try again later.')
 });
 
+// RADAR AI answers readers, and a reader is a stranger. Twelve questions an
+// hour per address is a long conversation and still keeps one tab, or one
+// office behind a carrier's address, from spending the site's monthly Gemini
+// budget before the newsroom has sold anything. Story-writing for staff stays
+// on the narrower ceilings above.
+const readerAiLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 60 * 60 * 1000,
+  max: 12,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('RADAR AI has answered enough questions from this address for one hour. Please ask again later.')
+});
+
 // An open form is the one place on a news site where a stranger can write into the
 // database, so it gets both the honeypot in the page and this ceiling.
 const contactLimiter = rateLimit({
@@ -138,6 +153,11 @@ app.post('/api/admin/ai/trends', aiLimiter);
 app.post('/api/admin/ai/articles', aiLimiter);
 app.post('/api/admin/ai/chat', aiChatLimiter);
 app.post('/api/admin/ai/photos', aiLimiter);
+// The same AI writer an admin uses, opened to staff authors: a draft costs the
+// newsroom a paid call, so it shares the story-writing ceiling rather than the
+// reader one. Publishing is still a person's decision, made in their own
+// dashboard - nothing here writes to the site by itself.
+app.post('/api/writers/ai/generate', aiLimiter);
 // An ad creative is a short call and a person often wants to see two or three
 // before picking one, so it shares the research desk's wider ceiling rather than
 // the story writer's ten an hour.
@@ -220,6 +240,10 @@ app.use('/api/scores', scoresLimiter, scoreRoutes);
 // Same reason as the scores page, and the same place: mounted ahead of the
 // catch-all public story routes so /api/weather is answered here.
 app.use('/api/weather', weatherLimiter, weatherRoutes);
+// RADAR AI is a public feature, and it is mounted ahead of the catch-all public
+// story routes for the same reason the weather desk is: /api/ai has to be
+// answered here, with its own ceiling, before the story endpoints see the path.
+app.use('/api/ai', readerAiLimiter, aiRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/writers', writerRoutes);
 app.use('/api/editor', editorRoutes);

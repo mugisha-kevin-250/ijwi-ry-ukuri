@@ -4,6 +4,7 @@ import { BarChart3, Check, Eye, FileText, Heart, Loader2, Plus, RefreshCw, Users
 import { writerAPI, type WriterStoryMetric } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
+import AiWriterPanel from '../../components/writers/AiWriterPanel'
 
 interface WriterSummary {
   totalArticles?: number
@@ -113,6 +114,13 @@ export default function WriterDashboardPage() {
           value={reading(summary, loading, (row) => (row.followersCount || 0).toLocaleString())}
           note={t('writer.dash.followersHint')}
         />
+      </div>
+
+      {/* The AI writer is on the author's own board, not behind the admin door.
+          It drafts; the author's shelf and the editor's queue decide what goes
+          out, exactly as with anything they typed themselves. */}
+      <div className="mt-6">
+        <AiWriterPanel />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">

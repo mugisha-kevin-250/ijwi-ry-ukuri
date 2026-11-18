@@ -12,6 +12,7 @@ const WriterWeeklyStat = require('../models/WriterWeeklyStat');
 const Payout = require('../models/Payout');
 const { protect, authorize } = require('../middleware/auth');
 const notificationService = require('../services/notificationService');
+const geminiService = require('../services/geminiService');
 const workflow = require('../services/articleWorkflow');
 const lifecycle = require('../utils/articleLifecycle');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
@@ -120,6 +121,105 @@ router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async 
     return successResponse(res, 201, 'Article created', { article });
   } catch (error) {
     next(error);
+  }
+});
+
+/**
+ * The AI writer, opened to every author on staff.
+ *
+ * An admin has had this since the newsroom panel was built; the request now is
+ * that each writer's dashboard can use it too. What is unchanged is the rule
+ * the whole workflow stands on - AI writes, a human publishes:
+ *
+ * - `/ai/generate` answers with text only. Nothing is written to the database
+ *   and nothing is published, so an author can see what a machine makes of a
+ *   topic before deciding whether it is worth their name.
+ * - `/ai/draft` stores that text as a draft owned by the author who asked. It
+ *   lands in their shelf like anything else they type, and from there it goes
+ *   to an editor through the same submit endpoint a hand-written story uses.
+ *   There is no publish path here, and `status` is not accepted from the body.
+ * - The story carries `aiGenerated: true`, so the queue, the writer's own list
+ *   and an editor can all tell a machine's first draft from a reporter's copy.
+ *
+ * The Gemini key stays on this server; a writer's browser never sees it. The
+ * cost is guarded by the same ten-drafts-an-hour ceiling the admin writer
+ * shares, registered on the exact path in app.js.
+ */
+function cleanDraft(req) {
+  const body = req.body || {};
+  return {
+    title: plainText(body.title, { maxLength: 200 }),
+    summary: cleanText(body.summary, { maxLength: 600 }),
+    content: cleanText(body.content, { maxLength: 60000 }),
+    tags: cleanTags(Array.isArray(body.tags) ? body.tags.slice(0, 6) : [], { max: 6 }),
+    metaDescription: body.metaDescription ? plainText(body.metaDescription, { maxLength: 200 }) : '',
+    featuredImage: safeMediaUrl(body.featuredImage),
+    imageCredit: body.imageCredit ? plainText(body.imageCredit, { maxLength: 160 }) : '',
+    imageSourceUrl: safeMediaUrl(body.imageSourceUrl),
+    category: body.category
+  };
+}
+
+router.post('/ai/generate', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
+  try {
+    const { topic, angle, audience } = req.body || {};
+    if (!topic || String(topic).trim().length < 6) {
+      return errorResponse(res, 400, 'Describe the topic the draft should cover');
+    }
+    if (!geminiService.isConfigured()) {
+      return errorResponse(res, 503, 'The AI writer is not connected yet. Ask the newsroom to set its Gemini key.');
+    }
+
+    const draft = await geminiService.writeStory({
+      topic: plainText(topic, { maxLength: 500 }),
+      angle: angle ? plainText(angle, { maxLength: 500 }) : '',
+      audience: audience === 'world' ? 'world' : 'rwanda'
+    });
+
+    // A draft, not a story: it has no slug, no author and no place on the site
+    // until the writer who asked for it saves it as their own.
+    return successResponse(res, 200, 'Draft ready for you to check', draft);
+  } catch (error) {
+    if (error.code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, error.message);
+    if (String(error.code || '').startsWith('AI_')) return errorResponse(res, 502, error.message);
+    return next(error);
+  }
+});
+
+router.post('/ai/draft', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
+  try {
+    const draft = cleanDraft(req);
+    if (!draft.title || !draft.summary || !draft.content) {
+      return errorResponse(res, 400, 'Title, summary and content have to say something');
+    }
+
+    const categoryDoc = await Category.findById(draft.category);
+    if (!categoryDoc) return errorResponse(res, 404, 'Category not found');
+
+    const baseSlug = generateSlug(draft.title) || 'inkuru';
+    const article = await Article.create({
+      ...draft,
+      slug: `${baseSlug}-${Date.now()}`,
+      author: req.user._id,
+      category: categoryDoc._id,
+      language: 'en',
+      aiGenerated: true,
+      // Always a draft. The author reviews it, then submits it for an editor to
+      // decide on - the same route their own writing takes.
+      status: 'draft',
+      reviewEvents: [{
+        from: 'draft',
+        to: 'draft',
+        by: req.user._id,
+        note: 'Saved from the AI writer as a draft for the author to check',
+        at: new Date()
+      }]
+    });
+
+    return successResponse(res, 201, 'Draft saved', { article });
+  } catch (error) {
+    if (error.code === '11000') return errorResponse(res, 409, 'That draft is already on your shelf');
+    return next(error);
   }
 });
 

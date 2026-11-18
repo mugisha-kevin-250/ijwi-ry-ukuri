@@ -140,11 +140,34 @@ function WeatherGlyph({ sky, isDay = true, className }: { sky: Sky; isDay?: bool
   )
 }
 
-/** The cities the newsroom's readers ask about, in the order they are useful. */
-const NEARBY_CITIES = [
-  'Kigali', 'Butare', 'Gisenyi', 'Muhanga', 'Nyagatare',
-  'Nairobi', 'Kampala', 'Dar es Salaam', 'Bujumbura', 'Goma',
-  'Addis Ababa', 'Lagos', 'Johannesburg', 'Accra', 'Dubai', 'London',
+/**
+ * The cities a reader can reach with one tap, in the order the owner set.
+ *
+ * `label` is what the chip says; `q` is what is sent to be looked up, and is only
+ * given when the two differ. That is not decoration: the weather source files
+ * these places under their own spellings, so "São Paulo" is asked for as
+ * "Sao Paulo" and "New York City" as "New York". Print a name you did not
+ * resolve and the page ends up quoting one town under another town's heading,
+ * which is worse than a chip that admits it found nothing.
+ */
+const NEARBY_CITIES: { label: string; q?: string }[] = [
+  { label: 'Kigali' },
+  { label: 'New York City', q: 'New York' },
+  { label: 'London' },
+  { label: 'Tokyo' },
+  { label: 'Delhi' },
+  { label: 'Paris' },
+  { label: 'Mumbai' },
+  { label: 'Los Angeles' },
+  { label: 'Chicago' },
+  { label: 'Dubai' },
+  { label: 'Singapore' },
+  { label: 'Seoul' },
+  { label: 'São Paulo', q: 'Sao Paulo' },
+  { label: 'Toronto' },
+  { label: 'Sydney' },
+  { label: 'Istanbul' },
+  { label: 'Mexico City' },
 ]
 
 const CITY_STORE_KEY = 'radar.weather.city'
@@ -576,21 +599,24 @@ export default function WeatherPage() {
         <h2 className="text-base font-extrabold text-[var(--color-text)]">{t('weather.otherCities')}</h2>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">{t('weather.otherCitiesHint')}</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {NEARBY_CITIES.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => choose(option)}
-              className={cn(
-                'rounded-full border px-3 py-1.5 text-sm font-semibold transition',
-                option.toLowerCase() === (report?.q || city).toLowerCase()
-                  ? 'border-blue-600 bg-blue-600 text-white'
-                  : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-blue-500 hover:text-blue-700 dark:hover:text-blue-300',
-              )}
-            >
-              {option}
-            </button>
-          ))}
+          {NEARBY_CITIES.map((option) => {
+            const wanted = option.q || option.label
+            return (
+              <button
+                key={option.label}
+                type="button"
+                onClick={() => choose(wanted)}
+                className={cn(
+                  'rounded-full border px-3 py-1.5 text-sm font-semibold transition',
+                  wanted.toLowerCase() === (report?.q || city).toLowerCase()
+                    ? 'border-blue-600 bg-blue-600 text-white'
+                    : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-blue-500 hover:text-blue-700 dark:hover:text-blue-300',
+                )}
+              >
+                {option.label}
+              </button>
+            )
+          })}
         </div>
       </section>
     </div>

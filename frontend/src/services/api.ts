@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient'
+import { apiClient, serverMessage } from './apiClient'
 import type { AdminDashboardStats, Article, AuthResponse, Category, Comment, DashboardStats, Live, LiveComment, User } from '../types'
 
 interface ArticleQuery {
@@ -296,6 +296,29 @@ export const writerAPI = {
 
   getFollowing: () =>
     apiClient.get('/writers/me/following'),
+
+  /**
+   * The AI writer, on the author's own terms.
+   *
+   * `generateAiDraft` answers with text and nothing else - it writes no record,
+   * so an author can look at what a machine makes of a topic before deciding
+   * whether it is worth their name. `saveAiDraft` then stores that text as a
+   * draft owned by the author, where it joins everything else they wrote and
+   * goes to an editor through the same submit call a hand-written story uses.
+   * There is no publish path here and the server ignores any status the page
+   * might send.
+   */
+  generateAiDraft: (data: { topic: string; angle?: string; audience?: 'rwanda' | 'world' }) =>
+    apiClient.post('/writers/ai/generate', data),
+
+  saveAiDraft: (data: {
+    title: string
+    summary: string
+    content: string
+    category: string
+    tags?: string[]
+    metaDescription?: string
+  }) => apiClient.post('/writers/ai/draft', data),
 }
 
 export const articleAPI = {
@@ -2009,6 +2032,96 @@ export const weatherAPI = {
       const body = (failure?.response?.data || {}) as Record<string, unknown>
       if (body?.data) return normaliseRead({ data: body }, city)
       throw error instanceof Error ? error : new Error(failure?.message || 'Weather is unavailable')
+    }
+  },
+}
+/**
+ * RADAR AI - the question desk a reader talks to.
+ *
+ * Like the weather desk, the browser is given neither the key nor the upstream
+ * address: it asks our server, and our server asks Gemini. What is different is
+ * that nothing is stored about the reader. The conversation lives in this tab,
+ * comes back with the next question, and disappears when the tab closes - so a
+ * stranger's questions are not a record this site has to keep or defend.
+ *
+ * The answer is only ever about stories this newsroom published, and the server
+ * says which story it was standing on, so the page can name its source instead
+ * of asking the reader to trust a machine.
+ */
+export interface AiAskTurn {
+  role: 'user' | 'assistant'
+  text: string
+}
+
+export interface AiStatus {
+  configured: boolean
+  model: string
+  maxQuestionChars: number
+  turnsKept: number
+}
+
+export interface AiAnswer {
+  answer: string
+  generatedAt: string
+  /** The published story the answer was grounded in, when there was one. */
+  groundedOn: { slug: string; title: string } | null
+  /** How many published stories the desk could see at all. */
+  headlineCount: number
+}
+
+export const aiAPI = {
+  status: async (): Promise<AiStatus> => {
+    try {
+      const response = await apiClient.get('/ai/status')
+      const payload = (response.data?.data || {}) as Record<string, unknown>
+      return {
+        configured: payload.configured === true,
+        model: typeof payload.model === 'string' ? payload.model : '',
+        maxQuestionChars: typeof payload.maxQuestionChars === 'number' ? payload.maxQuestionChars : 1200,
+        turnsKept: typeof payload.turnsKept === 'number' ? payload.turnsKept : 8,
+      }
+    } catch {
+      // A status call that cannot be answered is an unconnected desk. The panel
+      // then says so rather than opening a chat box that only errors.
+      return { configured: false, model: '', maxQuestionChars: 1200, turnsKept: 8 }
+    }
+  },
+
+  /**
+   * One question, answered from the newsroom's own reporting.
+   *
+   * The failures are all sentences a reader can act on - the desk is not
+   * connected, they have asked enough for now, the server did not answer - so
+   * they come back as an answer rather than a thrown error, and the panel prints
+   * the one it got.
+   */
+  ask: async (input: {
+    question: string
+    slug?: string
+    topic?: string
+    history?: AiAskTurn[]
+  }): Promise<AiAnswer | { error: string }> => {
+    try {
+      const response = await apiClient.post('/ai/ask', {
+        q: input.question,
+        slug: input.slug || undefined,
+        topic: input.topic || undefined,
+        history: (input.history || []).slice(-8),
+      })
+      const payload = (response.data?.data || {}) as Record<string, unknown>
+      const answer = typeof payload.answer === 'string' ? payload.answer.trim() : ''
+      if (!answer) return { error: 'RADAR AI did not answer. Please try again in a moment.' }
+      const ground = (payload.groundedOn || null) as Record<string, unknown> | null
+      return {
+        answer,
+        generatedAt: typeof payload.generatedAt === 'string' ? payload.generatedAt : new Date().toISOString(),
+        groundedOn: ground && typeof ground.slug === 'string'
+          ? { slug: ground.slug, title: String(ground.title || '') }
+          : null,
+        headlineCount: typeof payload.headlineCount === 'number' ? payload.headlineCount : 0,
+      }
+    } catch (error) {
+      return { error: serverMessage(error, 'RADAR AI could not be reached just now. Please try again.') }
     }
   },
 }

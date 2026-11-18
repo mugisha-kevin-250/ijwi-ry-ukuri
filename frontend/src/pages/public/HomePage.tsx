@@ -18,6 +18,7 @@ import { newsletterAPI, publicAPI, type TopWriter } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import NewsBanner from '../../components/news/NewsBanner'
 import NewsAlertsCard from '../../components/pwa/NewsAlertsCard'
+import AskRadarAi from '../../components/ai/AskRadarAi'
 import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
 import { cn } from '../../utils/cn'
@@ -387,13 +388,15 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
-      <div className="bg-red-600 text-white">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2 text-xs sm:px-6 lg:px-8">
-          <span className="shrink-0 rounded bg-white px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-red-600">{t('home.breaking')}</span>
-          <p className="truncate font-medium">{trending[0]?.title || t('home.breakingFallback')}</p>
-          {trending[0] && <Link to={`/article/${trending[0].slug}`} className="ml-auto shrink-0 text-white/80 hover:text-white" aria-label={t('home.readBreaking')}><ArrowRight className="h-4 w-4" /></Link>}
-        </div>
-      </div>
+      {/* The breaking strip is gone; the same line of the page now opens the
+          question desk. It keeps the top story as its topic so a reader who
+          just wants to know what happened can ask about it in one tap. */}
+      <AskRadarAi
+        variant="strip"
+        topic={trending[0]?.title || ''}
+        slug={trending[0]?.slug || ''}
+        suggestions={[t('ai.suggestToday'), t('ai.suggestRwanda'), t('ai.suggestExplain')]}
+      />
 
       <main className="mx-auto max-w-7xl space-y-9 px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
         {loadError && (

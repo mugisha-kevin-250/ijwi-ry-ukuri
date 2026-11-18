@@ -63,14 +63,20 @@ export default function AboutPage() {
 
       <Section title="What we do with machine-written drafts">
         <p>
-          The newsroom has one tool that writes: the owner can ask Gemini, a language model, for a report on a
-          topic. The prompt forbids invented quotes, names, statistics and documents. Nothing a machine writes
-          reaches a reader on its own - the owner reads the draft, fixes it, chooses the section and decides whether
-          to save it or publish it, and every published story that was machine-drafted carries a
-          "written with AI" note above the headline.
+          The newsroom has one tool that writes: staff can ask Gemini, a language model, for a report on a topic.
+          The prompt forbids invented quotes, names, statistics and documents. Nothing a machine writes reaches a
+          reader on its own - a person reads the draft, fixes it, chooses the section and decides whether to save it,
+          and only an editor can put it online. A story that started as a machine draft is marked that way in the
+          newsroom, so the desk always knows which is which.
         </p>
         <p>
-          The tool is only reachable from the admin portal, and a writer account cannot use it at all.
+          The tool is reachable from the staff portals. It does not publish, it does not schedule and it cannot see
+          or change a story once an author has saved their own version of it.
+        </p>
+        <p>
+          Readers have a separate tool: RADAR AI, which answers questions about stories this site has published. It
+          is given no facts of its own, it is not a reporter, and it is not a source - the answers are generated text
+          standing on reporting a person wrote, and we say so on every page that offers it.
         </p>
       </Section>
 

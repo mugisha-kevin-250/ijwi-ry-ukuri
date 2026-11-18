@@ -132,7 +132,17 @@ them from the code:
 - **AI writes, a human publishes.** The admin types a topic, Gemini writes the story inside
   the admin portal, and nothing generated reaches readers until an admin publishes it. A
   server-side auto-publish switch exists for the admin's own use; it changes who has to
-  click, not whether the story is reviewed.
+  click, not whether the story is reviewed. The same panel now sits on every writer's own
+  dashboard: it drafts into that author's shelf as `status: 'draft'`, and the queue is
+  unchanged. A story generated that way carries no "written by AI" label for readers — the
+  newsroom decided the label invited arguments it did not want to have in public, so the
+  fact lives in the article record and the review trail instead.
+- **RADAR AI answers readers from published stories only.** The home strip and the button
+  under every story talk to `/api/ai`, which is grounded on `status: 'published'` rows in
+  our own database plus the recent headline list. A reader's question never becomes model
+  prompt text on its own, the conversation is kept in the browser tab and not stored
+  server-side, and the Gemini key stays on the server behind per-address ceilings (12
+  questions an hour for readers, 10 drafts an hour for writers).
 - **Trend input is typed, not scraped.** The trend source for now is "admin types the
   topic", not an automatic feed of other publishers' headlines.
 - **English is the source and the default.** A reader picks any language Google

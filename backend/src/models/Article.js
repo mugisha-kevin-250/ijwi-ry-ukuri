@@ -55,7 +55,20 @@ const articleSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 articleSchema.index({ status: 1, publishedAt: -1 });
-articleSchema.index({ title: 'text', summary: 'text', content: 'text', tags: 'text' });
+// The options matter as much as the fields. Mongo reads a document's `language`
+// as the stemming language for its text index and refuses the write when the
+// value is one it does not know - "language override unsupported: rw" was the
+// whole story of a Kinyarwanda article that saved fine everywhere else. Pointing
+// the override at a field no article has takes that trap out of the write path
+// while keeping English stemming, which is what every stored story uses. The
+// story's own `language` stays exactly what the newsroom typed: it is metadata
+// for readers and filters, and the machine translations live in their own
+// collection. An existing database has to rebuild this index once - see
+// scripts/fixArticleTextIndexLanguage.js.
+articleSchema.index(
+  { title: 'text', summary: 'text', content: 'text', tags: 'text' },
+  { default_language: 'english', language_override: 'textIndexLanguage' }
+);
 articleSchema.index({ author: 1, createdAt: -1 });
 articleSchema.index({ validViews: -1 });
 

@@ -30,7 +30,29 @@ created yet, and no collection has been dropped or renamed.
 | PlatformSetting (`PlatformSetting`) | key(unique), value(mixed), description, timestamps | global | Rates/limits/flags/bootstrap markers |
 | Live / LiveComment | broadcast session/chat state | -> User/Live | Live video feature |
 | TrendTopic (`TrendTopic`) | provider, geo, topic, day (unique together), trafficLabel, approxTraffic, seenAt, newsItems[{title,url,source}], sourceUrl, sightings, firstSeenAt, lastSeenAt | feeds the admin radar; seeds one AI story | One document per topic per region per day. Stores only what the provider printed — the band label and its number, never a count of our own. Pruned after 21 days |
-| Translation (`Translation`) | kind[story/chrome], lang, key, sourceHash, parts[{field,source,text}], chars, article ref, timestamps | -> Article (optional) | The machine translation a reader asked for, bought from Google once per language per English original. `sourceHash` is the hash of the English text, so editing a story retires its translations instead of serving a stale sentence. The English `Article` documents are never modified by it, and `lang` is deliberately not called `language` — a field by that name makes Mongo's text index try to read it as a per-document language override (see task: the `rw`/`sw` rejection) |
+| Translation (`Translation`) | kind[story/chrome], lang, key, sourceHash, parts[{field,source,text}], chars, article ref, timestamps | -> Article (optional) | The machine translation a reader asked for, bought from Google once per language per English original. `sourceHash` is the hash of the English text, so editing a story retires its translations instead of serving a stale sentence. The English `Article` documents are never modified by it, and `lang` is deliberately not called `language` — a field by that name is what Mongo's text index reads as a per-document language override, and a value it does not know (`rw`, `sw`) used to fail the save outright. That trap is gone from the article index: see below. |
+
+### The index that used to reject a Kinyarwanda story
+
+`Article` carries a text index over `title`, `summary`, `content` and `tags`, and
+Mongo reads a document field named `language` as that document's stemming
+language. A story whose `language` was `rw` or `sw` — a code Mongo has no
+stemmer for — therefore failed on the write, with `language override
+unsupported: rw`, whether it came from a writer's editor, the AI draft path or a
+seed. `en` documents never hit it, which is why production, holding 98 stories
+all marked `en`, had no symptom to point at.
+
+The index now passes `language_override: 'textIndexLanguage'`, a field no
+article has, with `default_language: 'english'`. Story language stays free-form
+metadata for filters and readers; English stemming, which is what every stored
+story actually is, is untouched. An existing database keeps the options an index
+was created with and Mongo refuses a same-named index with different options, so
+the change is completed once per database by `node scripts/
+fixArticleTextIndexLanguage.js` — it drops the text index and rebuilds it from
+the documents, touching no story, user, category or setting row. It reported
+`Nothing to do` on a database already fixed and ran in seconds on production.
+The site's own search box matches with a regex, not `$text`, so no reader-facing
+result changed either way.
 
 ## 2. Gaps relative to target product
 

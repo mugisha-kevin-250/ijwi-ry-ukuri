@@ -244,6 +244,105 @@ router.get('/search', async (req, res, next) => {
 });
 
 /**
+ * The authors directory.
+ *
+ * Every byline on the site already links to `/user/<id>`, and that page exists,
+ * but nothing collected those names into one place: a reader who wanted to know
+ * who writes here had to stumble onto one story and click. This is that list.
+ *
+ * Who appears is decided by the work, not by a switch nobody set: an account
+ * with at least one published story and not deactivated. Being approved to write
+ * is about permission to submit; publishing is a human act in this newsroom, so
+ * a name with stories under it is a name a reader is allowed to find - and an
+ * account that has been turned off is not, whatever it published.
+ *
+ * The numbers are counted here, from the articles and the Follow rows, rather
+ * than read off `WriterProfile.totalArticles`, which is a bookkeeping field and
+ * drifts when a story is unpublished. A writer with no published story is not
+ * in the list at all, so the page cannot offer an author card that opens on
+ * nothing.
+ */
+router.get('/writers', async (req, res, next) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 60);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const sort = ['recent', 'stories', 'followers', 'name'].includes(req.query.sort) ? req.query.sort : 'stories';
+    const query = plainText(req.query.q, { maxLength: 60 });
+
+    const grouped = await Article.aggregate([
+      { $match: { status: 'published' } },
+      {
+        $group: {
+          _id: '$author',
+          stories: { $sum: 1 },
+          reads: { $sum: { $ifNull: ['$validViews', 0] } },
+          lastPublished: { $max: { $ifNull: ['$publishedAt', '$createdAt'] } },
+        },
+      },
+      { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'account' } },
+      { $unwind: '$account' },
+      { $match: { 'account.isActive': { $ne: false } } },
+    ]);
+
+    // The typed name is matched in JavaScript rather than in the pipeline: the
+    // list is one person per author, so it is small, and a regex pushed into the
+    // aggregation would have to be built from reader input anyway.
+    const needle = query.toLowerCase();
+    const matched = needle
+      ? grouped.filter((row) => `${row.account.fullName || ''} ${row.account.username || ''}`.toLowerCase().includes(needle))
+      : grouped;
+
+    const profileRows = await WriterProfile.find({ user: { $in: matched.map((row) => row._id) } })
+      .select('user bio profileImage country status')
+      .lean();
+    const profileByUser = new Map(profileRows.map((profile) => [String(profile.user), profile]));
+
+    const followers = await Follow.aggregate([
+      { $match: { writer: { $in: profileRows.map((profile) => profile._id) } } },
+      { $group: { _id: '$writer', followers: { $sum: 1 } } },
+    ]);
+    const followersByProfile = new Map(followers.map((row) => [String(row._id), row.followers]));
+
+    const writers = matched.map((row) => {
+      const profile = profileByUser.get(String(row._id));
+      return {
+        _id: String(row._id),
+        fullName: row.account.fullName || (profile && profile.fullName) || 'RADAR writer',
+        username: row.account.username || (profile && profile.username) || '',
+        // The account's own line first: it is what the person set on the page
+        // readers arrive at, and the application note is the fallback.
+        bio: row.account.bio || (profile && profile.bio) || '',
+        avatar: row.account.avatar || (profile && profile.profileImage) || '',
+        country: row.account.country || (profile && profile.country) || '',
+        stories: row.stories,
+        reads: row.reads,
+        followers: profile ? followersByProfile.get(String(profile._id)) || 0 : 0,
+        lastPublished: row.lastPublished,
+      };
+    });
+
+    const compare = {
+      recent: (a, b) => new Date(b.lastPublished) - new Date(a.lastPublished) || b.stories - a.stories,
+      stories: (a, b) => b.stories - a.stories || new Date(b.lastPublished) - new Date(a.lastPublished),
+      followers: (a, b) => b.followers - a.followers || b.stories - a.stories,
+      name: (a, b) => a.fullName.localeCompare(b.fullName),
+    }[sort];
+    writers.sort(compare);
+
+    const start = (page - 1) * limit;
+    return successResponse(res, 200, 'Writers fetched', {
+      writers: writers.slice(start, start + limit),
+      total: writers.length,
+      page,
+      limit,
+      sort,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * The writers readers actually follow, counted from the Follow rows rather than
  * from any cached number, so the shelf cannot claim a following nobody gave.
  * A writer whose account is gone or who is no longer approved is left out.

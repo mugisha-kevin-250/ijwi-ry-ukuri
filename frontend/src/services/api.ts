@@ -145,6 +145,27 @@ export interface TopWriter {
   followers: number
 }
 
+/**
+ * An author in the directory. Same person as above, but the counts come with
+ * them: how many stories are published under the name, how many valid reads
+ * they add up to and when the last one ran - all of it counted from the
+ * articles, not from the bookkeeping field on the writer profile.
+ */
+export interface DirectoryWriter extends TopWriter {
+  stories: number
+  reads: number
+  country: string
+  lastPublished: string | null
+}
+
+export interface WriterDirectory {
+  writers: DirectoryWriter[]
+  total: number
+  page: number
+  limit: number
+  sort: string
+}
+
 export interface AdminUserRecord extends User {
   articleCount: number
   publishedCount: number
@@ -225,6 +246,11 @@ export const publicAPI = {
   // "most followed" instead of borrowing the most-read stories.
   getTopWriters: (limit = 6) =>
     apiClient.get<{ writers: TopWriter[] }>('/writers/top', { limit }),
+
+  // The authors directory. One entry per name that has a published story under
+  // it, sorted by the newsroom's choice rather than by anything cached.
+  getWriters: (params?: { sort?: 'recent' | 'stories' | 'followers' | 'name'; q?: string; page?: number; limit?: number }) =>
+    apiClient.get<WriterDirectory>('/writers', params),
 
   sendContact: (data: { name: string; email: string; phone?: string; topic: string; message: string; website?: string }) =>
     apiClient.post('/contact', data),

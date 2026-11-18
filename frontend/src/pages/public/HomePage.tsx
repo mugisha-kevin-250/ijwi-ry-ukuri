@@ -485,7 +485,10 @@ export default function HomePage() {
 
         <section className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
           <div>
-            <SectionHeading title={t('home.mostFollowed')} href={null} />
+            {/* "View all" on this shelf goes to the directory, not to another
+                list of five: the readers who want to follow somebody have asked
+                to see everybody. */}
+            <SectionHeading title={t('home.mostFollowed')} href="/authors" />
             {topWriters.length ? (
               <ol className="space-y-2">
                 {topWriters.slice(0, 5).map((writer, index) => (

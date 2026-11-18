@@ -306,6 +306,9 @@ async function main() {
       urlEntry(`${SITE_URL}/`, today, '1.0', 'daily'),
       urlEntry(`${SITE_URL}/articles`, today, '0.9', 'hourly'),
       urlEntry(`${SITE_URL}/categories`, today, '0.7', 'daily'),
+      // The authors directory. It is the page that answers "who writes here",
+      // and it changes whenever a byline publishes, so daily rather than yearly.
+      urlEntry(`${SITE_URL}/authors`, latestArticle, '0.7', 'daily'),
       urlEntry(`${SITE_URL}/live`, today, '0.8', 'hourly'),
       // The scores desk is the page a search engine is most likely to be asked
       // about on a Saturday, so it is offered hourly rather than daily and its

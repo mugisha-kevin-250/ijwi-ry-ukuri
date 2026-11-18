@@ -174,6 +174,10 @@ export default function Footer() {
           <p>© {new Date().getFullYear()} RADAR. {t('footer.rights')}</p>
           <div className="flex flex-wrap gap-4">
             <Link to="/about" className="hover:text-white">{t('footer.about')}</Link>
+            {/* A page that names the people who write here is the cheapest trust
+                signal on a news site, and until the directory existed the only
+                way to find one author was to click a byline. */}
+            <Link to="/authors" className="hover:text-white">{t('nav.authors')}</Link>
             <Link to="/privacy" className="hover:text-white">{t('publisher.privacy')}</Link>
             <Link to="/terms" className="hover:text-white">{t('publisher.terms')}</Link>
             <Link to="/categories" className="hover:text-white">{t('footer.categories')}</Link>

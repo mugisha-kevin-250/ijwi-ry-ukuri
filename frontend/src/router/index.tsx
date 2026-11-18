@@ -25,6 +25,7 @@ const AboutPage = lazy(() => import('../pages/public/AboutPage'))
 const AdvertisingPage = lazy(() => import('../pages/public/AdvertisingPage'))
 const ArticleListPage = lazy(() => import('../pages/public/ArticleListPage'))
 const AuthPage = lazy(() => import('../pages/public/AuthPage'))
+const AuthorsPage = lazy(() => import('../pages/public/AuthorsPage'))
 const CategoriesPage = lazy(() => import('../pages/public/CategoriesPage'))
 const CategoryPage = lazy(() => import('../pages/public/CategoryPage'))
 const ContactPage = lazy(() => import('../pages/public/ContactPage'))
@@ -154,6 +155,9 @@ export const router = createBrowserRouter([
           { path: 'articles', element: <ArticleListPage /> },
           { path: 'article/:slug', element: <ArticleDetailPage /> },
           { path: 'categories', element: <CategoriesPage /> },
+          // The authors directory. A static name, so it is matched before the
+          // section routes below and cannot be mistaken for a beat slug.
+          { path: 'authors', element: <AuthorsPage /> },
           { path: 'live', element: <LivePage /> },
           { path: 'live/:id', element: <LivePage /> },
           // The scores desk. Its own address rather than /sports/... because a

@@ -56,6 +56,30 @@ const translations: Record<string, Translations> = {
     // Weather on the bar as one short word, because the room it takes is room the
     // section names do not get. The page itself is named RADAR Weather.
     'nav.weather': 'Weather',
+    // The authors directory. Every byline already links to one person's page;
+    // this is the page that lists them, which is what "who writes here" needs.
+    'nav.authors': 'Authors',
+    'authors.title': 'Who writes for RADAR',
+    'authors.subtitle': 'The people behind the bylines, counted from the stories they have published here.',
+    'authors.searchPlaceholder': 'Search by name',
+    'authors.search': 'Search',
+    'authors.sort.stories': 'Most published',
+    'authors.sort.recent': 'Most recent',
+    'authors.sort.followers': 'Most followed',
+    'authors.sort.name': 'A to Z',
+    'authors.stories': 'stories',
+    'authors.story': 'story',
+    'authors.reads': 'paid reads',
+    'authors.read': 'paid read',
+    'authors.followers': 'followers',
+    'authors.follower': 'follower',
+    'authors.lastPublished': 'last story',
+    'authors.open': 'Open their page',
+    'authors.empty': 'No author matches that name.',
+    'authors.none': 'No stories have been published under a byline yet. Once the newsroom publishes its first one, the people who write here appear on this page.',
+    'authors.failed': 'The author list could not be reached. Check your connection and try again.',
+    'authors.count': 'authors on this page',
+    'authors.countOne': 'author on this page',
     // RADAR AI - the question desk a reader talks to. The wording is deliberately
     // plain about what it can and cannot do: it answers from stories this
     // newsroom published, and it says so when it has nothing to say.

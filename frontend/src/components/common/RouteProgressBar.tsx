@@ -7,6 +7,7 @@ import {
   markReaderAction,
   onProgressChange,
   pendingSince,
+  readerWorkSince,
   releaseNavigation,
 } from '../../utils/apiActivity'
 
@@ -57,6 +58,10 @@ export default function RouteProgressBar() {
   const timer = useRef(0)
   const hideTimer = useRef(0)
   const revealTimer = useRef(0)
+  // Every request at or below this id has already been answered by a bar that
+  // finished. The number only ever grows, so it separates the press the reader
+  // just made from the work they have already left behind.
+  const settledAbove = useRef(0)
 
   const tick = useCallback(() => {
     const active = run.current
@@ -73,6 +78,10 @@ export default function RouteProgressBar() {
       run.current = null
       window.clearInterval(timer.current)
       timer.current = 0
+      // Whatever was in flight when this line ended belonged to the page the
+      // reader already has. It is answered by the next press, not by a bar that
+      // starts again under a story they are already reading.
+      settledAbove.current = currentRequestId()
       setDisplay({ value: 100, finishing: true })
       hideTimer.current = window.setTimeout(() => setDisplay(null), 480)
       return
@@ -174,7 +183,10 @@ export default function RouteProgressBar() {
         if (revealTimer.current !== 0) return
         revealTimer.current = window.setTimeout(() => {
           revealTimer.current = 0
-          if (run.current === null && hasReaderWork()) start(HELD_START, true)
+          // Only work that began after the last line finished opens a new one,
+          // so a slow picture on the page already on screen cannot bring the
+          // loader back from the dead.
+          if (run.current === null && readerWorkSince(settledAbove.current + 1)) start(HELD_START, true)
         }, REVEAL_MS)
       }),
     [start],

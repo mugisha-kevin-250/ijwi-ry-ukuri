@@ -127,6 +127,22 @@ export function hasReaderWork(): boolean {
   return false
 }
 
+/**
+ * Reader-flagged work that started at or after `base`.
+ *
+ * `hasReaderWork` on its own cannot tell a new press from an old one: a picture
+ * that is still coming down on a page the reader already reached is reader work,
+ * and answering it with a fresh bar is exactly the line that never finishes.
+ * Asking for work started after a point the caller remembers separates the
+ * request the reader just made from the ones they have already left behind.
+ */
+export function readerWorkSince(base: number): boolean {
+  for (const [id, byReader] of active) {
+    if (id >= base && byReader) return true
+  }
+  return false
+}
+
 export function onProgressChange(watch: () => void): () => void {
   watchers.add(watch)
   return () => {

@@ -42,6 +42,36 @@ export function markReaderAction(): void {
   lastInputAt = Date.now()
 }
 
+/**
+ * Say that the press the reader made has been answered - the page it opened is
+ * now in front of them.
+ *
+ * The progress bar calls this as a new page appears. Without it, the click on
+ * the link is still "a press" for the next two seconds, so every request the
+ * arriving page makes looks like something the reader is waiting an answer for,
+ * and the line that was supposed to finish with the navigation is handed the
+ * long allowance instead. A press on the page the reader already has - a button
+ * in their library, a city typed at the weather desk, a clip chosen for upload
+ * - re-stamps it.
+ */
+export function clearReaderAction(): void {
+  lastInputAt = 0
+}
+
+/**
+ * Did somebody press, type or tap in the last `windowMs` milliseconds?
+ *
+ * The progress bar asks this before it treats a page's request as something the
+ * reader is waiting an answer for. A page that chains its own second fetch -
+ * the comments under a story, the table behind a match panel, the boarding
+ * pass a weather desk reads for the first time - opens a hold with nobody
+ * having touched anything, and giving that the long allowance is what made the
+ * line crawl across a page the reader had already reached.
+ */
+export function actedRecently(windowMs = INPUT_WINDOW_MS): boolean {
+  return lastInputAt !== 0 && Date.now() - lastInputAt < windowMs
+}
+
 export function beginRequest(): number {
   const id = nextId
   nextId += 1

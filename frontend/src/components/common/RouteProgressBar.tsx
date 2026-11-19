@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
+  actedRecently,
+  clearReaderAction,
   currentRequestId,
   hasHeldWork,
   hasReaderWork,
@@ -21,10 +23,14 @@ const QUIET_TICKS = 2
 // page it answers appeared. A navigation is capped short - the reader has the
 // next page in front of them, and a line that keeps crawling because one
 // picture is still coming down reads as a fault, not as news. Work the reader
-// is waiting an answer for (an upload, a city typed at the weather desk) gets
-// the long allowance instead, because there the bar is the only answer coming.
+// is waiting an answer for gets a longer allowance, but only when the press
+// that started it is recent: a page chaining its own second fetch, or a request
+// the reader has already stopped watching, is answered by the same short cap.
+// Nothing on this site - not an upload, not an AI answer - legitimately keeps a
+// person looking at a crawling line for longer than these eight seconds, and
+// past that the bar would only be reporting a stalled request.
 const NAVIGATION_MAX_MS = 1600
-const READER_MAX_MS = 20000
+const READER_MAX_MS = 8000
 // A page asked to be waited for (a city typed at the weather desk) after the
 // navigation that opened this bar was long finished.
 const HELD_START = 14
@@ -88,7 +94,7 @@ export default function RouteProgressBar() {
       // starts again under a story they are already reading.
       settledAbove.current = currentRequestId()
       setDisplay({ value: 100, finishing: true })
-      hideTimer.current = window.setTimeout(() => setDisplay(null), 480)
+      hideTimer.current = window.setTimeout(() => setDisplay(null), 300)
       return
     }
     setDisplay((value) => {
@@ -132,6 +138,10 @@ export default function RouteProgressBar() {
     // effect runs before its parent's. Marking the request number here is what
     // separates that work from a press the reader makes later on the page.
     routeBase.current = currentRequestId()
+    // The click that brought this page is finished with. From here the reader
+    // is on the new page, and only a press they make on it - not the tap on the
+    // link two seconds ago - can make what follows worth a line across the top.
+    clearReaderAction()
     const active = run.current
     if (active) {
       active.base = currentRequestId()
@@ -178,16 +188,17 @@ export default function RouteProgressBar() {
       // says so.
       onProgressChange(() => {
         if (run.current !== null) return
-        // A hold is a page saying out loud that it is waiting, so it is answered
-        // at once - but only by somebody who asked. A hold taken while the page
-        // is still arriving is the wait the link press already opened a line
-        // for, and it must not bring that line back after the reader reached
-        // the page. A hold taken on a page already in front of them - a city
-        // typed at the weather desk, a day picked on the scores board, a video
-        // uploaded - is a question with no other answer coming, and gets the
-        // long allowance.
+        // A hold is a page saying out loud that it is waiting. A hold taken
+        // while the page is still arriving is the wait the link press already
+        // opened a line for, and that line has its own cap. A hold taken on a
+        // page already in front of them - a city typed at the weather desk, a
+        // day picked on the scores board, a clip being uploaded - is a question
+        // with no other answer coming, and it is only a question because
+        // somebody pressed something. Without that last part, a page waiting on
+        // itself quietly reopened a line under a story the reader was already
+        // reading, which is what made it look like it never finished.
         if (hasHeldWork()) {
-          if (heldSince(routeBase.current)) start(HELD_START, 'reader')
+          if (heldSince(routeBase.current) && actedRecently()) start(HELD_START, 'reader')
           return
         }
         if (!hasReaderWork()) {
@@ -202,7 +213,9 @@ export default function RouteProgressBar() {
         if (revealTimer.current !== 0) return
         revealTimer.current = window.setTimeout(() => {
           revealTimer.current = 0
-          if (run.current === null && readerWorkSince(settledAbove.current)) start(HELD_START, 'reader')
+          if (run.current === null && actedRecently() && readerWorkSince(settledAbove.current)) {
+            start(HELD_START, 'reader')
+          }
         }, REVEAL_MS)
       }),
     [start],
@@ -214,7 +227,7 @@ export default function RouteProgressBar() {
     <div
       aria-hidden="true"
       className="pointer-events-none fixed inset-x-0 top-0 z-[75] h-[3px]"
-      style={{ opacity: display.finishing ? 0 : 1, transition: 'opacity 260ms ease-out 200ms' }}
+      style={{ opacity: display.finishing ? 0 : 1, transition: 'opacity 240ms ease-out' }}
     >
       <div
         className="h-full rounded-r-full bg-[#1877F2]"

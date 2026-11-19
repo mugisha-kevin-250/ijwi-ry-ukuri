@@ -205,13 +205,25 @@ them from the code:
   already covered by the navigation - while one taken at or above it is somebody
   pressing something on the page in front of them (a city typed at the weather
   desk, a match opened on the scores board, a video uploaded) and keeps the long
-  20 second allowance, since there the bar is the answer. The scores page was the
-  test case: its own first-load hold used to inherit that allowance and kept the
-  line crawling for twenty seconds over a board that had already arrived. An
-  upload is held the same way through `holdProgress()` because fetch is invisible
-  to the request counter. The corollary is that a page never paints a spinner next
-  to a skeleton next to a bar, and a slow network looks like a slow phone, not
-  like a broken site. (Owner request, batch #170.)
+  allowance - eight seconds of it - since there the bar is the answer. The scores
+  page was the first test case: its own first-load hold used to inherit a twenty
+  second allowance and kept the line crawling over a board that had already
+  arrived. The second case was the click itself. `markReaderAction` remembers the
+  last tap for two seconds, so every request the arriving page made - its
+  comments, its scoreboard, its weather read - was flagged as something the
+  reader was waiting an answer for, and a hold opened by that page work restarted
+  the bar the navigation had just finished, this time with the long allowance. A
+  page change now calls `clearReaderAction()` alongside the `routeBase` marker:
+  the tap on the link is over, the reader is on the new page, and only a press
+  made there (`actedRecently()`) can open a line again. Page work that answers
+  nothing paints nothing. An upload is held the same way through `holdProgress()`
+  because fetch is invisible to the request counter, and it still gets the long
+  allowance because the press that chose the file is recent. The fade was cut to
+  300ms with no delay so a finished bar is gone, not half-there. The corollary is
+  that a page never paints a spinner next to a skeleton next to a bar, and a slow
+  network looks like a slow phone, not like a broken site. (Owner request,
+  batches #170 and #176; "the loder is not finished it continue running when we
+  change the pages".)
 - **A dropped connection is announced, not thrown.** Losing the network is normal,
   so it gets a sentence rather than a stack: `utils/offline.ts` watches the
   browser's own connection state and `OfflineBanner` says so above the page, a hard

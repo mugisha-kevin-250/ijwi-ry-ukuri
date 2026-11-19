@@ -68,7 +68,7 @@ export interface StoryMedia {
   kind: 'image' | 'video'
   /** What the author pasted or uploaded. Shown to them, never trusted as loadable. */
   url: string
-  source?: 'youtube' | 'vimeo' | 'file' | ''
+  source?: 'youtube' | 'vimeo' | 'facebook' | 'instagram' | 'tiktok' | 'file' | 'link' | ''
   /** What the reader's page is allowed to load, written by the server. */
   embedUrl?: string
   caption?: string
@@ -95,7 +95,7 @@ export interface Article {
    * may load in `videoEmbedUrl`, so the embed is never the typed text itself.
    */
   videoUrl?: string
-  videoSource?: 'youtube' | 'vimeo' | 'file' | ''
+  videoSource?: 'youtube' | 'vimeo' | 'facebook' | 'instagram' | 'tiktok' | 'file' | 'link' | ''
   videoEmbedUrl?: string
   /** The extra pictures and clips, in the order the author put them. */
   media?: StoryMedia[]
@@ -220,7 +220,7 @@ export interface Live {
   peakViewers: number
   // 'camera' is carried peer-to-peer from the host's browser; the other three are
   // a link the admin put on air, which the page embeds instead of dialling.
-  source?: 'camera' | 'youtube' | 'vimeo' | 'file'
+  source?: 'camera' | 'youtube' | 'vimeo' | 'facebook' | 'instagram' | 'tiktok' | 'file'
   videoUrl?: string
   watchUrl?: string
   embedUrl?: string

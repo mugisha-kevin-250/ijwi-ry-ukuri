@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { resolveMediaUrl, uploadVideo } from '../../services/apiClient'
 import { holdProgress } from '../../utils/apiActivity'
 import { useI18n } from '../../context/I18nContext'
+import { VideoLinkCard } from '../common/StoryVideo'
 
 interface Props {
   /** What the author pasted, or the /uploads path an upload handed back. */
@@ -12,6 +13,16 @@ interface Props {
 const YOUTUBE = /^(https?:\/\/)?(www\.|m\.|music\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/(?:embed|shorts|live|v)\/)([A-Za-z0-9_-]{11})/i
 const VIMEO = /^(https?:\/\/)?(www\.|player\.)?vimeo\.com\/(?:[^/]*\/)*(\d{6,12})/i
 const FILE = /\.(mp4|webm|ogv|ogg|m4v|mov)(\?|#|$)/i
+// The three platforms a reader here shares news from, read the same way the
+// server reads them: the number or code that names the clip, nothing else.
+const FACEBOOK_HOST = /^(?:facebook\.com|fb\.com)\//i
+const INSTAGRAM = /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/(p|reel|reels|tv)\/([A-Za-z0-9_-]{5,20})/i
+const TIKTOK = /^(?:https?:\/\/)?(?:www\.)?tiktok\.com\/(?:@[^/]+\/video\/|v\/)(\d{6,25})/i
+// Anything with a host and a dot is worth a button even when there is no player
+// for it, which is what keeps a paste from silently disappearing from a story.
+const ADDRESS = /^(?:https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}(?:[/?#]|$)/i
+
+export type PreviewKind = 'youtube' | 'vimeo' | 'facebook' | 'instagram' | 'tiktok' | 'file' | 'link' | 'none'
 
 /**
  * What the box under the address is going to be while the author types.
@@ -19,20 +30,51 @@ const FILE = /\.(mp4|webm|ogv|ogg|m4v|mov)(\?|#|$)/i
  * The server is the authority: it rebuilds an embed from the video id and
  * refuses anything it does not know, and that answer is what reaches the reader.
  * This only decides what the writer sees before saving, so a paste is answered
- * with a player rather than a paragraph of text - and an address that matches
- * nothing stays a plain line instead of pretending to be a video.
+ * with a player rather than a paragraph of text - an address from a platform
+ * there is no player for is answered with the button the reader will get - and
+ * something that is not an address at all stays a plain line instead of
+ * pretending to be a video.
  */
-export function previewFor(url: string): { kind: 'youtube' | 'vimeo' | 'file' | 'none'; embed: string } {
+/** The number a Facebook address names a clip by, in whichever shape it came. */
+function facebookId(value: string): string {
+  const bare = value.replace(/^[a-z]+:\/\//i, '').replace(/^(?:www\.|m\.|web\.|video\.)/i, '')
+  if (!FACEBOOK_HOST.test(bare)) return ''
+  const [beforeQuery, query = ''] = bare.split('?')
+  const fromQuery = /(?:^|&)(?:v|video_id)=(\d{6,25})/.exec(query)
+  if (fromQuery) return fromQuery[1]
+  const numbers = beforeQuery.split('/').filter((piece) => /^\d{6,25}$/.test(piece))
+  return numbers[numbers.length - 1] || ''
+}
+
+export function previewFor(url: string): { kind: PreviewKind; embed: string } {
   const value = url.trim()
   if (!value) return { kind: 'none', embed: '' }
   const youtube = YOUTUBE.exec(value)
   if (youtube) return { kind: 'youtube', embed: `https://www.youtube-nocookie.com/embed/${youtube[4]}?rel=0&playsinline=1` }
   const vimeo = VIMEO.exec(value)
   if (vimeo) return { kind: 'vimeo', embed: `https://player.vimeo.com/video/${vimeo[3]}?dnt=1` }
+  const posted = facebookId(value)
+  if (posted) {
+    const watch = `https://www.facebook.com/watch/?v=${posted}`
+    return { kind: 'facebook', embed: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(watch)}&show_text=false&adaptive_width=1` }
+  }
+  const instagram = INSTAGRAM.exec(value)
+  if (instagram) {
+    const kind = instagram[1] === 'reels' ? 'reel' : instagram[1]
+    return { kind: 'instagram', embed: `https://www.instagram.com/${kind}/${instagram[2]}/embed/` }
+  }
+  const tiktok = TIKTOK.exec(value)
+  if (tiktok) return { kind: 'tiktok', embed: `https://www.tiktok.com/embed/v2/${tiktok[1]}` }
   if (FILE.test(value)) {
     // A /uploads path is served by the API, not by this origin, so it is
     // resolved exactly the way a photograph on the same story is.
     return { kind: 'file', embed: resolveMediaUrl(value) }
+  }
+  // No player, but a real address: the reader will get one button that opens it
+  // where it lives, so the writer previews that button. A share-sheet paste
+  // arrives without a scheme, and a scheme-less address is not a link.
+  if (ADDRESS.test(value) || value.startsWith('/uploads/')) {
+    return { kind: 'link', embed: value.startsWith('/') ? resolveMediaUrl(value) : /^https?:\/\//i.test(value) ? value : `https://${value}` }
   }
   return { kind: 'none', embed: '' }
 }
@@ -100,7 +142,8 @@ export default function StoryVideoField({ value, onChange }: Props) {
       {preview.kind === 'file' && (
         <video src={preview.embed} controls playsInline className="mt-3 aspect-video w-full rounded-lg border border-slate-200 bg-black" />
       )}
-      {preview.kind !== 'none' && preview.kind !== 'file' && (
+      {preview.kind === 'link' && <div className="mt-3"><VideoLinkCard address={preview.embed || value} /></div>}
+      {preview.kind !== 'none' && preview.kind !== 'file' && preview.kind !== 'link' && (
         <iframe
           src={preview.embed}
           title={t('writer.video')}

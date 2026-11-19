@@ -20,8 +20,14 @@ let lastInputAt = 0
 // pages that are already loaded, and the one bar across the top of the site is
 // what answers them: a page takes a hold here instead of drawing a spinner of
 // its own, and releases it when the answer is on screen.
+//
+// A hold also remembers the request number it was opened under, which is what
+// lets the bar tell "the page asked to be waited for when it first loaded" from
+// "somebody on this page pressed something". Children run their effects before
+// their parents, so a page's own first-load hold is always stamped below the
+// route marker the progress bar writes when the page appears.
 let nextHoldId = 1
-const held = new Set<number>()
+const held = new Map<number, number>()
 
 // The bar is the only progress indicator on this site, so it has to be awake
 // when a hold opens without a navigation to carry it.
@@ -71,7 +77,7 @@ export function pendingSince(base: number): number {
 export function holdProgress(): () => void {
   const id = nextHoldId
   nextHoldId += 1
-  held.add(id)
+  held.set(id, nextId)
   notify()
   let released = false
   return () => {
@@ -84,6 +90,21 @@ export function holdProgress(): () => void {
 
 export function hasHeldWork(): boolean {
   return held.size > 0
+}
+
+/**
+ * Is any page waiting on something asked for at or after `base`?
+ *
+ * The progress bar uses this to keep a page's own first-load hold inside the
+ * navigation that brought the page - the line for that already ran and ended -
+ * while still answering the reader who pressed something on a page that is
+ * already in front of them.
+ */
+export function heldSince(base: number): boolean {
+  for (const openedAt of held.values()) {
+    if (openedAt >= base) return true
+  }
+  return false
 }
 
 /**

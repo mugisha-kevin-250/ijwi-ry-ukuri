@@ -5,6 +5,7 @@ import { holdProgress } from '../../utils/apiActivity'
 import { useI18n } from '../../context/I18nContext'
 import MediaImage from '../common/MediaImage'
 import { previewFor } from './StoryVideoField'
+import { VideoLinkCard } from '../common/StoryVideo'
 import type { StoryMedia } from '../../types'
 
 interface Props {
@@ -108,7 +109,7 @@ export default function StoryMediaField({ value, onChange, max = 12 }: Props) {
         <ul className="mt-3 space-y-3">
           {items.map((item, index) => {
             const preview = item.kind === 'video'
-              ? previewFor(item.embedUrl || item.url)
+              ? previewFor(item.url)
               : { kind: 'file' as const, embed: withScheme(item.url) }
             return (
               <li key={item._id || `${item.kind}-${index}`} className="rounded-lg bg-white p-3">
@@ -116,7 +117,9 @@ export default function StoryMediaField({ value, onChange, max = 12 }: Props) {
                   <div className="w-28 shrink-0 sm:w-40">
                     {item.kind === 'video' && preview.kind === 'file' ? (
                       <video src={preview.embed} controls playsInline className="aspect-video w-full rounded bg-black" />
-                    ) : item.kind === 'video' ? (
+                    ) : item.kind === 'video' && preview.kind === 'link' ? (
+                      <VideoLinkCard address={item.url} />
+                    ) : item.kind === 'video' && preview.kind !== 'none' ? (
                       <iframe
                         src={preview.embed}
                         title={item.caption || t('writer.mediaVideo')}
@@ -124,6 +127,10 @@ export default function StoryMediaField({ value, onChange, max = 12 }: Props) {
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
                       />
+                    ) : item.kind === 'video' ? (
+                      // Typed text that is not an address at all: said plainly
+                      // rather than drawn as a player that will never load.
+                      <p className="aspect-video w-full overflow-hidden rounded bg-slate-100 p-2 text-xs text-slate-500">{item.url}</p>
                     ) : (
                       <MediaImage src={preview.embed} alt={item.caption || ''} className="h-20 w-full rounded object-cover" />
                     )}
@@ -239,7 +246,10 @@ export default function StoryMediaField({ value, onChange, max = 12 }: Props) {
         {typed && kind === 'video' && typedPreview && typedPreview.kind === 'file' && (
           <video src={typedPreview.embed} controls playsInline className="mt-1 aspect-video w-full max-w-md rounded-lg bg-black" />
         )}
-        {typed && kind === 'video' && typedPreview && (typedPreview.kind === 'youtube' || typedPreview.kind === 'vimeo') && (
+        {typed && kind === 'video' && typedPreview?.kind === 'link' && (
+          <div className="mt-1 max-w-md"><VideoLinkCard address={typedPreview.embed} /></div>
+        )}
+        {typed && kind === 'video' && typedPreview && typedPreview.kind !== 'none' && typedPreview.kind !== 'file' && typedPreview.kind !== 'link' && (
           <iframe
             src={typedPreview.embed}
             title={t('writer.mediaVideo')}
@@ -252,7 +262,7 @@ export default function StoryMediaField({ value, onChange, max = 12 }: Props) {
         {typed && kind === 'image' && !IMAGE_ADDRESS.test(withScheme(typed)) && (
           <p role="alert" className="mt-1 text-xs font-semibold text-amber-700">{t('writer.addressNotPlayable')}</p>
         )}
-        {typed && kind === 'video' && !typedPreview?.embed && (
+        {typed && kind === 'video' && typedPreview?.kind === 'none' && (
           <p role="alert" className="mt-1 text-xs font-semibold text-amber-700">{t('writer.addressNotPlayable')}</p>
         )}
 

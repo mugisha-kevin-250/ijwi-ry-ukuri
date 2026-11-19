@@ -198,9 +198,16 @@ them from the code:
   arrives (`NAVIGATION_MAX_MS`), and nothing that began before that can bring it
   back — a picture still coming down under a story the reader is already reading
   is recorded in `settledAbove` and refused, because a loader that reappears
-  mid-page is the fault the owner reported, not the answer. Only a page that
-  holds progress itself (a video uploaded, a city typed at the weather desk)
-  keeps the long 20 second allowance, since there the bar is the answer. An
+  mid-page is the fault the owner reported, not the answer. A page that holds
+  progress is answered by the same rule, sorted by when the hold was taken: holds
+  are stamped with the request number they opened under, and one taken below the
+  `routeBase` the bar writes when the page appears is the page loading itself -
+  already covered by the navigation - while one taken at or above it is somebody
+  pressing something on the page in front of them (a city typed at the weather
+  desk, a match opened on the scores board, a video uploaded) and keeps the long
+  20 second allowance, since there the bar is the answer. The scores page was the
+  test case: its own first-load hold used to inherit that allowance and kept the
+  line crawling for twenty seconds over a board that had already arrived. An
   upload is held the same way through `holdProgress()` because fetch is invisible
   to the request counter. The corollary is that a page never paints a spinner next
   to a skeleton next to a bar, and a slow network looks like a slow phone, not
@@ -217,8 +224,8 @@ them from the code:
   the admin panel plays in the reader's embed instead of waiting for a WebRTC peer
   connection that no camera will ever make; the server resolves a pasted URL into a
   provider-verified embed (`videoService.describe`) rather than putting the author's
-  text into an `iframe src`, and an unknown link is refused on save with a readable
-  reason instead of a broken player. A link pasted without its scheme - what a
+  text into an `iframe src`, and an address that is not an address at all is refused
+  on save with a readable reason instead of a broken player. A link pasted without its scheme - what a
   phone's share sheet and a chat app both hand over (`youtube.com/watch?v=…`,
   `//youtu.be/…`) - is completed to https by `urlGuard.withHttpsScheme` before any
   guard reads it, so a working link is never refused for the way it arrived; a
@@ -232,6 +239,27 @@ them from the code:
   or larger material goes on YouTube and gets pasted as a link, which is the same
   path the newsroom already uses for broadcast material. (Owner request, batch
   #171 and #173; live TV verified on the hosted site 2026-11-19.)
+- **Every clip the newsroom attaches has to appear in the news and on TV.** A
+  refusal was not enough: the owner pastes links from Facebook, Instagram and
+  TikTok as well as YouTube, and a paste that the save quietly rejected looked
+  exactly like a site that would not show videos. `videoService.describe` now
+  rebuilds an embed for Facebook (`plugins/video.php`, from the `watch/?v=`,
+  `story.php?video_id=` or `/videos/`, `/reel/` number), Instagram
+  (`/p/`, `/reel/`, `/tv/` code + `/embed/`) and TikTok (`embed/v2/<number>`), and
+  `Article.videoSource`, `Article.media[].source` and `Live.source` carry those
+  names plus `link`. Anything from a platform with no public player - a shared
+  `fb.watch` or `vm.tiktok` short link, an X post, a WhatsApp channel - is stored
+  as `source: 'link'` and drawn on the story as one honest card that opens the
+  clip where it lives (`rel="noopener nofollow"`), so a video an author attached
+  is never simply missing. Only text that is not an address at all is still
+  refused, and it is refused where it was typed. TV reads the same resolver, so a
+  clip uploaded to the newsroom (`/uploads/*.mp4`) can now be put on air as well
+  as a link, and `liveRoutes` refuses a `link`-only address with a sentence naming
+  what on air can play. The writer's boxes preview all seven shapes, including
+  the card. `firebase.json`'s `frame-src` list grew to the three new players,
+  which is what makes the embeds load instead of showing a blocked frame.
+  (Owner request, batches #175 and #176; resolver verified against the paste
+  shapes above, hosted bundle `radar-v37`.)
 - **A story must be readable on the phone it is read on.** The article page had
   zero horizontal padding at every ancestor, so body text touched both edges of a
   335px screen; it now carries `px-4 sm:px-6` at every breakpoint, prose is set in

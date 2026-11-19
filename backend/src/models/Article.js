@@ -23,9 +23,10 @@ const articleSchema = new mongoose.Schema({
   // uploaded, kept so the form can show and edit it; `videoEmbedUrl` is what the
   // reader's page is allowed to load and is rebuilt from the video id, never
   // taken from the request. `videoSource` says which player it needs - an iframe
-  // for somebody else's platform, a plain <video> for a file.
+  // for somebody else's platform, a plain <video> for a file, and 'link' for a
+  // platform this site has no player for, which is shown as a button to it.
   videoUrl: String,
-  videoSource: { type: String, enum: ['', 'youtube', 'vimeo', 'file'], default: '' },
+  videoSource: { type: String, enum: ['', 'youtube', 'vimeo', 'facebook', 'instagram', 'tiktok', 'file', 'link'], default: '' },
   videoEmbedUrl: String,
   // Everything the story carries after the one picture at the top and the one
   // clip under it: the second photograph, the wider shot, the statement played
@@ -36,7 +37,7 @@ const articleSchema = new mongoose.Schema({
   media: [{
     kind: { type: String, enum: ['image', 'video'], default: 'image' },
     url: String,
-    source: { type: String, enum: ['', 'youtube', 'vimeo', 'file'], default: '' },
+    source: { type: String, enum: ['', 'youtube', 'vimeo', 'facebook', 'instagram', 'tiktok', 'file', 'link'], default: '' },
     embedUrl: String,
     caption: String,
     credit: String

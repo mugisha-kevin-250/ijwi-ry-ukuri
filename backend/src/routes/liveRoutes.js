@@ -5,7 +5,7 @@ const { protect, authorize } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { notifyLiveEnded } = require('../sockets/liveSocket');
 const { plainText, cleanText } = require('../utils/textFields');
-const videoService = require('../services/videoService');
+const storyVideo = require('../services/storyVideo');
 
 const router = express.Router();
 
@@ -70,8 +70,21 @@ router.post('/', protect, authorize('ADMIN'), async (req, res, next) => {
     const pasted = String(req.body.videoUrl || '').trim();
     let video = null;
     if (pasted) {
-      video = videoService.describe(pasted);
-      if (!video.ok) return errorResponse(res, 400, `That video cannot go on air — ${video.reason}`);
+      // Read exactly the way a story reads the clip an author attaches, so a
+      // link that works in a story works on air too - and a clip uploaded to
+      // this API, which is only a path on this server, can be put on air as
+      // well. What is stored is never the pasted text: it is the address the
+      // player is allowed to load, rebuilt here from the video id.
+      const resolved = storyVideo.resolve(pasted);
+      if (!resolved.ok) return errorResponse(res, 400, `That video cannot go on air — ${resolved.reason}`);
+      if (resolved.fields.videoSource === 'link') {
+        return errorResponse(res, 400, 'That video cannot go on air — on TV the site plays YouTube, Vimeo, Facebook, Instagram and TikTok links, a video file address, or a clip uploaded here.');
+      }
+      video = {
+        source: resolved.fields.videoSource,
+        embedUrl: resolved.fields.videoEmbedUrl,
+        watchUrl: resolved.fields.videoUrl
+      };
     }
 
     const running = await Live.findOne({ status: 'active' });

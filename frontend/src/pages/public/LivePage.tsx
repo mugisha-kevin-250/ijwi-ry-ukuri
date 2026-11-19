@@ -13,7 +13,7 @@ import { shareArticle } from '../../utils/shareArticle'
 import { requestSignIn } from '../../utils/signInPrompt'
 import { SkeletonLine } from '../../components/common/Skeleton'
 import { useSeo } from '../../utils/useSeo'
-import { serverMessage } from '../../services/apiClient'
+import { resolveMediaUrl, serverMessage } from '../../services/apiClient'
 import MediaImage from '../../components/common/MediaImage'
 
 function hostIdOf(live: Live | null): string {
@@ -362,8 +362,11 @@ export default function LivePage() {
                 // the server rebuilt it from the video id alone and picked the
                 // player that sets no cookie before anyone presses play.
                 live.source === 'file' ? (
+                  // A clip the newsroom uploaded is served by the API, not by
+                  // this origin, so its address is resolved the same way a
+                  // photograph on a story is.
                   <video
-                    src={live.embedUrl}
+                    src={resolveMediaUrl(live.embedUrl)}
                     className="aspect-video w-full bg-black"
                     controls
                     autoPlay
@@ -371,7 +374,7 @@ export default function LivePage() {
                   />
                 ) : (
                   <iframe
-                    src={live.embedUrl}
+                    src={resolveMediaUrl(live.embedUrl)}
                     title={live.title}
                     className="aspect-video w-full border-0 bg-black"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

@@ -19,7 +19,7 @@ const liveSchema = new mongoose.Schema({
   // to operate: nothing is captured here, and the players are somebody else's
   // servers. Which one it was decides what the reader's page embeds, so it is
   // stored rather than re-guessed from the address on every load.
-  source: { type: String, enum: ['camera', 'youtube', 'vimeo', 'file'], default: 'camera' },
+  source: { type: String, enum: ['camera', 'youtube', 'vimeo', 'facebook', 'instagram', 'tiktok', 'file'], default: 'camera' },
   // What the admin pasted, kept so the credit line can name the real video
   // rather than an opaque embed. `embedUrl` is what the page is allowed to load
   // and is rebuilt from the video id, never taken from the request.

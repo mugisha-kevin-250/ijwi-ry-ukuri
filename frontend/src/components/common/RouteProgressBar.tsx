@@ -4,6 +4,7 @@ import {
   currentRequestId,
   hasHeldWork,
   hasReaderWork,
+  heldSince,
   markReaderAction,
   onProgressChange,
   pendingSince,
@@ -62,6 +63,10 @@ export default function RouteProgressBar() {
   // finished. The number only ever grows, so it separates the press the reader
   // just made from the work they have already left behind.
   const settledAbove = useRef(0)
+  // The request number this page started at, recorded as it arrives. A hold
+  // opened at or above it is somebody pressing something on the page they
+  // already have; a hold below it is the page loading itself.
+  const routeBase = useRef(0)
 
   const tick = useCallback(() => {
     const active = run.current
@@ -93,14 +98,14 @@ export default function RouteProgressBar() {
   }, [])
 
   const start = useCallback(
-    (at: number, forReader = false) => {
+    (at: number, kind: 'reader' | 'navigation' = 'navigation') => {
       window.clearTimeout(hideTimer.current)
       run.current = {
         base: currentRequestId(),
         startedAt: Date.now(),
         quiet: 0,
-        forReader,
-        maxMs: forReader ? READER_MAX_MS : NAVIGATION_MAX_MS,
+        forReader: kind === 'reader',
+        maxMs: kind === 'reader' ? READER_MAX_MS : NAVIGATION_MAX_MS,
       }
       // A line that is still on screen - or still fading out from the wait the
       // reader just watched - keeps where it got to. Dropping a second piece of
@@ -122,6 +127,11 @@ export default function RouteProgressBar() {
     // chunk downloads behind it - the climb continues from where it got to and
     // only the ledger of requests it waits on is reset.
     releaseNavigation()
+    // Everything this page asked for on its own - its first scoreboard, its
+    // first weather read - was opened before this line ran, because a page's
+    // effect runs before its parent's. Marking the request number here is what
+    // separates that work from a press the reader makes later on the page.
+    routeBase.current = currentRequestId()
     const active = run.current
     if (active) {
       active.base = currentRequestId()
@@ -168,25 +178,31 @@ export default function RouteProgressBar() {
       // says so.
       onProgressChange(() => {
         if (run.current !== null) return
+        // A hold is a page saying out loud that it is waiting, so it is answered
+        // at once - but only by somebody who asked. A hold taken while the page
+        // is still arriving is the wait the link press already opened a line
+        // for, and it must not bring that line back after the reader reached
+        // the page. A hold taken on a page already in front of them - a city
+        // typed at the weather desk, a day picked on the scores board, a video
+        // uploaded - is a question with no other answer coming, and gets the
+        // long allowance.
+        if (hasHeldWork()) {
+          if (heldSince(routeBase.current)) start(HELD_START, 'reader')
+          return
+        }
         if (!hasReaderWork()) {
           window.clearTimeout(revealTimer.current)
           revealTimer.current = 0
           return
         }
-        // A hold is a page saying out loud that it is waiting, so it is answered
-        // at once. A request on its own gets the short grace period an answer
-        // that arrives instantly would not have needed a bar for.
-        if (hasHeldWork()) {
-          start(HELD_START, true)
-          return
-        }
+        // A request on its own gets the short grace period an answer that
+        // arrives instantly would not have needed a bar for, and only work
+        // begun after the last line finished counts: a picture still coming
+        // down under a story the reader is already reading is not a new wait.
         if (revealTimer.current !== 0) return
         revealTimer.current = window.setTimeout(() => {
           revealTimer.current = 0
-          // Only work that began after the last line finished opens a new one,
-          // so a slow picture on the page already on screen cannot bring the
-          // loader back from the dead.
-          if (run.current === null && readerWorkSince(settledAbove.current + 1)) start(HELD_START, true)
+          if (run.current === null && readerWorkSince(settledAbove.current)) start(HELD_START, 'reader')
         }, REVEAL_MS)
       }),
     [start],

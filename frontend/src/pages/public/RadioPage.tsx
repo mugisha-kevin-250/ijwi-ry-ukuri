@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Gauge,
   Headphones,
-  Loader2,
   Play,
   Radio,
   Square,
@@ -17,6 +16,7 @@ import { liveAPI, publicAPI, radioAPI, type RadioTimetable } from '../../service
 import { useI18n } from '../../context/I18nContext'
 import { useSeo } from '../../utils/useSeo'
 import { useAnnouncer } from '../../utils/useAnnouncer'
+import { SkeletonBlock } from '../../components/common/Skeleton'
 import {
   minutesToHear,
   play,
@@ -37,7 +37,7 @@ const LIVE_POLL_MS = 20000
 // should not be told the midday update is still on air.
 const TIMETABLE_POLL_MS = 60000
 
-/** "2h 5min" from the next start the server named; empty once it is due. */
+/**"2h 5min" from the next start the server named; empty once it is due. */
 function untilLabel(startsAt: string, at: number): string {
   const ms = new Date(startsAt).getTime() - at
   if (!Number.isFinite(ms) || ms <= 0) return ''
@@ -334,10 +334,9 @@ export default function RadioPage() {
         </p>
 
         {loading && (
-          <p className="mt-6 flex items-center gap-2 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            {t('radio.loading')}
-          </p>
+          <div className="mt-6">
+            <SkeletonBlock lines={4} />
+          </div>
         )}
 
         {failed && !loading && (

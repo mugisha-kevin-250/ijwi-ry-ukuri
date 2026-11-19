@@ -41,6 +41,15 @@ const matchSchema = new mongoose.Schema({
   clock: String,
   period: Number,
   venue: String,
+  // Set only on rows read from the day's all-competitions board: the competition
+  // the feed files this match under, which it prints beside the fixture because
+  // that board carries every competition in the world at once and does not say
+  // whose day it is. A followed league already knows its own name, so its rows
+  // leave this empty.
+  competition: {
+    id: String,
+    name: String,
+  },
   home: teamSchema,
   away: teamSchema,
 }, { _id: false });

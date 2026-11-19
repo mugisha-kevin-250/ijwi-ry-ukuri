@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Inbox, Loader2, RefreshCw, Search } from 'lucide-react'
+import { Inbox, RefreshCw, Search } from 'lucide-react'
 import { editorAPI, type StoryState } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../../components/common/Avatar'
@@ -37,7 +37,7 @@ export default function EditorQueuePage() {
   const { t } = useI18n()
   const [params, setParams] = useSearchParams()
 
-  // The filter and page live in the URL, so "back" from a story returns the
+  // The filter and page live in the URL, so"back" from a story returns the
   // editor to the slice of the queue they were working through.
   const requested = params.get('status') as StoryState | null
   const status: StoryState = requested && STATES.includes(requested) ? requested : 'pending_review'
@@ -103,7 +103,7 @@ export default function EditorQueuePage() {
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          <RefreshCw className="h-4 w-4" />
           {t('editor.queue.refresh')}
         </button>
       </div>

@@ -44,6 +44,26 @@ const DEFAULT_CITY = String(env.WEATHER_DEFAULT_CITY || 'Kigali').trim() || 'Kig
 const isConfigured = () => Boolean(String(env.WEATHERAPI_KEY || '').trim());
 
 /**
+ * A latitude and longitude, if that is what was asked for.
+ *
+ * A browser asked where the reader is answers with six decimals, and a reading
+ * filed under every one of those digits is a new row and a new paid call for the
+ * same ten minutes of sky over one neighbourhood. Two decimals is about a
+ * kilometre, which is finer than a single weather station's report can claim to
+ * be, so the pair is rounded before it becomes a key. The name the page prints
+ * still comes from the source's own answer, never from these numbers.
+ */
+function coordinatesOf(text) {
+  const match = /^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(text);
+  if (!match) return null;
+  const lat = Number(match[1]);
+  const lon = Number(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return `${lat.toFixed(2)},${lon.toFixed(2)}`;
+}
+
+/**
  * The spelling a city is filed under.
  *
  * Trimmed, collapsed and lowercased, so "Kigali", "kigali " and "KIGALI" are one
@@ -55,7 +75,11 @@ function normalizeQuery(value) {
   if (!text) return { ok: true, q: DEFAULT_CITY.toLowerCase(), defaulted: true };
   if (text.length > MAX_QUERY_LENGTH) return { ok: false, reason: 'QUERY_TOO_LONG' };
   // A bare pair of coordinates is a legitimate thing to ask about and the one
-  // form where capitalisation and commas mean nothing.
+  // form where capitalisation and commas mean nothing. This is the form the
+  // weather page's "my location" button sends, so the rounding above is what
+  // keeps a whole city from becoming a thousand cache rows.
+  const coordinates = coordinatesOf(text);
+  if (coordinates) return { ok: true, q: coordinates, coordinates: true, defaulted: false };
   return { ok: true, q: text.toLowerCase(), defaulted: false };
 }
 

@@ -17,6 +17,7 @@ const categoryService = require('../services/categoryService');
 const adService = require('../services/adService');
 const { publicHttpsUrl } = require('../services/urlGuard');
 const radioService = require('../services/radioService');
+const storyVideo = require('../services/storyVideo');
 const trendService = require('../services/trendService');
 const generateSlug = require('../utils/generateSlug');
 const lifecycle = require('../utils/articleLifecycle');
@@ -645,11 +646,14 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       imageCredit,
       imageCaption,
       imageSourceUrl,
+      videoUrl,
       publish
     } = req.body || {};
     if (!title || !summary || !content || !category) {
       return errorResponse(res, 400, 'Title, summary, content and category are required');
     }
+    const video = storyVideo.resolve(videoUrl);
+    if (!video.ok) return errorResponse(res, 400, video.reason);
     const categoryDoc = await Category.findById(category);
     if (!categoryDoc) return errorResponse(res, 404, 'Category not found');
 
@@ -675,6 +679,7 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       imageCredit: imageCredit ? plainText(imageCredit, { maxLength: 160 }) : '',
       imageCaption: imageCaption ? plainText(imageCaption, { maxLength: 240 }) : '',
       imageSourceUrl: safeMediaUrl(imageSourceUrl),
+      ...video.fields,
       author: req.user._id,
       category: categoryDoc._id,
       tags: cleanTags(tags, { max: 6 }),

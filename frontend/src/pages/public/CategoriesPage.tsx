@@ -6,7 +6,7 @@ import { useI18n } from '../../context/I18nContext'
 import { categoryImage, categoryLabel, resolveCategories, type ResolvedCategory } from '../../data/categoryVisuals'
 import { SECTIONS, sectionHrefFor } from '../../data/sections'
 import CategoryCard from '../../components/news/CategoryCard'
-import { Loading } from '../../components/common/Loading'
+import { SkeletonCards } from '../../components/common/Skeleton'
 import EmptyState from '../../components/common/EmptyState'
 import { useSeo } from '../../utils/useSeo'
 
@@ -74,7 +74,7 @@ export default function CategoriesPage() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-10">
-        <Loading className="h-10 w-48 mx-auto" />
+        <SkeletonCards count={6} />
       </div>
     )
   }

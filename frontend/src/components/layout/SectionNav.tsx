@@ -18,12 +18,12 @@ const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
  * The beats the desktop bar keeps.
  *
  * Six is the whole argument: the row is measured before any sub-section panel is
- * allowed to open, and a row holding nine names plus a duplicate "News" link does
+ * allowed to open, and a row holding nine names plus a duplicate"News" link does
  * not fit at a tablet's width, so the panels switched themselves off and Middle
  * East, Africa and the rest became unreachable without anybody saying so. What
  * sits here now is every beat that actually has a panel to open - World,
  * Politics, Business, Tech, Sports, Entertainment, Health - because an arrow is
- * the only honest way to say "there is more under this name", and Trending and
+ * the only honest way to say"there is more under this name", and Trending and
  * Rwanda, which have nothing under them, go in the More panel beside the rest of
  * the index.
  *
@@ -335,7 +335,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
     return (
       <div ref={rootRef} className={cn('relative h-full', className)}>
         {/* Both ends fade into the header so a name that is only partly on screen
-            reads as "there is more", not as a broken layout. */}
+            reads as"there is more", not as a broken layout. */}
         <span className="pointer-events-none absolute inset-y-0 left-0 z-10 w-5 bg-gradient-to-r from-white to-transparent dark:from-gray-900" aria-hidden="true" />
         <span className="pointer-events-none absolute inset-y-0 right-0 z-10 w-5 bg-gradient-to-l from-white to-transparent dark:from-gray-900" aria-hidden="true" />
         <div
@@ -351,7 +351,7 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
                 </NavLink>
                 {/* On a phone there is no hover panel to put the scores desk in,
                     so it rides next to the section it belongs to — the strip
-                    scrolls, and "under Sports" means beside it here. */}
+                    scrolls, and"under Sports" means beside it here. */}
                 {featuresFor(section.slug).map((feature) => (
                   <FeatureLink key={feature.href} feature={feature} className={chip({ isActive: false })} />
                 ))}

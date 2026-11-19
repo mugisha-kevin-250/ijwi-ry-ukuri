@@ -4,7 +4,6 @@ import {
   Check,
   Clock,
   Headphones,
-  Loader2,
   Plus,
   RefreshCw,
   Save,
@@ -23,7 +22,7 @@ import { cn } from '../../utils/cn'
  * one is made of. Everything downstream - which stories an edition carries, what
  * the voice says before the first one - is decided by these rows and nothing else,
  * so the panel shows what is actually on air under the times that were saved,
- * rather than leaving a person to hope the server read "18:00" the same way.
+ * rather than leaving a person to hope the server read"18:00" the same way.
  */
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -140,7 +139,7 @@ export default function RadioTimetablePanel() {
       await load()
       setSaved(
         edition
-          ? `Rebuilt "${edition.slotName}" with ${edition.storyTitles.length} ${edition.storyTitles.length === 1 ? 'story' : 'stories'}. Its intro came from ${edition.scriptSource === 'ai' ? edition.model || 'the model' : 'the desk'}.`
+          ? `Rebuilt"${edition.slotName}" with ${edition.storyTitles.length} ${edition.storyTitles.length === 1 ? 'story' : 'stories'}. Its intro came from ${edition.scriptSource === 'ai' ? edition.model || 'the model' : 'the desk'}.`
           : 'This edition was rebuilt from what is published right now.',
       )
     } catch (cause) {
@@ -177,7 +176,7 @@ export default function RadioTimetablePanel() {
 
       {isLoading && (
         <p className="mt-4 flex items-center gap-2 text-sm text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" /> Reading the timetable…
+ Reading the timetable…
         </p>
       )}
 
@@ -314,11 +313,11 @@ export default function RadioTimetablePanel() {
               <Plus className="h-4 w-4" /> Add a programme
             </button>
             <button type="button" onClick={() => void save()} disabled={isSaving || !slots.length} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-60">
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              <Save className="h-4 w-4" />
               {isSaving ? 'Saving…' : 'Save timetable'}
             </button>
             <button type="button" onClick={() => void rebuild()} disabled={isRefreshing || !onAir?.current} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">
-              {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <RefreshCw className="h-4 w-4" />
               {isRefreshing ? 'Rebuilding…' : `Rebuild the ${onAir?.current?.at || ''} edition`}
             </button>
             <button type="button" onClick={() => void load()} className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100" aria-label="Reload the timetable">

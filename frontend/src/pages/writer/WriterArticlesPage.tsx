@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Check, ChevronLeft, ChevronRight, Clock, Eye, Heart, Loader2, MessageSquare, Pencil, Plus, RefreshCw, Search, Send, Timer, Trash2, Undo2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Clock, Eye, Heart, MessageSquare, Pencil, Plus, RefreshCw, Search, Send, Timer, Trash2, Undo2 } from 'lucide-react'
 import { writerAPI, type StoryState, type WriterStoryMetric } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import { ConfirmDialog } from '../../components/common/Modal'
@@ -128,7 +128,7 @@ export default function WriterArticlesPage() {
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            <RefreshCw className="h-4 w-4" />
             {t('editor.queue.refresh')}
           </button>
           <Link to="/writer/articles/new" className="btn-primary inline-flex items-center gap-2">
@@ -231,7 +231,7 @@ export default function WriterArticlesPage() {
                         disabled={busy !== ''}
                         className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
                       >
-                        {busy === `submit:${story._id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        <Send className="h-3.5 w-3.5" />
                         {t('writer.list.sendReview')}
                       </button>
                     )}
@@ -242,7 +242,7 @@ export default function WriterArticlesPage() {
                         disabled={busy !== ''}
                         className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                       >
-                        {busy === `withdraw:${story._id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                        <Undo2 className="h-3.5 w-3.5" />
                         {story.status === 'published' ? t('writer.list.takeDown') : t('writer.list.takeBack')}
                       </button>
                     )}

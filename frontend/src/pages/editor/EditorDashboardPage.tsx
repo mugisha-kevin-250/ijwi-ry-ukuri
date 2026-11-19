@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Inbox, Loader2, PenTool, RefreshCw, Settings2 } from 'lucide-react'
+import { Inbox, PenTool, RefreshCw, Settings2 } from 'lucide-react'
 import { editorAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 
@@ -47,7 +47,7 @@ export default function EditorDashboardPage() {
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          <RefreshCw className="h-4 w-4" />
           {t('editor.queue.refresh')}
         </button>
       </div>

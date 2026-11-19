@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Loader2, Lock, ShieldCheck, User } from 'lucide-react'
+import { ArrowLeft, Lock, ShieldCheck, User } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 export default function AdminLoginPage() {
@@ -85,7 +85,7 @@ export default function AdminLoginPage() {
               disabled={submitting || !username.trim() || !password}
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-900/30 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              <ShieldCheck className="h-4 w-4" />
               {submitting ? 'Signing in…' : 'Sign in to admin'}
             </button>
           </form>

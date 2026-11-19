@@ -5,7 +5,7 @@ import { publicAPI, type DirectoryWriter, type WriterDirectory } from '../../ser
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../../components/common/Avatar'
 import EmptyState from '../../components/common/EmptyState'
-import { Loading } from '../../components/common/Loading'
+import { SkeletonCards } from '../../components/common/Skeleton'
 import { useSeo } from '../../utils/useSeo'
 
 const SORTS = ['stories', 'recent', 'followers', 'name'] as const
@@ -21,7 +21,7 @@ function count(value: number, oneKey: string, manyKey: string, t: (key: string) 
 }
 
 // How long ago a story ran, in the words a reader actually uses. A directory
-// sorted by "most recent" is useless if the page only prints a date nobody can
+// sorted by"most recent" is useless if the page only prints a date nobody can
 // place, and an author whose last story is from two years ago should look like
 // that rather than like a beat that is being covered this week.
 function since(publishedAt: string | null) {
@@ -69,7 +69,7 @@ export default function AuthorsPage() {
 
   // The page is a list of people, so it says who it is and how many of them the
   // newsroom has. It stays in the index: an empty directory is still the answer
-  // to "who writes for RADAR", and the publisher pages have been asking for a
+  // to"who writes for RADAR", and the publisher pages have been asking for a
   // page that names the staff since the ad application.
   useSeo({
     title: t('authors.title'),
@@ -135,7 +135,7 @@ export default function AuthorsPage() {
       </div>
 
       {loading ? (
-        <Loading className="mx-auto h-10 w-48" />
+        <SkeletonCards count={4} className="lg:grid-cols-4" />
       ) : error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>
       ) : writers.length === 0 ? (

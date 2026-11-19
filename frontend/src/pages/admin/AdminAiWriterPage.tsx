@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Ref } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, FileText, Loader2, RefreshCw, Sparkles } from 'lucide-react'
+import { AlertTriangle, FileText, RefreshCw, Sparkles } from 'lucide-react'
 import { adminAPI, publicAPI, type AiDraftResult, type AiWriterStatus } from '../../services/api'
 import type { Article, Category } from '../../types'
 import { useI18n } from '../../context/I18nContext'
@@ -388,7 +388,7 @@ export default function AdminAiWriterPage() {
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className="h-4 w-4" />
           Refresh
         </button>
       </div>
@@ -432,7 +432,7 @@ export default function AdminAiWriterPage() {
                 id="aiTopic"
                 label={trend ? 'Trending topic from Google' : 'Topic'}
                 hint={trend
-                  ? `Google reported "${trend.topic}" trending in ${trend.geo} and the server fetched it, so this story is written from a real search.`
+                  ? `Google reported"${trend.topic}" trending in ${trend.geo} and the server fetched it, so this story is written from a real search.`
                   : 'Or pick one from the trending list above and it writes from what Google actually reported.'}
                 fieldRef={topicField}
                 value={topic}
@@ -477,7 +477,7 @@ export default function AdminAiWriterPage() {
               disabled={generating}
               className="mt-5 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-60"
             >
-              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              <Sparkles className="h-4 w-4" />
               {generating ? 'Gemini is writing…' : trend ? 'Write this trending story' : 'Write the story'}
             </button>
             {generating && (
@@ -635,7 +635,7 @@ export default function AdminAiWriterPage() {
                     onClick={() => void save(true)}
                     className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-500 disabled:opacity-60"
                   >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    <Sparkles className="h-4 w-4" />
                     Publish now
                   </button>
                   <button

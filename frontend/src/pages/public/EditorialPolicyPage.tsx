@@ -6,7 +6,7 @@ import { publisherPagesUpdated } from '../../utils/siteConfig'
 export default function EditorialPolicyPage() {
   useSeo({
     title: 'Editorial policy',
-    description: "How a story gets approved, what counts as a source, how corrections are made and how machine-written drafts are handled at RADAR.",
+    description:"How a story gets approved, what counts as a source, how corrections are made and how machine-written drafts are handled at RADAR.",
     path: '/editorial-policy',
   })
 
@@ -41,7 +41,7 @@ export default function EditorialPolicyPage() {
       <Section title="Sources who stay unnamed">
         <p>
           A person can be quoted without their name when the story cannot be told otherwise, when the risk to them is
-          real, and when the reason for hiding is stated in the text. The newsroom still knows who they are; "sources
+          real, and when the reason for hiding is stated in the text. The newsroom still knows who they are;"sources
           say" with no source behind it is not reporting.
         </p>
       </Section>

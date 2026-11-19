@@ -369,7 +369,7 @@ export default function AdminAdsPage() {
             disabled={isLoading}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
           >
-            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+            <RefreshCw className={cn('h-4 w-4', isLoading && '')} />
             Refresh
           </button>
           <button

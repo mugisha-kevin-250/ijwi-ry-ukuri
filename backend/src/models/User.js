@@ -27,6 +27,15 @@ const userSchema = new mongoose.Schema({
     ref: 'WriterProfile'
   },
   lastLoginAt: Date,
+  // Password recovery. Only the hash of the emailed code is stored, and it is
+  // `select: false` so it cannot ride out of the database in a user payload by
+  // accident. `passwordChangedAt` is what makes an old token useless: a session
+  // issued before the password changed is a session somebody else had.
+  resetCodeHash: { type: String, select: false },
+  resetCodeExpires: { type: Date, select: false },
+  resetCodeAttempts: { type: Number, default: 0, select: false },
+  resetCodeSentAt: { type: Date, select: false },
+  passwordChangedAt: Date,
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { timestamps: true });

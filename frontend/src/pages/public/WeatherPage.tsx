@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   CalendarDays,
+  Crosshair,
   Droplets,
   Gauge,
   Moon,
@@ -16,8 +17,8 @@ import {
 } from 'lucide-react'
 import { weatherAPI, type WeatherDay, type WeatherRead, type WeatherStatus } from '../../services/api'
 import { serverMessage } from '../../services/apiClient'
+import { holdProgress } from '../../utils/apiActivity'
 import { useI18n } from '../../context/I18nContext'
-import { Loading } from '../../components/common/Loading'
 import { useSeo } from '../../utils/useSeo'
 import { cn } from '../../utils/cn'
 
@@ -34,6 +35,17 @@ import { cn } from '../../utils/cn'
  *
  * What the source did not say is not shown. A missing rain chance is an absent
  * line, not zero percent - and zero percent is a prediction nobody made.
+ *
+ * A reader's own sky is one tap away."My location" asks the browser where the
+ * phone is, and the answer is sent to the same lookup a typed city goes through,
+ * so nobody has to spell their town. The position is used for that one request:
+ * it is not stored, not sent to any other desk, and not kept when the page
+ * closes. Saying no to the browser's question costs nothing - the search box and
+ * the city chips work exactly as before.
+ *
+ * Waiting is the blue bar across the top of every page, here as everywhere else
+ * on RADAR. A city asked for opens that bar and holds it until the reading is on
+ * the screen; this page draws no spinner of its own.
  */
 
 /** The symbol we draw for a condition, in our own strokes. */
@@ -145,8 +157,8 @@ function WeatherGlyph({ sky, isDay = true, className }: { sky: Sky; isDay?: bool
  *
  * `label` is what the chip says; `q` is what is sent to be looked up, and is only
  * given when the two differ. That is not decoration: the weather source files
- * these places under their own spellings, so "São Paulo" is asked for as
- * "Sao Paulo" and "New York City" as "New York". Print a name you did not
+ * these places under their own spellings, so"São Paulo" is asked for as
+ *"Sao Paulo" and"New York City" as"New York". Print a name you did not
  * resolve and the page ends up quoting one town under another town's heading,
  * which is worse than a chip that admits it found nothing.
  */
@@ -192,7 +204,21 @@ const store = (key: string, value: string) => {
 
 const shown = (value: number | null): string => (value === null ? '' : String(Math.round(value)))
 
-/** "in 12 min" / "3 h ago", said plainly, because the age of a reading is the reading. */
+/**
+ * The same rounding the weather desk files a coordinate answer under.
+ *
+ * A browser answers with six decimals and the server keeps two, because two is
+ * about a kilometre - finer than one weather station's report can honestly be -
+ * and a neighbourhood should cost one reading rather than a thousand. Asking in
+ * the shape the answer is stored in is what makes a second tap on"My location"
+ * a re-read of the sky instead of a fresh lookup.
+ */
+const coordinateKey = (lat: number, lon: number): string => `${lat.toFixed(2)},${lon.toFixed(2)}`
+
+/** Whether the place on screen was found by coordinates rather than by a name. */
+const isCoordinate = (value: string): boolean => /^-?\d{1,3}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?$/.test(value)
+
+/**"in 12 min" /"3 h ago", said plainly, because the age of a reading is the reading. */
 function ageLabel(ms: number, t: (key: string) => string): string {
   const minutes = Math.max(0, Math.round(ms / 60000))
   if (minutes < 1) return t('weather.justNow')
@@ -209,7 +235,7 @@ function dayDate(value: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-/** "7:00 PM" from the source's own "2026-11-16 19:00", in the city's clock. */
+/**"7:00 PM" from the source's own"2026-11-16 19:00", in the city's clock. */
 function hourLabel(time: string): string {
   const hhmm = String(time || '').slice(11)
   if (!/^\d{2}:\d{2}$/.test(hhmm)) return time
@@ -228,13 +254,15 @@ export default function WeatherPage() {
   const [read, setRead] = useState<WeatherRead | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [locating, setLocating] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const retryTimer = useRef<number | null>(null)
+  const weatherHold = useRef<(() => void) | null>(null)
 
   const report = read?.report || null
 
   useSeo({
-    // The tab says "Weather | RADAR" the way every other page does, while the
+    // The tab says"Weather | RADAR" the way every other page does, while the
     // heading on the page itself carries the desk's own name.
     title: t('weather.taglineShort'),
     description: t('weather.metaDescription'),
@@ -252,6 +280,12 @@ export default function WeatherPage() {
     if (quiet) setRefreshing(true)
     else setLoading(true)
     setNotice(null)
+    // The bar across the top of the site is the only thing on this page that
+    // says"hold on", and a city asked for is exactly the waiting it is for. The
+    // hold opens once per search and closes when a reading - or a plain refusal -
+    // is on the screen, so the retry below does not blink the bar twice.
+    if (!weatherHold.current) weatherHold.current = holdProgress()
+    let willRetry = false
     try {
       const result = await weatherAPI.report(wanted)
       setRead(result)
@@ -261,6 +295,7 @@ export default function WeatherPage() {
       // The first reader for a city paid for the look-up and got nothing yet.
       // One quiet retry, because the answer is already on its way to the database.
       if (result.loading && retryTimer.current === null) {
+        willRetry = true
         retryTimer.current = window.setTimeout(() => {
           retryTimer.current = null
           void load(wanted, true)
@@ -269,6 +304,10 @@ export default function WeatherPage() {
     } catch (error) {
       setNotice(serverMessage(error, t('weather.unreachable')))
     } finally {
+      if (!willRetry) {
+        weatherHold.current?.()
+        weatherHold.current = null
+      }
       setLoading(false)
       setRefreshing(false)
     }
@@ -278,6 +317,10 @@ export default function WeatherPage() {
     void weatherAPI.status().then(setStatus).catch(() => setStatus(null))
     return () => {
       if (retryTimer.current !== null) window.clearTimeout(retryTimer.current)
+      // Leaving the page must not leave the whole site waiting on a bar for a
+      // reading this page no longer exists to print.
+      weatherHold.current?.()
+      weatherHold.current = null
     }
   }, [])
 
@@ -337,6 +380,53 @@ export default function WeatherPage() {
     store(CITY_STORE_KEY, wanted)
   }
 
+  /**
+   * The reader's own weather, without typing a thing.
+   *
+   * The browser is asked once for a position, and the numbers answer the same
+   * lookup a typed city goes through: they travel to RADAR's server, which asks
+   * the weather service and keeps the reading for the next person standing in
+   * the same neighbourhood. The position itself is not stored and not sent
+   * anywhere else on this site.
+   *
+   * A reader who says no, or whose phone cannot find them, keeps whatever was
+   * already on the screen. Being refused is not an error the page should punish
+   * by going blank.
+   */
+  const askMyLocation = () => {
+    if (!('geolocation' in navigator)) {
+      setNotice(t('weather.locationUnsupported'))
+      return
+    }
+    setLocating(true)
+    setNotice(null)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false)
+        const wanted = coordinateKey(position.coords.latitude, position.coords.longitude)
+        // Already reading this patch of sky? Then the tap means"look again", and
+        // picking the same city would set nothing off, because no part of the
+        // page changed.
+        if (wanted.toLowerCase() === city.toLowerCase()) {
+          void load(wanted, true)
+          return
+        }
+        choose(wanted)
+      },
+      (error) => {
+        setLocating(false)
+        // Refusing the question and failing to answer it are different things
+        // worth different sentences: one is the reader's call, the other is
+        // usually a building, a battery saver or a GPS that has not found you.
+        setNotice(error.code === error.PERMISSION_DENIED ? t('weather.locationDenied') : t('weather.locationFailed'))
+      },
+      // Ten minutes of staleness is free to keep and is well inside the age of a
+      // weather reading; asking the phone for a precise fix costs battery and
+      // buys nothing a weather station can report.
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60 * 1000 },
+    )
+  }
+
   const notConfigured = status ? !status.configured : read?.configured === false
 
   return (
@@ -368,6 +458,23 @@ export default function WeatherPage() {
             <button type="submit" className="rounded-lg bg-white/95 px-3 py-2 text-sm font-bold text-blue-700 transition hover:bg-white">
               {t('weather.go')}
             </button>
+            {/* One icon on a phone, a word on a screen wide enough for it: the
+                chips below repeat this at full size for anyone who prefers a
+                button they can read. */}
+            <button
+              type="button"
+              onClick={askMyLocation}
+              disabled={locating}
+              aria-label={t('weather.myLocation')}
+              title={t('weather.myLocation')}
+              className={cn(
+                'flex shrink-0 items-center gap-1.5 rounded-lg border border-white/25 px-2.5 py-2 text-xs font-bold text-white transition hover:bg-white/15',
+                locating && 'opacity-75',
+              )}
+            >
+              <Crosshair className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden md:inline">{locating ? t('weather.locating') : t('weather.myLocation')}</span>
+            </button>
             <div role="group" aria-label={t('weather.units')} className="flex shrink-0 overflow-hidden rounded-lg border border-white/25">
               {(['C', 'F'] as const).map((option) => (
                 <button
@@ -389,11 +496,11 @@ export default function WeatherPage() {
 
         <div className="px-5 py-6">
           {loading && !report ? (
-            <div className="flex items-center gap-3 py-8 text-white/90">
-              <Loading size="sm" className="[&>svg]:text-white" />
-              <span className="text-sm font-semibold">{t('weather.loading')}</span>
-            </div>
-          ) : notConfigured ? (
+            // No spinner here: the bar across the top of every page is what says
+            // the reading is on its way, and this line only tells the reader
+            // which of their own questions that bar is answering.
+            <p className="py-8 text-sm font-semibold text-white/90">{t('weather.loading')}</p>
+          ) : notConfigured && !report ? (
             <div className="py-6">
               <p className="text-lg font-bold">{t('weather.notConfigured')}</p>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/85">{t('weather.notConfiguredHint')}</p>
@@ -403,7 +510,7 @@ export default function WeatherPage() {
               <div className="flex flex-wrap items-end justify-between gap-6">
                 <div>
                   <p className="text-lg font-bold">
-                    {report.location.name || city || status?.defaultCity}
+                    {report.location.name || (isCoordinate(city) ? t('weather.myLocation') : city) || status?.defaultCity}
                     {report.location.region && report.location.region !== report.location.name ? `, ${report.location.region}` : ''}
                     {report.location.country ? `, ${report.location.country}` : ''}
                   </p>
@@ -470,10 +577,12 @@ export default function WeatherPage() {
                 <button
                   type="button"
                   onClick={() => void load(city || report.q, true)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-2.5 py-1 font-semibold transition hover:bg-white/15"
+                  disabled={refreshing}
+                  aria-busy={refreshing}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-2.5 py-1 font-semibold transition hover:bg-white/15 disabled:opacity-70"
                 >
-                  <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} aria-hidden="true" />
-                  {t('weather.refresh')}
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                  {refreshing ? t('weather.refreshing') : t('weather.refresh')}
                 </button>
                 <span className="ml-auto">{t('weather.poweredBy')} {status?.source || 'WeatherAPI.com'}</span>
               </div>
@@ -599,6 +708,24 @@ export default function WeatherPage() {
         <h2 className="text-base font-extrabold text-[var(--color-text)]">{t('weather.otherCities')}</h2>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">{t('weather.otherCitiesHint')}</p>
         <div className="mt-3 flex flex-wrap gap-2">
+          {/* First, because for most readers it is the only one they need: the
+              weather where they are standing, without typing a name. */}
+          <button
+            type="button"
+            onClick={askMyLocation}
+            disabled={locating}
+            aria-pressed={isCoordinate(city)}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition',
+              isCoordinate(city)
+                ? 'border-blue-600 bg-blue-600 text-white'
+                : 'border-dashed border-blue-500/70 text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-500/10',
+              locating && 'opacity-70',
+            )}
+          >
+            <Crosshair className="h-4 w-4" aria-hidden="true" />
+            {locating ? t('weather.locating') : t('weather.myLocation')}
+          </button>
           {NEARBY_CITIES.map((option) => {
             const wanted = option.q || option.label
             return (
@@ -618,6 +745,7 @@ export default function WeatherPage() {
             )
           })}
         </div>
+        <p className="mt-3 text-xs leading-relaxed text-[var(--color-text-muted)]">{t('weather.locationHint')}</p>
       </section>
     </div>
   )

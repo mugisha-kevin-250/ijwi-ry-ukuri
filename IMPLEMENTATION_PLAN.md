@@ -171,6 +171,21 @@ them from the code:
   and kept out of the Google News sitemap - a News listing is a claim that the story is
   reporting, and paid copy should not make it.
 
+- **Naming a source is the writer's job; saying it was checked is the desk's.** A story
+  carries `sources[]` with a `verificationStatus` of `pending`, `verified` or `rejected`.
+  An author files a source through `POST /api/writers/articles/:id/sources` - the status is
+  forced to `pending` whatever the client sends, the list is capped at twenty, and a source
+  the desk has already judged cannot be quietly withdrawn by the author. Only
+  `PUT /api/editor/articles/:id/sources/:sourceId` moves a status, and it records who ruled
+  and why in two `select: false` fields a reader, a writer response and any list never
+  receive. The reader sees the source, the kind it is, and the verdict; the argument behind
+  the verdict stays in the desk. Alongside it, the newest twenty versions of `title`,
+  `summary` and `content` are written in the same save that replaces them - but only for a
+  story that has already left its author's drafts, because a workshop is not a publication.
+  A revision is the newsroom arguing with itself in public otherwise, so `select: false`
+  keeps it to the desk, where `GET /api/editor/articles/:id` and `/history` ask for it by
+  name.
+
 - AdSense readiness checklist/report (owner-reviewed), consent-aware ad management, SEO editorial tooling, contributor/partnership workflows, audience metrics (privacy-compliant). Mobile app only after stable audience/product evidence. **No guarantees of approval/ranking/inclusion.**
 
 ## Cross-cutting execution rules (every phase)

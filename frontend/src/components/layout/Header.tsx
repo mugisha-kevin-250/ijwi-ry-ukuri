@@ -43,7 +43,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
   const barRef = useRef<HTMLElement | null>(null)
 
   // The section nav is the site's navigation. These sat beside the old category
-  // strip, which is gone, so only the full index stays and it reads as "All news".
+  // strip, which is gone, so only the full index stays and it reads as"All news".
   const navLinks = [{ href: '/articles', label: t('nav.articles') }]
 
   const writerNavLinks = [
@@ -96,7 +96,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
       key={link.href}
       to={link.href}
       className={({ isActive }) =>
-        // 15px matches the section line underneath, so "News" and the beats do
+        // 15px matches the section line underneath, so"News" and the beats do
         // not read as two different sizes of the same thing.
         `shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-[15px] font-bold underline-offset-4 transition ${
           isActive
@@ -166,7 +166,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
           they start down the page, so it is the thing they see whenever they come
           back up. It is a strip rather than a banner because the header is fixed:
           anything taller steals a quarter of a phone screen. A campaign booked
-          into "nav" prints here; when nobody has bought it the newsroom's own
+          into"nav" prints here; when nobody has bought it the newsroom's own
           offer does, in the same height, so nothing below it moves.
         */}
         {variant === 'public' && (

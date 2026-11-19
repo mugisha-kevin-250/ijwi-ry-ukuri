@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Clock, Loader2, Megaphone, RefreshCw, Send, Undo2, X } from 'lucide-react'
+import { ArrowLeft, Check, Clock, Megaphone, RefreshCw, Send, Undo2, X } from 'lucide-react'
 import { editorAPI, type StoryState } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../../components/common/Avatar'
@@ -8,6 +8,7 @@ import MediaImage from '../../components/common/MediaImage'
 import { useAuth } from '../../context/AuthContext'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
 import { looksLikeHtml, splitParagraphs } from '../../utils/storyBody'
+import { cn } from '../../utils/cn'
 
 interface ReviewEvent {
   from?: string
@@ -47,6 +48,29 @@ export default function EditorReviewPage() {
   const [disclosureBusy, setDisclosureBusy] = useState('')
   const [disclosureError, setDisclosureError] = useState('')
 
+  // The desk's ruling on each source an author named, and the earlier versions
+  // of the copy. `note` above is a private comment to the writer; a source note
+  // is the reason for a verdict - who was called, what was read - and both stay
+  // off the published page.
+  const [sourceNotes, setSourceNotes] = useState<Record<string, string>>({})
+  const [sourceBusy, setSourceBusy] = useState('')
+  const [sourceError, setSourceError] = useState('')
+  const [revisions, setRevisions] = useState<any[]>([])
+
+  const rule = async (sourceId: string, verdict: 'pending' | 'verified' | 'rejected') => {
+    setSourceBusy(`${sourceId}:${verdict}`)
+    setSourceError('')
+    try {
+      await editorAPI.setSourceVerdict(id, sourceId, verdict, sourceNotes[sourceId]?.trim() || undefined)
+      setSourceNotes((current) => ({ ...current, [sourceId]: '' }))
+      await load()
+    } catch (err: any) {
+      setSourceError(err?.response?.data?.message || 'That verdict was not recorded. Try again.')
+    } finally {
+      setSourceBusy('')
+    }
+  }
+
   const saveDisclosure = async (patch: Record<string, string | boolean>, label: string) => {
     setDisclosureBusy(label)
     setDisclosureError('')
@@ -76,6 +100,7 @@ export default function EditorReviewPage() {
       setPaid({ isSponsored: story.isSponsored === true, sponsor: story.sponsor || '' })
       setNextStates((storyRes.data.data as any)?.nextStates || [])
       setEvents((historyRes.data.data as any)?.events || [])
+      setRevisions((historyRes.data.data as any)?.revisions || [])
     } catch (err: any) {
       // 404 here means the story was deleted or this account cannot see it;
       // either way the editor needs to be told, not left on a blank page.
@@ -223,7 +248,7 @@ export default function EditorReviewPage() {
                 disabled={busy !== ''}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                {busy === 'approve' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                <Check className="h-4 w-4" />
                 {t('editor.review.approve')}
               </button>
             )}
@@ -235,7 +260,7 @@ export default function EditorReviewPage() {
                 disabled={busy !== ''}
                 className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
               >
-                {busy === 'publish' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
+                <Megaphone className="h-4 w-4" />
                 {t('editor.review.publish')}
               </button>
             )}
@@ -248,7 +273,7 @@ export default function EditorReviewPage() {
                   disabled={busy !== ''}
                   className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                 >
-                  {busy === 'correction' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  <Send className="h-4 w-4" />
                   {t('editor.review.correction')}
                 </button>
                 <button
@@ -257,7 +282,7 @@ export default function EditorReviewPage() {
                   disabled={busy !== ''}
                   className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {busy === 'reject' ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                  <X className="h-4 w-4" />
                   {t('editor.review.reject')}
                 </button>
               </>
@@ -270,7 +295,7 @@ export default function EditorReviewPage() {
                 disabled={busy !== ''}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                {busy === 'unpublish' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                <Undo2 className="h-4 w-4" />
                 {t('editor.review.takeDown')}
               </button>
             )}
@@ -282,7 +307,7 @@ export default function EditorReviewPage() {
                 disabled={busy !== ''}
                 className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
               >
-                {busy === 'restore' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                <Check className="h-4 w-4" />
                 {t('editor.review.putBack')}
               </button>
             )}
@@ -336,7 +361,7 @@ export default function EditorReviewPage() {
             disabled={disclosureBusy !== ''}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            {disclosureBusy === 'photo' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            <Check className="h-3.5 w-3.5" />
             {t('editor.disclosure.savePhoto')}
           </button>
         </div>
@@ -366,7 +391,7 @@ export default function EditorReviewPage() {
             disabled={disclosureBusy !== '' || (paid.isSponsored && !paid.sponsor.trim())}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            {disclosureBusy === 'paid' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            <Check className="h-3.5 w-3.5" />
             {t('editor.disclosure.saveSponsored')}
           </button>
           {paid.isSponsored && !paid.sponsor.trim() && (
@@ -403,13 +428,112 @@ export default function EditorReviewPage() {
             disabled={disclosureBusy !== '' || !correction.trim()}
             className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50"
           >
-            {disclosureBusy === 'correction'
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <Megaphone className="h-4 w-4" />}
+            <Megaphone className="h-4 w-4" />
             {t('editor.disclosure.publishCorrection')}
           </button>
           <p className="text-xs text-slate-500">{t('editor.disclosure.correctionNote')}</p>
         </div>
+      </div>
+
+      {/* The evidence an author named. The desk does not write these and the
+          author does not verify them: saying a source has been checked is a
+          claim the newsroom makes to a reader, so it can only come from
+          somebody who did not file the story. */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <p className="text-sm font-bold text-slate-900">{t('editor.sources.title')}</p>
+        <p className="mt-1 text-xs text-slate-500">{t('editor.sources.hint')}</p>
+
+        {sourceError && (
+          <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+            {sourceError}
+          </p>
+        )}
+
+        {Array.isArray(article.sources) && article.sources.length ? (
+          <ol className="mt-4 space-y-4">
+            {article.sources.map((source: any, index: number) => {
+              const status = source.verificationStatus || 'pending';
+              const reviewer = source.reviewedBy && typeof source.reviewedBy === 'object' ? source.reviewedBy : null;
+              return (
+                <li key={source._id || `source-${index}`} className="rounded-lg border border-slate-200 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-900">
+                      {source.title || source.organization || source.url}
+                    </span>
+                    <span className={cn(
+                      'rounded-full px-2 py-0.5 text-[11px] font-bold',
+                      status === 'verified' && 'bg-emerald-100 text-emerald-800',
+                      status === 'rejected' && 'bg-rose-100 text-rose-700',
+                      status === 'pending' && 'bg-amber-100 text-amber-800',
+                    )}>
+                      {t(`articles.source${status === 'verified' ? 'Verified' : status === 'rejected' ? 'Rejected' : 'Pending'}`)}
+                    </span>
+                    {source.type && (
+                      <span className="text-[11px] uppercase tracking-wide text-slate-500">
+                        {t(`articles.sourceType.${source.type}`)}
+                      </span>
+                    )}
+                  </div>
+
+                  {source.organization && source.title && (
+                    <p className="mt-1 text-xs text-slate-500">{source.organization}</p>
+                  )}
+                  {!!source.quote && (
+                    <p className="mt-1 text-xs italic text-slate-600">“{source.quote}”</p>
+                  )}
+                  {source.url && (
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="mt-1 inline-block text-xs font-semibold text-blue-700 hover:underline"
+                    >
+                      {source.url}
+                    </a>
+                  )}
+
+                  <p className="mt-2 text-xs text-slate-500">
+                    {(source.accessedAt || source.at) && (
+                      <>{t('articles.sourceAccessed')} {new Date(source.accessedAt || source.at).toLocaleString()}</>
+                    )}
+                    {reviewer ? ` · ${reviewer.fullName || reviewer.role || ''}` : ''}
+                  </p>
+                  {!!source.reviewNote && (
+                    <p className="mt-1 text-xs text-slate-600">{t('editor.sources.previousNote')}: “{source.reviewNote}”</p>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <input
+                      value={sourceNotes[source._id] || ''}
+                      onChange={(event) => setSourceNotes((current) => ({ ...current, [source._id]: event.target.value }))}
+                      maxLength={400}
+                      placeholder={t('editor.sources.notePlaceholder')}
+                      className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    {(['verified', 'rejected', 'pending'] as const).map((verdict) => (
+                      <button
+                        key={verdict}
+                        type="button"
+                        onClick={() => void rule(String(source._id), verdict)}
+                        disabled={sourceBusy !== '' || status === verdict}
+                        className={cn(
+                          'rounded-lg border px-3 py-1.5 text-xs font-bold disabled:opacity-40',
+                          verdict === 'verified' && 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
+                          verdict === 'rejected' && 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100',
+                          verdict === 'pending' && 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
+                        )}
+                      >
+                        {t(`editor.sources.mark.${verdict}`)}
+                      </button>
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">{t('editor.sources.none')}</p>
+        )}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5">
@@ -431,6 +555,44 @@ export default function EditorReviewPage() {
                 </div>
               </li>
             ))}
+          </ol>
+        )}
+
+        {/* What the page said before somebody rewrote it. Kept apart from the
+            trail above: those are decisions on the story, these are the earlier
+            copy itself, and only this desk ever sees them. */}
+        <p className="mt-5 border-t border-slate-100 pt-4 text-sm font-bold text-slate-900">
+          {t('editor.revisions.title')}
+        </p>
+        {revisions.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">{t('editor.revisions.none')}</p>
+        ) : (
+          <ol className="mt-3 space-y-3">
+            {revisions.map((revision, index) => {
+              const author = revision.by && typeof revision.by === 'object' ? revision.by : null;
+              return (
+                <li key={`${revision.at || index}-${index}`} className="rounded-lg border border-slate-200 p-3">
+                  <p className="text-xs font-semibold text-slate-600">
+                    {revision.at ? new Date(revision.at).toLocaleString() : ''}
+                    {author ? ` · ${author.fullName || author.username || 'a staff member'}` : ''}
+                  </p>
+                  {revision.title && (
+                    <p className="mt-1 text-sm font-semibold text-slate-800">{revision.title}</p>
+                  )}
+                  {revision.summary && (
+                    <p className="mt-0.5 text-xs text-slate-600">{revision.summary}</p>
+                  )}
+                  {revision.content && (
+                    <p className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap text-xs text-slate-500">
+                      {revision.content}
+                    </p>
+                  )}
+                  {revision.note && (
+                    <p className="mt-2 text-xs italic text-slate-600">“{revision.note}”</p>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         )}
       </div>

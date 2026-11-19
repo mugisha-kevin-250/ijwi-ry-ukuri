@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Check, Loader2, Sparkles } from 'lucide-react'
+import { AlertTriangle, Check, Sparkles } from 'lucide-react'
 import { aiAPI, publicAPI, writerAPI, type AiStatus } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 
@@ -136,7 +136,6 @@ export default function AiWriterPanel() {
 
       {status === null && (
         <p className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
-          <Loader2 className="h-4 w-4 animate-spin" />
           {t('writer.ai.checking')}
         </p>
       )}
@@ -207,7 +206,7 @@ export default function AiWriterPanel() {
               disabled={busy}
               className="btn-primary inline-flex items-center gap-2 disabled:opacity-60"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              <Sparkles className="h-4 w-4" />
               {busy ? t('writer.ai.writing') : t('writer.ai.generate')}
             </button>
             {modelNote && <span className="text-xs text-[var(--color-text-muted)]">{modelNote}</span>}
@@ -235,7 +234,6 @@ export default function AiWriterPanel() {
                   disabled={saving || !category}
                   className="btn-primary inline-flex items-center gap-2 disabled:opacity-60"
                 >
-                  {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                   {t('writer.ai.save')}
                 </button>
                 <button type="button" onClick={() => setDraft(null)} className="text-sm font-bold underline">

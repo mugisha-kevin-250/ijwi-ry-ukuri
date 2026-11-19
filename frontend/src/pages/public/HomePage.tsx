@@ -33,7 +33,7 @@ const LEGACY_NEWSLETTER_KEY = 'ijwiryukuri-newsletter'
 
 // The home page is the newsroom, so it is built from what is newest. One
 // request pulls a wide sheet of stories; the page then shows a third of it and
-// hands the rest to "See more news" instead of pretending there is none.
+// hands the rest to"See more news" instead of pretending there is none.
 const LATEST_LIMIT = 48
 const LATEST_PAGE_ONE = 12
 
@@ -191,7 +191,7 @@ function CompactStory({ article, index }: { article: Article; index?: number }) 
 /**
  * Which section a story belongs to, read from the category the API sends with
  * it. Stories that map to no section are left out of the rails rather than
- * dumped into a fake "Other" shelf.
+ * dumped into a fake"Other" shelf.
  */
 function sectionSlugOf(article: Article): string | null {
   const href = sectionHrefFor(articleCategory(article))
@@ -374,7 +374,7 @@ export default function HomePage() {
       if (bucket.length < 4) bucket.push(article)
       buckets.set(slug, bucket)
     })
-    // "Trending" is its own shelf fed by the trending feed, not a category rail.
+    //"Trending" is its own shelf fed by the trending feed, not a category rail.
     return SECTIONS.filter((section) => section.slug !== 'trending').map((section) => ({
       section,
       stories: buckets.get(section.slug) || [],
@@ -382,7 +382,7 @@ export default function HomePage() {
   }, [latest])
 
   const sideStories = trending.filter((article) => article._id !== featured?._id).slice(0, 4)
-  // No fallback here: showing the trending list under "Popular" would claim
+  // No fallback here: showing the trending list under"Popular" would claim
   // those were the most-read stories when the read actually failed.
   const popularStories = popular
 
@@ -395,7 +395,7 @@ export default function HomePage() {
         variant="strip"
         topic={trending[0]?.title || ''}
         slug={trending[0]?.slug || ''}
-        suggestions={[t('ai.suggestToday'), t('ai.suggestRwanda'), t('ai.suggestExplain')]}
+        suggestions={[t('ai.suggestToday'), t('ai.suggestWrite'), t('ai.suggestExplain')]}
       />
 
       <main className="mx-auto max-w-7xl space-y-9 px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
@@ -485,7 +485,7 @@ export default function HomePage() {
 
         <section className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
           <div>
-            {/* "View all" on this shelf goes to the directory, not to another
+            {/*"View all" on this shelf goes to the directory, not to another
                 list of five: the readers who want to follow somebody have asked
                 to see everybody. */}
             <SectionHeading title={t('home.mostFollowed')} href="/authors" />

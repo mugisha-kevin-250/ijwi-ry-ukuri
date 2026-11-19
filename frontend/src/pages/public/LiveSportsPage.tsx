@@ -5,7 +5,8 @@ import { scoresAPI } from '../../services/api'
 import type { Scoreboard, ScoreEvent, ScoreGroup, ScoreMatch, ScoreRow, ScoreSearch, ScoreSide, Standings, StandingsRow } from '../../services/api'
 import { serverMessage } from '../../services/apiClient'
 import { useI18n } from '../../context/I18nContext'
-import { Loading } from '../../components/common/Loading'
+import { SkeletonBlock, SkeletonLine } from '../../components/common/Skeleton'
+import { holdProgress } from '../../utils/apiActivity'
 import { useSeo } from '../../utils/useSeo'
 import { cn } from '../../utils/cn'
 
@@ -69,7 +70,7 @@ function kickoff(date: string | null): string {
  *
  * A fixture that has not started shows its kick-off time, a match being played
  * shows the clock the feed printed, and a finished one says so - never a minute,
- * because "90+'" under a final score reads like the game is still going.
+ * because"90+'" under a final score reads like the game is still going.
  */
 function statusOf(row: ScoreRow, ft: string): { text: string; live: boolean } {
   if (row.state === 'in') return { text: row.clock || row.statusText || 'LIVE', live: true }
@@ -194,7 +195,7 @@ function LeagueSection({ group, ft, onOpen }: { group: ScoreGroup; ft: string; o
             newest the feed gave us, said in words next to them. */}
         {group.pending && (
           <span className="flex items-center gap-1 text-[11px] font-medium text-blue-500">
-            <RefreshCw className="h-3 w-3 animate-spin" />
+            <RefreshCw className="h-3 w-3" />
             <span className="hidden sm:inline">{t('liveSports.leaguePending')}</span>
           </span>
         )}
@@ -246,7 +247,7 @@ function EventLine({ event }: { event: ScoreEvent }) {
 
 function StatBar({ label, home, away, homeValue, awayValue }: { label: string; home: string; away: string; homeValue: number | null; awayValue: number | null }) {
   // A bar is only drawn when the feed gave both sides a real number. A statistic
-  // printed as text - "12 / 31" - is still shown, just as two figures, because a
+  // printed as text -"12 / 31" - is still shown, just as two figures, because a
   // width invented from a string is a guess about the game.
   const drawable = homeValue !== null && awayValue !== null && (homeValue + awayValue) > 0
   const share = drawable ? Math.round((homeValue! / (homeValue! + awayValue!)) * 100) : 50
@@ -328,6 +329,9 @@ function MatchDialog({ row, code, onClose }: { row: ScoreRow; code: string; onCl
 
   useEffect(() => {
     let cancelled = false
+    // Opening a match is a wait the reader asked for, and the bar across the top
+    // of the site is what answers it. The panel underneath only holds the shape.
+    const release = holdProgress()
     setLoading(true)
     setFailed('')
     // The row already on screen is kept as the answer while the detail is being
@@ -343,10 +347,12 @@ function MatchDialog({ row, code, onClose }: { row: ScoreRow; code: string; onCl
         if (!cancelled) setFailed(serverMessage(error, t('liveSports.failed')))
       })
       .finally(() => {
+        release()
         if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
+      release()
     }
   }, [row.id, code, t])
 
@@ -358,6 +364,7 @@ function MatchDialog({ row, code, onClose }: { row: ScoreRow; code: string; onCl
   useEffect(() => {
     if (!wantTable || standings || tableFailed) return
     let cancelled = false
+    const release = holdProgress()
     scoresAPI
       .standings(code)
       .then((rows) => {
@@ -366,8 +373,10 @@ function MatchDialog({ row, code, onClose }: { row: ScoreRow; code: string; onCl
       .catch(() => {
         if (!cancelled) setTableFailed(true)
       })
+      .finally(release)
     return () => {
       cancelled = true
+      release()
     }
   }, [wantTable, code, standings, tableFailed])
 
@@ -449,7 +458,7 @@ function MatchDialog({ row, code, onClose }: { row: ScoreRow; code: string; onCl
         </div>
 
         <div className="max-h-[55vh] overflow-y-auto px-4 py-3 sm:max-h-[60vh]">
-          {loading && !match && <div className="flex justify-center py-8"><Loading /></div>}
+          {loading && !match && <div className="py-8"><SkeletonBlock lines={4} /></div>}
           {failed && (
             <p className="flex items-center gap-2 py-4 text-sm text-amber-700 dark:text-amber-400">
               <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -536,7 +545,7 @@ function MatchDialog({ row, code, onClose }: { row: ScoreRow; code: string; onCl
           )}
 
           {/* The table lives in here as well as on its own, because the question
-              a reader asks after a score is nearly always "so what does that do
+              a reader asks after a score is nearly always"so what does that do
               to the standings". */}
           {tab === 'table' && (
             standings && standings.rows.length ? (
@@ -551,7 +560,7 @@ function MatchDialog({ row, code, onClose }: { row: ScoreRow; code: string; onCl
             ) : tableFailed || (standings && !standings.rows.length) ? (
               <p className="py-4 text-sm text-blue-400">{t('liveSports.tableUnavailable')}</p>
             ) : (
-              <div className="flex justify-center py-6"><Loading /></div>
+              <div className="py-2"><SkeletonBlock lines={6} /></div>
             )
           )}
         </div>
@@ -564,7 +573,7 @@ export default function LiveSportsPage() {
   const { t } = useI18n()
   const [day, setDay] = useState(() => new Date())
   const [tab, setTab] = useState<Tab>('all')
-  // Null is "every competition we follow"; a code is the chip the reader picked.
+  // Null is"every competition we follow"; a code is the chip the reader picked.
   const [league, setLeague] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ScoreSearch | null>(null)
@@ -584,6 +593,10 @@ export default function LiveSportsPage() {
   const load = useCallback(async (dateKey: string, code: string | null, quiet = false) => {
     const token = `${dateKey}|${code || ''}`
     asking.current = token
+    // A day or a competition the reader picked is a wait they asked for, and the
+    // bar across the top is what answers it. The poll that runs by itself -
+    // nobody pressed anything - deliberately never touches the bar.
+    const release = quiet ? null : holdProgress()
     if (!quiet) setIsLoading(true)
     try {
       const payload = await scoresAPI.scoreboard({ date: dateKey, league: code || undefined })
@@ -594,10 +607,11 @@ export default function LiveSportsPage() {
       if (asking.current !== token) return
       // A date outside the window is the server's own sentence, and it is the
       // true reason the page is empty - so it is printed rather than replaced
-      // with a generic "could not load".
+      // with a generic"could not load".
       setFailed(serverMessage(error, t('liveSports.failedHint')))
       if (!quiet) setBoard(null)
     } finally {
+      release?.()
       if (asking.current === token) setIsLoading(false)
     }
   }, [t])
@@ -757,7 +771,7 @@ export default function LiveSportsPage() {
           <span className="hidden text-xs font-medium text-blue-400 sm:inline">
             {board?.refreshing ? (
               <span className="flex items-center gap-1">
-                <RefreshCw className="h-3 w-3 animate-spin" />
+                <RefreshCw className="h-3 w-3" />
                 {t('liveSports.refreshing')}
               </span>
             ) : board?.counts.live ? (
@@ -810,7 +824,7 @@ export default function LiveSportsPage() {
               {t('liveSports.today')}
             </button>
           )}
-          {/* The way to "where is my club" without walking fourteen competitions
+          {/* The way to"where is my club" without walking fourteen competitions
               one tab at a time. It searches what this server has already read. */}
           <div className="relative ml-auto min-w-0 flex-1 sm:max-w-[15rem]">
             <label htmlFor="scores-search" className="sr-only">{t('liveSports.search')}</label>
@@ -873,7 +887,13 @@ export default function LiveSportsPage() {
       </div>
 
       <div className="mx-auto max-w-3xl px-3 pt-4 sm:px-4">
-        {isLoading && !board && <div className="flex justify-center py-16"><Loading /></div>}
+        {isLoading && !board && !failed && (
+          <div className="space-y-3">
+            <SkeletonLine className="h-4 w-40" />
+            <SkeletonBlock lines={4} />
+            <SkeletonBlock lines={4} />
+          </div>
+        )}
 
         {failed && (
           <div className="rounded-xl border border-blue-100 bg-white p-5 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -902,7 +922,7 @@ export default function LiveSportsPage() {
           Every competition the newsroom follows, named, on one line. The list
           below only draws the leagues that have something on the day, which is
           right for reading and wrong for finding: without this row a reader
-          cannot tell "we do not follow Turkey" from "Turkey has nothing today",
+          cannot tell"we do not follow Turkey" from"Turkey has nothing today",
           and has no way to ask for one competition instead of scrolling thirteen.
         */}
         {board && board.followed.length > 0 && (
@@ -930,7 +950,7 @@ export default function LiveSportsPage() {
         {query.trim().length >= 2 && (
           <div className="mb-3 rounded-xl border border-blue-100 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-blue-400">
-              {isSearching && <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />}
+              {isSearching && <RefreshCw className="h-3 w-3" aria-hidden="true" />}
               {searchFailed
                 ? t('liveSports.searchFailed')
                 : results
@@ -983,11 +1003,11 @@ export default function LiveSportsPage() {
           <div className="space-y-3">
             {shown === 0 && board.refreshing ? (
               /* An empty day and a day nobody has read yet are two different
-                 facts. Saying "no matches" while the server is still fetching
+                 facts. Saying"no matches" while the server is still fetching
                  would be a lie a reader could act on, so this says what it is
                  and asks again on the page's own clock. */
               <div className="flex flex-col items-center gap-2 rounded-xl border border-blue-100 bg-white p-6 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
+                <RefreshCw className="h-5 w-5 text-blue-500" />
                 <p className="text-sm font-bold text-[#062b52] dark:text-blue-200">{t('liveSports.refreshing')}</p>
               </div>
             ) : shown === 0 ? (
@@ -1010,7 +1030,9 @@ export default function LiveSportsPage() {
               </div>
               )
             ) : (
-              visible.map((group) => <LeagueSection key={group.code} group={group} ft={t('liveSports.ft')} onOpen={(row, code) => setOpen({ row, code })} />)
+              // The competitions nobody follows all arrive under one code, so the
+              // heading is what tells the sections apart - not the cache key.
+              visible.map((group) => <LeagueSection key={`${group.code}|${group.name}`} group={group} ft={t('liveSports.ft')} onOpen={(row, code) => setOpen({ row, code })} />)
             )}
           </div>
         )}

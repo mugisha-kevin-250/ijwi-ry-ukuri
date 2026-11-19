@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
-import { Calendar, ChevronRight, Clock, Eye, Heart, MessageSquare, Bookmark, Share2, Loader2, UserPlus, Flag, Trash2 } from 'lucide-react'
+import { Calendar, ChevronRight, Clock, Eye, Heart, MessageSquare, Bookmark, Share2, FileQuestion, UserPlus, Flag, Trash2 } from 'lucide-react'
 import type { Article, Comment } from '../../types'
 import { publicAPI, articleAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import ArticleList from '../../components/news/ArticleList'
-import { LoadingCard, LoadingGrid } from '../../components/common/Loading'
+import { SkeletonArticle, SkeletonCards } from '../../components/common/Skeleton'
 import EmptyState from '../../components/common/EmptyState'
 import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
@@ -29,6 +29,23 @@ import { looksLikeHtml, splitParagraphs } from '../../utils/storyBody'
 function storyCategory(article: Article | null) {
   if (!article) return null
   return typeof article.category === 'object' && article.category !== null ? article.category : null
+}
+
+/**
+ * A source's status is the desk's claim, not the author's, so it is the one thing
+ * about a source a reader is shown as a verdict. The reason behind the verdict -
+ * the staffer's note and name - never reaches this page.
+ */
+const SOURCE_STATUS_LABEL: Record<string, string> = {
+  verified: 'articles.sourceVerified',
+  pending: 'articles.sourcePending',
+  rejected: 'articles.sourceRejected',
+}
+
+const SOURCE_STATUS_CLASS: Record<string, string> = {
+  verified: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200',
+  pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200',
+  rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-200',
 }
 
 export default function ArticleDetailPage() {
@@ -57,7 +74,7 @@ export default function ArticleDetailPage() {
           {
             '@context': 'https://schema.org',
             // Paid copy is not journalism, so it is not described as a news
-            // report. The visible "Sponsored" line and this type say the same
+            // report. The visible"Sponsored" line and this type say the same
             // thing to the two audiences that read the page.
             '@type': article.isSponsored ? 'Article' : 'NewsArticle',
             mainEntityOfPage: {
@@ -227,9 +244,8 @@ export default function ArticleDetailPage() {
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto space-y-8">
-        <LoadingCard className="max-w-4xl" />
-        <LoadingCard className="max-w-4xl" />
-        <LoadingGrid count={3} />
+        <SkeletonArticle className="max-w-4xl" lines={6} />
+        <SkeletonCards count={3} />
       </div>
     )
   }
@@ -238,7 +254,7 @@ export default function ArticleDetailPage() {
     return (
       <div className="max-w-4xl mx-auto text-center py-16">
         <EmptyState
-          icon={<Loader2 className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />}
+          icon={<FileQuestion className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />}
           title={t('articles.notFound')}
           description={t('articles.notFoundDesc')}
           action={<Link to="/articles" className="text-brand-600 hover:underline">{t('articles.browse')}</Link>}
@@ -315,7 +331,7 @@ export default function ArticleDetailPage() {
           </p>
         )}
         <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white leading-tight">{article.title}</h1>
-        {/* There is no "written with AI" badge here any more. Whether a machine
+        {/* There is no"written with AI" badge here any more. Whether a machine
             took the first draft is a newsroom fact - it is stored on the story,
             it shows in the review queue, and an editor decides what the reader
             is told - but a label over the headline made every AI-assisted story
@@ -431,6 +447,66 @@ export default function ArticleDetailPage() {
                 {entry.at && <time dateTime={entry.at} className="font-semibold">{formatDate(entry.at)}</time>}
                 {entry.at && <span className="mx-1.5" aria-hidden="true">·</span>}
                 {entry.note}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {/* What the report is standing on. The author names their own sources;
+          whether one has been checked is the desk's call, so the status is the
+          desk's word on the page and the argument behind it stays internal. A
+          link here is a link a reader can follow and judge for themselves. */}
+      {!!article.sources?.length && (
+        <section
+          aria-label={t('articles.sources')}
+          className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900"
+        >
+          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-700 dark:text-gray-200">
+            {t('articles.sources')}
+          </h2>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('articles.sourcesIntro')}</p>
+          <ol className="mt-3 space-y-3">
+            {(article.sources ?? []).map((source, index) => (
+              <li key={source._id || `source-${index}`} className="text-sm leading-relaxed">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-gray-900 dark:text-white">
+                    {source.title || source.organization || source.url}
+                  </span>
+                  <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-bold', SOURCE_STATUS_CLASS[source.verificationStatus || 'pending'] || SOURCE_STATUS_CLASS.pending)}>
+                    {t(SOURCE_STATUS_LABEL[source.verificationStatus || 'pending'] || 'articles.sourcePending')}
+                  </span>
+                  {source.type && (
+                    <span className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      {t(`articles.sourceType.${source.type}`)}
+                    </span>
+                  )}
+                </div>
+                {source.organization && source.title && (
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{source.organization}</p>
+                )}
+                {!!source.quote && (
+                  <p className="mt-1 text-xs italic text-gray-600 dark:text-gray-300">“{source.quote}”</p>
+                )}
+                {(source.url || source.accessedAt) && (
+                  <p className="mt-1 flex flex-wrap items-center gap-3 text-xs">
+                    {source.url && (
+                      <a
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="font-semibold text-brand-700 hover:underline dark:text-brand-300"
+                      >
+                        {t('articles.sourceOpen')}
+                      </a>
+                    )}
+                    {source.accessedAt && (
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {t('articles.sourceAccessed')} {formatDate(source.accessedAt)}
+                      </span>
+                    )}
+                  </p>
+                )}
               </li>
             ))}
           </ol>
@@ -588,7 +664,7 @@ function CommentsSection({ articleId }: { articleId: string }) {
       } catch (error) {
         console.error('Failed to fetch comments:', error)
         // Saying the thread did not arrive is the honest answer. Leaving the
-        // "no comments yet" line up would claim nobody had spoken.
+        //"no comments yet" line up would claim nobody had spoken.
         setIsLoading(false)
         setComments([])
         setThreadError(t('articles.threadLoadFailed'))
@@ -691,7 +767,7 @@ function CommentsSection({ articleId }: { articleId: string }) {
       {isLoading ? (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <LoadingCard key={i} />
+            <SkeletonArticle key={i} lines={2} />
           ))}
         </div>
       ) : comments.length === 0 ? (

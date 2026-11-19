@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, Bot, Loader2, Send, Trash2, User } from 'lucide-react'
+import { ArrowUpRight, Bot, Send, Trash2, User } from 'lucide-react'
 import { adminAPI, type AiChatTurn } from '../../services/api'
 
 /**
@@ -160,7 +160,6 @@ export default function AiResearchChat({ onUseTopic }: { onUseTopic: (topic: str
           {asking && (
             <div className="flex gap-2.5">
               <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700">
-                <Loader2 className="h-4 w-4 animate-spin" />
               </span>
               <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-500">
                 Thinking it through…

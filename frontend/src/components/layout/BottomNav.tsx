@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, LayoutGrid, User, List } from 'lucide-react'
+import { Home, LayoutGrid, Search, User, List } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 
@@ -19,6 +19,14 @@ export default function BottomNav() {
         <Link to="/articles" className={`flex flex-col items-center gap-1 text-xs ${isActive('/articles') ? 'text-blue-700' : 'text-slate-600'}`}>
           <List className="h-5 w-5" />
           <span>{t('nav.articles')}</span>
+        </Link>
+        {/* Searching is the one thing a reader reaches for on a phone and could
+            not find here: the header box is scrolled away by then, and the top
+            bar is full of beats. This opens the desk that looks through both
+            the stories and the writers who filed them. */}
+        <Link to="/search" className={`flex flex-col items-center gap-1 text-xs ${isActive('/search') ? 'text-blue-700' : 'text-slate-600'}`}>
+          <Search className="h-5 w-5" />
+          <span>{t('nav.search')}</span>
         </Link>
         {/* Writing happens in the writer dashboard, so the phone bar carries the
             sections instead of a publish button. */}

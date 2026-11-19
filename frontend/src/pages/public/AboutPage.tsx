@@ -5,13 +5,13 @@ import { useSeo } from '../../utils/useSeo'
 export default function AboutPage() {
   useSeo({
     title: 'About the newsroom',
-    description: "Who writes for RADAR, how writers are approved and paid, and what we do with machine-written drafts.",
+    description:"Who writes for RADAR, how writers are approved and paid, and what we do with machine-written drafts.",
     path: '/about',
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'NewsMediaOrganization',
-      name: "RADAR",
-      alternateName: "Ijwi ry'ukuri",
+      name:"RADAR",
+      alternateName:"Ijwi ry'ukuri",
       url: 'https://ijwi-ry--ukuri.web.app',
       logo: 'https://ijwi-ry--ukuri.web.app/icons/icon-512x512.png',
       description: 'News from Rwanda in English, translated into any language a reader chooses, written by approved writers.',

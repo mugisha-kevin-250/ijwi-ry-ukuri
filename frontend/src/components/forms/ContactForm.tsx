@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Loader2, Send } from 'lucide-react'
+import { CheckCircle2, Send } from 'lucide-react'
 import { publicAPI } from '../../services/api'
 
 const TOPICS = [
@@ -203,7 +203,7 @@ export default function ContactForm() {
           disabled={sending}
           className="inline-flex items-center gap-2 rounded-full bg-brand-700 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-800 disabled:opacity-60"
         >
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
+          <Send className="h-4 w-4" aria-hidden="true" />
           {sending ? 'Sending' : 'Send to the newsroom'}
         </button>
         <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">

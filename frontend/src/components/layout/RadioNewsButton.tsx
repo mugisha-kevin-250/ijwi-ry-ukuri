@@ -6,7 +6,7 @@ import { speechSupported } from '../../utils/newsAnnouncer'
 import { cn } from '../../utils/cn'
 
 /**
- * The address of RADAR Audio. It is not a fake "we are broadcasting" light: the
+ * The address of RADAR Audio. It is not a fake"we are broadcasting" light: the
  * pulse only appears while a voice is genuinely speaking on this device, and a
  * browser with no speech engine still gets the link, because the page explains
  * what is missing instead of hiding the feature.

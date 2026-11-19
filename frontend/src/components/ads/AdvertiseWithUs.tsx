@@ -93,7 +93,7 @@ export default function AdvertiseWithUs({ shape = 'banner', className }: Adverti
             shape === 'strip' ? 'mt-0' : 'mt-1',
             shape === 'strip'
               ? // Two short lines beat one cut-off line: the offer is the whole
-                // point of this space, and an ellipsis after "FREE SPACE TO"
+                // point of this space, and an ellipsis after"FREE SPACE TO"
                 // reads as a broken advert rather than as a sentence.
                 'line-clamp-2 text-sm sm:text-lg'
               : shape === 'banner'

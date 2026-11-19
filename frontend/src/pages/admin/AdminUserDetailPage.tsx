@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, CalendarDays, ExternalLink, FileText, Heart, Loader2, Mail, Eye, BookOpen } from 'lucide-react'
+import { ArrowLeft, CalendarDays, ExternalLink, FileText, Heart, Mail, Eye, BookOpen } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { User } from '../../types'
 import Avatar from '../../components/common/Avatar'
@@ -152,7 +152,6 @@ export default function AdminUserDetailPage() {
             )}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition disabled:opacity-60 ${user.isActive ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
           >
-            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {user.isActive ? 'Deactivate' : 'Activate'}
           </button>
         </div>

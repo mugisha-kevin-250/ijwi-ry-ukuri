@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell, BellOff, Loader2, Mail, VolumeX } from 'lucide-react'
+import { Bell, BellOff, Mail, VolumeX } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
 import { useAuth } from '../../context/AuthContext'
 import { newsletterAPI, pushAPI } from '../../services/api'
@@ -145,9 +145,7 @@ export default function NewsAlertsCard() {
               disabled={busy || needsInstall}
               className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-800 disabled:opacity-60"
             >
-              {busy ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : subscribed ? (
+              {subscribed ? (
                 <BellOff className="h-4 w-4" aria-hidden="true" />
               ) : (
                 <Bell className="h-4 w-4" aria-hidden="true" />
@@ -193,11 +191,7 @@ export default function NewsAlertsCard() {
                 disabled={emailBusy}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
               >
-                {emailBusy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-                )}
+                <Mail className="h-3.5 w-3.5" aria-hidden="true" />
                 {t('alerts.emailButton')}
               </button>
               <p className="mt-1 text-xs text-slate-400" translate="no">{user.email}</p>

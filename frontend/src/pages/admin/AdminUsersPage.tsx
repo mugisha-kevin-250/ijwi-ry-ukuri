@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, ExternalLink, Loader2, RefreshCw, Search, Users as UsersIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw, Search, Users as UsersIcon } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { AdminUserRecord, PagedResult } from '../../services/api'
 
@@ -90,7 +90,7 @@ export default function AdminUsersPage() {
           <p className="mt-1 text-sm text-slate-500">Every account on RwandaNow, their role and story activity.</p>
         </div>
         <button type="button" onClick={() => void loadUsers()} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60">
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
+          <RefreshCw className="h-4 w-4" />Refresh
         </button>
       </div>
 
@@ -201,7 +201,7 @@ export default function AdminUsersPage() {
                           )}
                           className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition disabled:opacity-60 ${u.isActive ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
                         >
-                          {busyId === u._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (u.isActive ? 'Deactivate' : 'Activate')}
+                          {u.isActive ? 'Deactivate' : 'Activate'}
                         </button>
                       </div>
                     </td>

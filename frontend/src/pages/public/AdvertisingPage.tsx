@@ -7,7 +7,7 @@ import { contactEmail } from '../../utils/siteConfig'
 export default function AdvertisingPage() {
   useSeo({
     title: 'Advertising on RADAR',
-    description: "Buy a space on RADAR: which five places an advertisement can run, what we accept, and how a campaign gets published.",
+    description:"Buy a space on RADAR: which five places an advertisement can run, what we accept, and how a campaign gets published.",
     path: '/advertising',
   })
 

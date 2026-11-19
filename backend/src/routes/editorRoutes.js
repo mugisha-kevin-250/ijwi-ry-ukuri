@@ -84,9 +84,15 @@ router.get('/articles/pending', async (req, res, next) => {
 
 // Full text for the story under review. The body is deliberately only here and
 // never in the list, so a queue page cannot leak unpublished copy in bulk.
+//
+// The desk also gets what the reader never sees: the earlier versions of this
+// copy, who recorded each source ruling and the note they left. Those paths are
+// `select: false` on the model, so asking for them by name is the only way to
+// read them.
 router.get('/articles/:id', async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id)
+      .select('+revisions +sources.reviewedBy +sources.reviewNote')
       .populate('author', 'fullName username email profileImage')
       .populate('category')
       .populate('approvedBy', 'fullName username role');
@@ -207,6 +213,54 @@ router.put('/articles/:id/disclosure', async (req, res, next) => {
   }
 });
 
+/**
+ * The desk's ruling on one source.
+ *
+ * "Verified" is a claim the page makes to a reader, so it can only come from
+ * somebody who did not write the story. The note is the reason, and it stays
+ * internal: what a reader sees is the status, not the argument behind it.
+ *
+ * Written with an atomic update rather than by loading the story, because the
+ * two fields this sets are `select: false` - a loaded document would not have
+ * them, and saving it back could clear a colleague's ruling.
+ */
+const SOURCE_VERDICTS = ['pending', 'verified', 'rejected'];
+
+router.put('/articles/:id/sources/:sourceId', async (req, res, next) => {
+  try {
+    const status = String(req.body?.verificationStatus || '').toLowerCase();
+    if (!SOURCE_VERDICTS.includes(status)) {
+      return errorResponse(res, 400, 'Choose pending, verified or rejected');
+    }
+    if (!mongoose.isValidObjectId(String(req.params.sourceId))) {
+      return errorResponse(res, 400, 'That is not a source on this story');
+    }
+
+    const changes = {
+      'sources.$.verificationStatus': status,
+      'sources.$.reviewedBy': req.user._id,
+    };
+    if (req.body?.reviewNote !== undefined) {
+      changes['sources.$.reviewNote'] = cleanText(req.body.reviewNote, { maxLength: 400 });
+    }
+
+    const updated = await Article.updateOne(
+      { _id: req.params.id, 'sources._id': req.params.sourceId },
+      { $set: changes },
+    );
+    if (!updated.matchedCount) return errorResponse(res, 404, 'That source is not on this story');
+
+    const article = await Article.findById(req.params.id)
+      .select('+sources.reviewedBy +sources.reviewNote');
+    return successResponse(res, 200, `Source ${status}`, {
+      sources: article.sources,
+      reviewedBy: { _id: req.user._id, fullName: req.user.fullName, role: req.user.role },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // A publish date in the future is the only reason a story sits in "approved"
 // until nobody touches it again, so the field has to be settable here or the
 // scheduler has nothing to read. Only an approved or draft story can be timed;
@@ -247,18 +301,33 @@ router.put('/articles/:id/schedule', async (req, res, next) => {
 });
 
 // Where a story has been, in the editor's own words. Answers "who approved this
-// and when" long after the fact.
+// and when" long after the fact, and "what did the page say before it changed".
 router.get('/articles/:id/history', async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id)
-      .select('title status reviewEvents')
+      .select('title status reviewEvents revisions')
       .populate({ path: 'reviewEvents', populate: { path: 'by', select: 'fullName username role' } });
     if (!article) return errorResponse(res, 404, 'Article not found');
+    const events = article.reviewEvents || [];
+    // The desk can populate a name into the review trail; revisions only ever
+    // carry an id, and the queue shows who is looking at the story now, not a
+    // roll of every past editor. Resolve them the same way so one screen does not
+    // print a raw ObjectId.
+    const ids = [...new Set((article.revisions || []).map((r) => r.by).filter(Boolean))];
+    const people = await User.find({ _id: { $in: ids } }).select('fullName username role').lean();
+    const byId = new Map(people.map((p) => [String(p._id), p]));
     return successResponse(res, 200, 'Article history fetched', {
       articleId: article._id,
       title: article.title,
       status: article.status,
-      events: article.reviewEvents || [],
+      events,
+      // `toObject()` and not a spread: a revision is a Mongoose subdocument, and
+      // spreading one copies its internals instead of its words - the desk would
+      // get back an object whose headline slot is undefined.
+      revisions: (article.revisions || []).map((revision) => ({
+        ...revision.toObject(),
+        by: byId.get(String(revision.by)) || null,
+      })).reverse(),
     });
   } catch (error) {
     next(error);

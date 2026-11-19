@@ -8,7 +8,7 @@ import { contactEmail } from '../../utils/siteConfig'
 export default function ContactPage() {
   useSeo({
     title: 'Contact the newsroom',
-    description: "How to reach RADAR with a correction, a story tip or an advertising question.",
+    description:"How to reach RADAR with a correction, a story tip or an advertising question.",
     path: '/contact',
     jsonLd: contactEmail
       ? {
@@ -18,7 +18,7 @@ export default function ContactPage() {
           url: 'https://ijwi-ry--ukuri.web.app/contact',
           mainEntity: {
             '@type': 'Organization',
-            name: "RADAR",
+            name:"RADAR",
             contactPoint: {
               '@type': 'ContactPoint',
               contactType: 'customer support',

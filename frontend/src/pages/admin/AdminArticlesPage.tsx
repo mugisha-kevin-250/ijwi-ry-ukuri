@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, ExternalLink, Loader2, RefreshCw, Search, Trash2, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw, Search, Trash2, FileText } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { PagedResult } from '../../services/api'
 import type { Article } from '../../types'
@@ -130,7 +130,7 @@ export default function AdminArticlesPage() {
           <p className="mt-1 text-sm text-slate-500">Every story on the platform, ranked by reach. Moderate status or remove content.</p>
         </div>
         <button type="button" onClick={() => void loadArticles()} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60">
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
+          <RefreshCw className="h-4 w-4" />Refresh
         </button>
       </div>
 
@@ -224,7 +224,7 @@ export default function AdminArticlesPage() {
                           onClick={() => void removeArticle(article._id)}
                           className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
                         >
-                          {busyId === article._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}Delete
+                          <Trash2 className="h-3.5 w-3.5" />Delete
                         </button>
                       </div>
                     </td>

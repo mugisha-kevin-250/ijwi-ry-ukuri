@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Archive, CheckCircle2, Inbox, Loader2, Mail, Phone, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
+import { Archive, CheckCircle2, Inbox, Mail, Phone, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { ContactMessageRecord } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
@@ -102,7 +102,7 @@ export default function AdminMessagesPage() {
           </p>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60">
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
+          <RefreshCw className="h-4 w-4" />Refresh
         </button>
       </div>
 
@@ -144,7 +144,7 @@ export default function AdminMessagesPage() {
             <p className="mt-2 text-sm text-slate-500">
               {filter === 'ALL'
                 ? 'Nothing has come in through the contact form yet.'
-                : `No messages are "${filter}".`}
+                : `No messages are"${filter}".`}
             </p>
           </div>
         ) : (
@@ -185,7 +185,7 @@ export default function AdminMessagesPage() {
                       onClick={() => void setStatus(message._id, 'answered')}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
                     >
-                      {busyId === message._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}Mark answered
+                      <CheckCircle2 className="h-3.5 w-3.5" />Mark answered
                     </button>
                   )}
                   {message.status !== 'closed' && (

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, ImageOff, Loader2, Search, Sparkles } from 'lucide-react'
+import { Check, ImageOff, Search, Sparkles } from 'lucide-react'
 import { adminAPI, type VerifiedPhoto } from '../../services/api'
 
 /** The three fields a story needs to carry a picture honestly. */
@@ -80,7 +80,7 @@ export default function AiPhotoPicker({
           disabled={searching}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:opacity-60"
         >
-          {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          <Sparkles className="h-3.5 w-3.5" />
           {searching ? 'Fetching and measuring…' : photos.length ? 'Search again' : 'Find pictures'}
         </button>
       </div>

@@ -76,4 +76,14 @@ function safeMediaUrl(value) {
   return '';
 }
 
-module.exports = { cleanText, plainText, cleanTags, safeMediaUrl };
+/** A link a reader can follow to check what the newsroom claims. Narrower than
+ *  the media field on purpose: a cited source is a web address or a document
+ *  this API is itself serving, never an inline data blob somebody typed. */
+function safeLinkUrl(value) {
+  const url = String(value === undefined || value === null ? '' : value).trim();
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url) || /^\/uploads\//i.test(url)) return url.slice(0, 600);
+  return '';
+}
+
+module.exports = { cleanText, plainText, cleanTags, safeMediaUrl, safeLinkUrl };

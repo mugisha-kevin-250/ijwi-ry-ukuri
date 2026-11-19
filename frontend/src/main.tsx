@@ -10,6 +10,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { router } from './router'
 import InstallPromptBanner from './components/pwa/InstallPromptBanner'
 import AppSplash from './components/common/AppSplash'
+import ErrorBoundary from './components/common/ErrorBoundary'
 import { registerServiceWorker } from './pwa/serviceWorker'
 
 import './index.css'
@@ -28,9 +29,17 @@ ReactDOM.createRoot(document.getElementById('app')!).render(
     <ThemeProvider>
       <I18nProvider>
         <AuthProvider>
-          <RouterProvider router={router} />
-          <AppSplash />
-          <InstallPromptBanner />
+          {/* Last line of defence. Everything below this point - the router,
+              the layout, the page - is allowed to fall over without taking
+              the reader's screen with it, and what they get instead is a
+              sentence about what happened. It sits inside the language
+              provider on purpose: the apology has to be in the reader's own
+              language, and that is the one thing it must never lose. */}
+          <ErrorBoundary mode="reload">
+            <RouterProvider router={router} />
+            <AppSplash />
+            <InstallPromptBanner />
+          </ErrorBoundary>
           <ToastContainer
             position="bottom-right"
             autoClose={5000}

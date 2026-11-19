@@ -2,6 +2,7 @@ import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig, ty
 import type { ApiResponse } from '../types'
 import { normalizeImage } from '../utils/imageNormalizer'
 import { beginRequest, endRequest } from '../utils/apiActivity'
+import { reportRequestAnswered, reportRequestFailureWithoutResponse } from '../utils/connection'
 import { DEFAULT_LANGUAGE, readerLanguage } from '../utils/readerLanguage'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -71,6 +72,25 @@ export async function uploadImage(file: File): Promise<string> {
   const prepared = await normalizeImage(file).catch(() => file)
   formData.append('image', prepared)
   const response = await fetch(`${API_BASE_URL}/upload/image`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  })
+  const json = await response.json().catch(() => null)
+  if (!response.ok || !json?.data?.url) {
+    throw new Error(json?.message || 'Upload failed')
+  }
+  return json.data.url as string
+}
+
+// A clip a writer recorded on a phone, sent to the same store as a photograph.
+// The backend caps this at 12MB because the bytes go into one document, so a
+// longer video belongs on YouTube and is pasted as a link instead.
+export async function uploadVideo(file: File): Promise<string> {
+  const token = localStorage.getItem('token')
+  const formData = new FormData()
+  formData.append('video', file)
+  const response = await fetch(`${API_BASE_URL}/upload/video`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
@@ -153,11 +173,30 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response: AxiosResponse) => {
         endRequest(tracked(response.config).__routeProgressId)
+        // An answer of any kind means the wire is working, whatever the status
+        // code says about the request itself.
+        reportRequestAnswered()
         if (response.data) absolutizeUploads(response.data)
         return response
       },
       (error: AxiosError) => {
         endRequest(tracked(error.config).__routeProgressId)
+        // No response at all is the connection, not the newsroom: the request
+        // never got an answer. This is what turns the "Network Error" a reader
+        // used to get into the offline strip across the top of the page.
+        if (!error.response) {
+          reportRequestFailureWithoutResponse()
+          // The two sentences axios writes for itself - "Network Error" and
+          // "timeout of 30000ms exceeded" - are what used to appear in a red
+          // box on the page. Sixty-odd places print `error.message` when they
+          // have nothing better, so the wire failure is given a plain answer
+          // here rather than in every page, and the strip above the news is
+          // what actually tells the reader what happened.
+          error.message = /timeout/i.test(error.message || '')
+            ? 'That took too long and we gave up. Check your connection and try again.'
+            : 'You appear to be offline. Check your connection and try again.'
+        }
+        else reportRequestAnswered()
         if (error.response?.status === 401) {
           // Token expired or invalid - logout
           localStorage.removeItem('token')

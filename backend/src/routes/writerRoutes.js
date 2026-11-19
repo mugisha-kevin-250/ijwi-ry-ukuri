@@ -25,7 +25,9 @@ const {
   buildArticleAnalytics,
   topPublishedArticle,
 } = require('../utils/writerAnalytics');
-const { plainText, cleanText, cleanTags, safeMediaUrl } = require('../utils/textFields');
+const { plainText, cleanText, cleanTags, safeMediaUrl, safeLinkUrl } = require('../utils/textFields');
+const storyVideo = require('../services/storyVideo');
+const revisions = require('../utils/articleRevisions');
 
 const router = express.Router();
 
@@ -87,10 +89,13 @@ router.get('/me/status', protect, async (req, res, next) => {
 
 router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
   try {
-    const { title, summary, content, category, tags = [], featuredImage, imageCredit, imageCaption, imageSourceUrl } = req.body;
+    const { title, summary, content, category, tags = [], featuredImage, imageCredit, imageCaption, imageSourceUrl, videoUrl } = req.body;
     if (!title || !summary || !content || !category) {
       return errorResponse(res, 400, 'Title, summary, content and category are required');
     }
+
+    const video = storyVideo.resolve(videoUrl);
+    if (!video.ok) return errorResponse(res, 400, video.reason);
 
     // Cleaning happens after the presence check so an all-markup title is
     // refused as missing rather than stored as an empty headline.
@@ -105,6 +110,7 @@ router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async 
       imageCredit: imageCredit ? plainText(imageCredit, { maxLength: 160 }) : '',
       imageCaption: imageCaption ? plainText(imageCaption, { maxLength: 240 }) : '',
       imageSourceUrl: safeMediaUrl(imageSourceUrl),
+      ...video.fields,
       tags: cleanTags(tags)
     };
     if (!story.title || !story.summary || !story.content) {
@@ -153,6 +159,12 @@ router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async 
  */
 function cleanDraft(req) {
   const body = req.body || {};
+  const video = storyVideo.resolve(body.videoUrl);
+  if (!video.ok) {
+    const error = new Error(video.reason);
+    error.statusCode = 400;
+    throw error;
+  }
   return {
     title: plainText(body.title, { maxLength: 200 }),
     summary: cleanText(body.summary, { maxLength: 600 }),
@@ -163,6 +175,7 @@ function cleanDraft(req) {
     imageCredit: body.imageCredit ? plainText(body.imageCredit, { maxLength: 160 }) : '',
     imageCaption: body.imageCaption ? plainText(body.imageCaption, { maxLength: 240 }) : '',
     imageSourceUrl: safeMediaUrl(body.imageSourceUrl),
+    ...video.fields,
     category: body.category
   };
 }
@@ -320,12 +333,29 @@ router.put('/articles/:id', protect, async (req, res, next) => {
       changes[field] = cleaned;
     }
 
+    // A video is one field in the form and three on the story - what was typed,
+    // which player it needs, and the address the page may load - so it is read
+    // here rather than through the per-field cleaners above.
+    if (req.body.videoUrl !== undefined) {
+      const video = storyVideo.resolve(req.body.videoUrl);
+      if (!video.ok) return errorResponse(res, 400, video.reason);
+      Object.assign(changes, video.fields);
+    }
+
+    // Remember what readers had already been shown before this text replaces it.
+    // Computed here, while the old copy is still on the document.
+    const replaced = revisions.beforeEdit(article, changes);
+
     Object.assign(article, changes);
     if (changes.title) {
       article.slug = `${generateSlug(changes.title)}-${Date.now()}`;
     }
     article.updatedAt = new Date();
     await article.save();
+    if (replaced) {
+      await revisions.append(Article, article._id, replaced, req.user._id,
+        cleanText(req.body?.editNote, { maxLength: 300 }));
+    }
 
     // An editor asked for something specific. The next save means the author has
     // answered it, so the story goes back to the queue by itself rather than
@@ -336,6 +366,76 @@ router.put('/articles/:id', protect, async (req, res, next) => {
       return successResponse(res, 200, 'Article updated and sent back for review', { article: result.article });
     }
     return successResponse(res, 200, 'Article updated', { article });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * What the story is standing on.
+ *
+ * An author can name their sources; only the desk can say one has been checked.
+ * So this request can create a source and nothing else: the status is forced to
+ * `pending`, and `reviewedBy`/`reviewNote` are not even readable by the author
+ * (they are `select: false` on the schema). A source is capped at twenty per
+ * story because a list that long has stopped being evidence and started being
+ * decoration.
+ */
+const SOURCE_TYPES = ['link', 'document', 'interview', 'official-data', 'observation'];
+
+router.post('/articles/:id/sources', protect, async (req, res, next) => {
+  try {
+    const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
+    if (!article) return errorResponse(res, 404, 'Article not found');
+
+    const body = req.body || {};
+    const title = plainText(body.title, { maxLength: 200 });
+    const url = safeLinkUrl(body.url);
+    // A source has to be checkable by somebody: either it has an address, or it
+    // is a person or a document the writer can name.
+    if (!title && !url) return errorResponse(res, 400, 'Say what the source is, or where it is');
+    if ((article.sources || []).length >= 20) {
+      return errorResponse(res, 409, 'This story already lists twenty sources');
+    }
+
+    const source = {
+      title,
+      organization: plainText(body.organization, { maxLength: 160 }),
+      url,
+      type: SOURCE_TYPES.includes(body.type) ? body.type : 'link',
+      quote: cleanText(body.quote, { maxLength: 600 }),
+      accessedAt: body.accessedAt && !Number.isNaN(new Date(body.accessedAt).getTime())
+        ? new Date(body.accessedAt)
+        : undefined,
+      verificationStatus: 'pending',
+      addedBy: req.user._id,
+      at: new Date(),
+    };
+    article.sources.push(source);
+    await article.save();
+
+    const added = article.sources[article.sources.length - 1];
+    return successResponse(res, 201, 'Source added', { sources: article.sources, sourceId: added._id });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Withdrawing a source the desk has already ruled on would delete the ruling with
+// it, so a verified or rejected line stays until staff remove it.
+router.delete('/articles/:id/sources/:sourceId', protect, async (req, res, next) => {
+  try {
+    const article = await Article.findOne({ _id: req.params.id, author: req.user._id });
+    if (!article) return errorResponse(res, 404, 'Article not found');
+
+    const source = article.sources.id(req.params.sourceId);
+    if (!source) return errorResponse(res, 404, 'That source is not on this story');
+    if (source.verificationStatus !== 'pending' && !['EDITOR', 'ADMIN'].includes(req.user.role)) {
+      return errorResponse(res, 409, 'The desk has already judged this source. Ask an editor to remove it.');
+    }
+    source.deleteOne();
+    await article.save();
+    return successResponse(res, 200, 'Source removed', { sources: article.sources });
   } catch (error) {
     next(error);
   }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart3, Check, Eye, FileText, Heart, Loader2, Plus, RefreshCw, Users } from 'lucide-react'
+import { BarChart3, Check, Eye, FileText, Heart, Plus, RefreshCw, Users } from 'lucide-react'
 import { writerAPI, type WriterStoryMetric } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
@@ -44,7 +44,7 @@ export default function WriterDashboardPage() {
       setRecent(metricsRes.stories)
     } catch (err: any) {
       // The old page swallowed this and printed a board full of zeroes, which
-      // read as "nobody has looked at your work" when it meant "we lost the
+      // read as"nobody has looked at your work" when it meant"we lost the
       // connection". Say which one happened.
       setError(err?.response?.data?.message || 'We could not reach your numbers. Check your connection and try again.')
       setSummary(null)
@@ -76,7 +76,7 @@ export default function WriterDashboardPage() {
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            <RefreshCw className="h-4 w-4" />
             {t('editor.queue.refresh')}
           </button>
           <Link to="/writer/articles/new" className="btn-primary inline-flex items-center gap-2">
@@ -202,7 +202,7 @@ export default function WriterDashboardPage() {
                 </Link>
               </>
             ) : (
-              // "Best" only means something once a story has been read, so an
+              //"Best" only means something once a story has been read, so an
               // unread shelf is reported as such instead of crowning a story.
               <p className="mt-2 text-sm text-[var(--color-text-muted)]">{t('writer.dash.bestNone')}</p>
             )}
@@ -223,7 +223,7 @@ const STATE_KEY: Record<string, string> = {
 }
 
 // Until the request lands there is no number to show, and a dash reads as
-// "unknown" where a zero reads as "measured and empty".
+//"unknown" where a zero reads as"measured and empty".
 function reading(summary: WriterSummary | null, loading: boolean, pick: (row: WriterSummary) => string): string {
   if (loading) return '…'
   if (!summary) return '—'

@@ -6,6 +6,7 @@ import { useI18n } from '../../context/I18nContext'
 import { useSeo } from '../../utils/useSeo'
 import { trackEvent } from '../../utils/analytics'
 import Avatar from '../../components/common/Avatar'
+import { SkeletonCards, SkeletonLine } from '../../components/common/Skeleton'
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams()
@@ -65,7 +66,9 @@ return (
         <button className="rounded-full bg-blue-700 px-4 py-1 text-xs font-bold text-white">{t('nav.search')}</button>
       </form>
 
-      {loading && <p className="text-sm text-slate-500">...</p>}
+      {loading && <div className="space-y-3"><SkeletonLine className="h-4 w-40" /><SkeletonCards count={3} /></div>}
+
+      {!query && <p className="text-sm text-slate-500">{t('search.emptyHint')}</p>}
 
       {!loading && query && (
         <div className="space-y-6">
@@ -100,7 +103,7 @@ return (
                   <p className="mt-1 line-clamp-2 text-sm text-slate-600">{article.summary}</p>
                 </Link>
               ))}
-              {(results.articles || []).length === 0 && (results.authors || []).length === 0 && <p className="text-sm text-slate-500">No results</p>}
+              {(results.articles || []).length === 0 && (results.authors || []).length === 0 && <p className="text-sm text-slate-500">{t('search.noResults')}</p>}
             </div>
           </section>
         </div>

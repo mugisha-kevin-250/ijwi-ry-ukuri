@@ -5,7 +5,12 @@ import { sectionHrefFor } from '../data/sections'
 import { trackPageView } from '../utils/analytics'
 import RouteProgressBar from '../components/common/RouteProgressBar'
 import RouteFallback from '../components/common/RouteFallback'
+import ErrorBoundary from '../components/common/ErrorBoundary'
+import OfflineNotice from '../components/common/OfflineNotice'
+import RouteErrorScreen from '../components/common/RouteErrorScreen'
 import WriterAccessGate from '../components/auth/WriterAccessGate'
+import { holdNavigation } from '../utils/apiActivity'
+import { SkeletonBlock } from '../components/common/Skeleton'
 import AdminLayout from '../layouts/AdminLayout'
 import PublicLayout from '../layouts/PublicLayout'
 import WriterLayout from '../layouts/WriterLayout'
@@ -36,6 +41,7 @@ const EditorialPolicyPage = lazy(() => import('../pages/public/EditorialPolicyPa
 const LivePage = lazy(() => import('../pages/public/LivePage'))
 const LiveSportsPage = lazy(() => import('../pages/public/LiveSportsPage'))
 const MyLibraryPage = lazy(() => import('../pages/public/MyLibraryPage'))
+const PasswordRecoveryPage = lazy(() => import('../pages/public/PasswordRecoveryPage'))
 const PrivacyPage = lazy(() => import('../pages/public/PrivacyPage'))
 const RadioPage = lazy(() => import('../pages/public/RadioPage'))
 const SearchPage = lazy(() => import('../pages/public/SearchPage'))
@@ -76,11 +82,161 @@ function DelayedPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<RouteFallback />}>{children}</Suspense>
 }
 
+/**
+ * Which piece of JavaScript answers which address.
+ *
+ * The pages above are downloaded only when they are asked for, and a click used
+ * to be the first moment anyone requested the file - so the reader watched a
+ * placeholder while the phone fetched the page it had already decided to open.
+ * A hovered, touched or keyboard-focused link asks for the same file a moment
+ * earlier, and the answer is already in the browser when the tap lands: the
+ * reader stays on the page they were on, and the next one replaces it whole.
+ *
+ * The addresses are matched static-first, then in the order they are written, so
+ *"/articles" is never answered by the catch-all"/:section" page.
+ */
+const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
+  { path: '/login', load: () => import('../pages/public/AuthPage') },
+  { path: '/register', load: () => import('../pages/public/AuthPage') },
+  { path: '/forgot-password', load: () => import('../pages/public/PasswordRecoveryPage') },
+  { path: '/articles', load: () => import('../pages/public/ArticleListPage') },
+  { path: '/article/:slug', load: () => import('../pages/public/ArticleDetailPage') },
+  { path: '/categories', load: () => import('../pages/public/CategoriesPage') },
+  { path: '/category/:slug', load: () => import('../pages/public/CategoryPage') },
+  { path: '/authors', load: () => import('../pages/public/AuthorsPage') },
+  { path: '/live', load: () => import('../pages/public/LivePage') },
+  { path: '/live/:id', load: () => import('../pages/public/LivePage') },
+  { path: '/live-sports', load: () => import('../pages/public/LiveSportsPage') },
+  { path: '/weather', load: () => import('../pages/public/WeatherPage') },
+  { path: '/radio', load: () => import('../pages/public/RadioPage') },
+  { path: '/search', load: () => import('../pages/public/SearchPage') },
+  { path: '/library', load: () => import('../pages/public/MyLibraryPage') },
+  { path: '/about', load: () => import('../pages/public/AboutPage') },
+  { path: '/contact', load: () => import('../pages/public/ContactPage') },
+  { path: '/editorial-policy', load: () => import('../pages/public/EditorialPolicyPage') },
+  { path: '/corrections', load: () => import('../pages/public/CorrectionsPage') },
+  { path: '/advertising', load: () => import('../pages/public/AdvertisingPage') },
+  { path: '/privacy', load: () => import('../pages/public/PrivacyPage') },
+  { path: '/cookies', load: () => import('../pages/public/CookiePolicyPage') },
+  { path: '/disclaimer', load: () => import('../pages/public/DisclaimerPage') },
+  { path: '/terms', load: () => import('../pages/public/TermsPage') },
+  { path: '/user/:id', load: () => import('../pages/public/UserProfilePage') },
+  { path: '/:section', load: () => import('../pages/public/SectionPage') },
+  { path: '/:section/:sub', load: () => import('../pages/public/SectionPage') },
+  { path: '/writer/dashboard', load: () => import('../pages/writer/WriterDashboardPage') },
+  { path: '/writer/articles', load: () => import('../pages/writer/WriterArticlesPage') },
+  { path: '/writer/articles/new', load: () => import('../pages/writer/WriterArticleEditorPage') },
+  { path: '/writer/articles/:id/edit', load: () => import('../pages/writer/WriterArticleEditorPage') },
+  { path: '/writer/earnings', load: () => import('../pages/writer/WriterEarningsPage') },
+  { path: '/writer/profile', load: () => import('../pages/public/UserProfilePage') },
+  { path: '/editor/dashboard', load: () => import('../pages/editor/EditorDashboardPage') },
+  { path: '/editor/pending', load: () => import('../pages/editor/EditorQueuePage') },
+  { path: '/editor/comments', load: () => import('../pages/editor/EditorCommentsPage') },
+  { path: '/editor/articles/:id', load: () => import('../pages/editor/EditorReviewPage') },
+  { path: '/editor/articles', load: () => import('../pages/writer/WriterArticlesPage') },
+  { path: '/editor/articles/new', load: () => import('../pages/writer/WriterArticleEditorPage') },
+  { path: '/editor/articles/:id/edit', load: () => import('../pages/writer/WriterArticleEditorPage') },
+  { path: '/editor/earnings', load: () => import('../pages/writer/WriterEarningsPage') },
+  { path: '/editor/profile', load: () => import('../pages/public/UserProfilePage') },
+  { path: '/mugishaimekevin', load: () => import('../pages/dashboard/DashboardPage') },
+  { path: '/mugishaimekevin/login', load: () => import('../pages/admin/AdminLoginPage') },
+  { path: '/mugishaimekevin/dashboard', load: () => import('../pages/dashboard/DashboardPage') },
+  { path: '/mugishaimekevin/users', load: () => import('../pages/admin/AdminUsersPage') },
+  { path: '/mugishaimekevin/writers', load: () => import('../pages/admin/AdminWritersPage') },
+  { path: '/mugishaimekevin/users/:id', load: () => import('../pages/admin/AdminUserDetailPage') },
+  { path: '/mugishaimekevin/articles', load: () => import('../pages/admin/AdminArticlesPage') },
+  { path: '/mugishaimekevin/ai-writer', load: () => import('../pages/admin/AdminAiWriterPage') },
+  { path: '/mugishaimekevin/payouts', load: () => import('../pages/admin/AdminPayoutsPage') },
+  { path: '/mugishaimekevin/messages', load: () => import('../pages/admin/AdminMessagesPage') },
+  { path: '/mugishaimekevin/categories', load: () => import('../pages/admin/AdminCategoriesPage') },
+  { path: '/mugishaimekevin/advertising', load: () => import('../pages/admin/AdminAdsPage') },
+  { path: '/mugishaimekevin/settings', load: () => import('../pages/admin/AdminSettingsPage') },
+]
+
+function pathIsFor(pattern: string, pathname: string): boolean {
+  if (!pattern.includes(':')) return pattern === pathname
+  const wanted = pattern.split('/').filter(Boolean)
+  const asked = pathname.split('/').filter(Boolean)
+  if (wanted.length !== asked.length) return false
+  return wanted.every((part, index) => part.startsWith(':') || part === asked[index])
+}
+
+/** Ask for the page behind an address, if it is one that arrives in its own piece. */
+function preloadPage(pathname: string): void {
+  const entry =
+    PAGE_LOADERS.find((page) => !page.path.includes(':') && page.path === pathname) ||
+    PAGE_LOADERS.find((page) => page.path.includes(':') && pathIsFor(page.path, pathname))
+  // A page that is already loaded settles at once, and a file that will not
+  // arrive - an address that is not here, a dead network - is not worth telling
+  // the reader about. Either way the navigation itself is untouched.
+  if (entry) void entry.load().catch(() => {})
+}
+
+/**
+ * Hovers, touches and keyboard focus all start the same fetch: the point is to
+ * ask a moment before the reader commits, not to guess which of the three they
+ * will use. Nothing here decides where the reader goes; a link they never tap
+ * costs one file that sits unused in the cache.
+ */
+function RoutePrefetcher() {
+  const location = useLocation()
+  const here = `${location.pathname}${location.search}`
+  useEffect(() => {
+    const pathnameFor = (event: Event): string => {
+      const anchor = (event.target as Element | null)?.closest?.('a')
+      if (!anchor) return ''
+      if (anchor.target && anchor.target !== '_self') return ''
+      const href = anchor.getAttribute('href') || ''
+      // Only this site's own pages, and only the address: a query string is the
+      // same page with different words in the box.
+      if (!href.startsWith('/') || href.startsWith('//')) return ''
+      return href.split('?')[0].split('#')[0]
+    }
+    const onPointer = (event: Event) => {
+      const anchor = (event.target as Element | null)?.closest?.('a')
+      const pathname = pathnameFor(event)
+      if (pathname) preloadPage(pathname)
+      // The press, not the arrival, is when the reader starts waiting. A phone
+      // has no hover to fetch the page with, so this is the first moment the
+      // next screen's JavaScript is asked for - and the bar opens with it,
+      // climbing over the page they are still looking at until the new one is
+      // ready underneath it.
+      const full = anchor?.getAttribute('href') || ''
+      if (event.type === 'pointerdown' && pathname && full !== here) holdNavigation()
+    }
+    document.addEventListener('pointerover', onPointer, { passive: true })
+    document.addEventListener('pointerdown', onPointer, { passive: true })
+    document.addEventListener('focusin', onPointer, { passive: true })
+    return () => {
+      document.removeEventListener('pointerover', onPointer)
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('focusin', onPointer)
+    }
+  }, [here])
+
+  return null
+}
+
+// A staff page asked for before the site knows who is reading it has to wait one
+// request to find out. It waits quietly: the shapes below are where the desk
+// appears, and the bar across the top is already answering the click that got
+// the reader here. A page that said"Restoring your session…" in the middle of
+// the screen was a second loader telling the reader nothing they could act on.
+function SessionRestoring() {
+  return (
+    <div className="min-h-64 space-y-4 py-10" aria-hidden="true">
+      <SkeletonBlock lines={2} className="max-w-md" />
+      <SkeletonBlock lines={3} className="max-w-2xl" />
+      <SkeletonBlock lines={3} className="max-w-2xl" />
+    </div>
+  )
+}
+
 function RequireRole({ children }: { role?: 'WRITER'; children: ReactNode }) {
   const { user, loading } = useAuth()
   const location = useLocation()
 
-  if (loading) return <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">Restoring your session…</div>
+  if (loading) return <SessionRestoring />
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   // An ADMIN or EDITOR already writes; a READER has to be approved first.
   if (user.role === 'WRITER' || user.role === 'EDITOR' || user.role === 'ADMIN') return children
@@ -89,7 +245,7 @@ function RequireRole({ children }: { role?: 'WRITER'; children: ReactNode }) {
 
 function RequireAdmin({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) return <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">Restoring your session…</div>
+  if (loading) return <SessionRestoring />
   if (!user) return <Navigate to="/mugishaimekevin/login" replace />
   if (user.role !== 'ADMIN') return <Navigate to={user.role === 'WRITER' ? '/writer/dashboard' : '/'} replace />
   return children
@@ -100,7 +256,7 @@ function RequireAdmin({ children }: { children: ReactNode }) {
 // blank page, and the API refuses the same request independently of this gate.
 function RequireStaff({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) return <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">Restoring your session…</div>
+  if (loading) return <SessionRestoring />
   if (!user) return <Navigate to="/login" replace />
   if (user.role !== 'EDITOR' && user.role !== 'ADMIN') {
     return <Navigate to={user.role === 'WRITER' ? '/writer/dashboard' : '/'} replace />
@@ -135,7 +291,14 @@ function RootLayout() {
   return (
     <>
       <RouteProgressBar />
-      <Outlet />
+      <RoutePrefetcher />
+      <OfflineNotice />
+      {/* A page that falls over must not take the rest of the site with it:
+          the boundary below turns the crash into a readable card, and the
+          reader keeps the bar they came in on. */}
+      <ErrorBoundary>
+        <Outlet />
+      </ErrorBoundary>
       <ScrollRestoration />
     </>
   )
@@ -144,6 +307,10 @@ function RootLayout() {
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
+    // Every page here is downloaded when it is asked for, so the router is the
+    // first place a dead network shows up. Its built-in screen is the wall of
+    // red text readers reported as"the react error"; this replaces it.
+    errorElement: <RouteErrorScreen />,
     children: [
       {
         path: '/',
@@ -152,6 +319,10 @@ export const router = createBrowserRouter([
           { index: true, element: <HomePage /> },
           { path: 'login', element: <AuthPage mode="login" /> },
           { path: 'register', element: <AuthPage mode="register" /> },
+          // Password recovery lives beside the sign-in form rather than inside
+          // it, because the reader arrives here already locked out and the page
+          // has to stay standing on its own in a bookmark or a mail.
+          { path: 'forgot-password', element: <PasswordRecoveryPage /> },
           { path: 'articles', element: <ArticleListPage /> },
           { path: 'article/:slug', element: <ArticleDetailPage /> },
           { path: 'categories', element: <CategoriesPage /> },

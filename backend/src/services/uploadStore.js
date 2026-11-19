@@ -49,9 +49,35 @@ async function serve(req, res, next) {
     if (!doc) {
       return res.status(404).json({ success: false, message: 'File not found' });
     }
+    const bytes = doc.data;
+    const total = bytes.length;
     res.setHeader('Content-Type', doc.contentType);
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    return res.end(doc.data);
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    // A video is read in pieces: the browser asks for the end of the file to find
+    // where the duration is, then for the start, and Safari and iOS refuse to play
+    // anything that answers them with one whole 200 response. The bytes already
+    // arrived in one document, so serving a slice of them costs nothing.
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || '').trim());
+    if (range && (range[1] || range[2])) {
+      // "bytes=-500" is the last 500 bytes, not the first: an empty start is a
+      // suffix, an empty end means the rest of the file.
+      const start = range[1] ? Number(range[1]) : Math.max(0, total - Number(range[2]));
+      const end = range[1] && range[2] ? Number(range[2]) : total - 1;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start >= total || start > end) {
+        res.setHeader('Content-Range', `bytes */${total}`);
+        return res.status(416).end();
+      }
+      const last = Math.min(end, total - 1);
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${last}/${total}`);
+      res.setHeader('Content-Length', last - start + 1);
+      return res.end(bytes.subarray(start, last + 1));
+    }
+
+    res.setHeader('Content-Length', total);
+    return res.end(bytes);
   } catch (error) {
     next(error);
   }

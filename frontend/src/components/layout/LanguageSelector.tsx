@@ -22,7 +22,7 @@ interface LanguageSelectorProps {
   buttonClassName?: string
   /**
    * The language name beside the globe. The header hides it until there is room
-   * for it, because "Chinese (Traditional)" costs the masthead eighty pixels it
+   * for it, because"Chinese (Traditional)" costs the masthead eighty pixels it
    * needs for a section name.
    */
   labelClassName?: string

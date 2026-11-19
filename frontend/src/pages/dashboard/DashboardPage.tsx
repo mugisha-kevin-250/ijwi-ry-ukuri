@@ -137,7 +137,7 @@ export default function DashboardPage({ kind }: { kind: DashboardKind }) {
           <p className="mt-1 text-sm text-slate-500">{isAdmin ? 'Monitor newsroom activity and platform performance.' : 'Your stories, audience and earnings at a glance.'}</p>
         </div>
         <button type="button" onClick={() => void loadDashboard()} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60">
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
+          <RefreshCw className="h-4 w-4" />Refresh
         </button>
       </div>
 

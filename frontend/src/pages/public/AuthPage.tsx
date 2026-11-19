@@ -59,7 +59,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <Link to="/" className="text-sm font-bold text-blue-700 md:hidden">RADAR</Link>
           <p className="mt-5 text-sm font-semibold text-blue-700">{isRegister ? 'Fungura konti yawe' : 'Murakaza neza'}</p>
           <h2 className="mt-1 text-2xl font-extrabold text-slate-900">{isRegister ? 'Iyandikishe kuri RADAR' : 'Injira kuri RADAR'}</h2>
-          <p className="mt-2 text-sm text-slate-500">{isRegister ? "Tangira nk'umusomyi uhuze n'inkuru zo mu karere." : "Komeza gusoma no gucunga inkuru zawe."}</p>
+          <p className="mt-2 text-sm text-slate-500">{isRegister ?"Tangira nk'umusomyi uhuze n'inkuru zo mu karere." :"Komeza gusoma no gucunga inkuru zawe."}</p>
 
           <form onSubmit={submit} className="mt-7 space-y-4">
             {isRegister && (
@@ -79,6 +79,11 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               <span className="relative mt-1.5 block"><LockKeyhole className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="password" required minLength={isRegister ? 8 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={isRegister ? 'new-password' : 'current-password'} className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></span>
               {isRegister && <span className="mt-1 block text-xs font-normal text-slate-500">Use at least 8 characters.</span>}
             </label>
+            {!isRegister && (
+              <p className="text-right text-sm">
+                <Link to="/forgot-password" className="font-semibold text-blue-700 hover:text-blue-900">Forgot your password?</Link>
+              </p>
+            )}
             {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
             <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
               {submitting ? 'Please wait…' : isRegister ? 'Create account' : 'Sign in'}{!submitting && <ArrowRight className="h-4 w-4" />}
@@ -88,7 +93,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <GoogleButton flow={isRegister ? 'signup' : 'signin'} onSuccess={goToHome} onError={setError} />
           </div>
           <p className="mt-6 text-center text-sm text-slate-500">
-            {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
+            {isRegister ? 'Already have an account?' :"Don't have an account?"}{' '}
             <Link to={isRegister ? '/login' : '/register'} className="font-bold text-blue-700 hover:text-blue-900">{isRegister ? 'Sign in' : 'Create one'}</Link>
           </p>
         </section>

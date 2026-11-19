@@ -35,11 +35,40 @@ const env = require('../config/env');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { protect } = require('../middleware/auth');
 const { plainText, safeMediaUrl } = require('../utils/textFields');
+const { mintCode, checkCode, newResetFields, clearedResetFields, wipedCodeFields, resendIsCoolingDown } = require('../utils/passwordReset');
 
 const router = express.Router();
 
+// The recovery answers. They are written once, here, because the whole point of
+// a recovery flow is that the same sentence comes back whether or not the
+// address is on the site.
+const RECOVERY_ANSWER = 'If that address has an account, a six-digit code is on its way. It expires in ten minutes.';
+const RECOVERY_COOLING = 'A code was just sent. Wait a minute before asking for another.';
+const RESET_REFUSAL = 'That code does not match a recovery request. Ask for a new one.';
+
+/**
+ * The one place a password is decided, so the recovery screen cannot set a rule
+ * the settings page refuses. Eight characters is what the newsroom already asks
+ * for; anything longer than a field can hold is a paste gone wrong.
+ */
+function passwordProblem(password) {
+  if (!password || password.length < 8) return 'Choose a password of at least 8 characters.';
+  if (password.length > 200) return 'That password is too long to store.';
+  if (/^(.)\1+$/.test(password)) return 'That password is one character repeated. Use something harder.';
+  return '';
+}
+
 function generateToken(user) {
-  return jwt.sign({ id: user._id, role: user.role, email: user.email }, env.JWT_SECRET, { expiresIn: '7d', algorithm: env.JWT_ALGORITHM });
+  // `pwdAt` carries the password change, in milliseconds, because the token's
+  // own `iat` only counts whole seconds: a reader who resets their password and
+  // signs in again inside the same second would otherwise be told they had
+  // signed in too long ago. A session is valid while the number it was issued
+  // with is still the number on the account.
+  return jwt.sign(
+    { id: user._id, role: user.role, email: user.email, pwdAt: user.passwordChangedAt ? user.passwordChangedAt.getTime() : 0 },
+    env.JWT_SECRET,
+    { expiresIn: '7d', algorithm: env.JWT_ALGORITHM },
+  );
 }
 
 router.post('/register', async (req, res, next) => {
@@ -256,6 +285,10 @@ router.put('/credentials', protect, async (req, res, next) => {
     if (password) {
       if (String(password).length < 8) return errorResponse(res, 400, 'New password must be at least 8 characters');
       user.password = await bcrypt.hash(String(password), 10);
+      // The same rule as a recovery: a changed password ends the sessions that
+      // were opened before it. The fresh token returned below is what keeps this
+      // reader signed in.
+      user.passwordChangedAt = new Date();
     }
 
     await user.save();
@@ -277,12 +310,122 @@ router.get('/me', protect, async (req, res) => {
   return successResponse(res, 200, 'Profile fetched', { user });
 });
 
-router.post('/forgot-password', async (req, res) => {
-  return successResponse(res, 200, 'Password reset link sent');
+/**
+ * "I forgot my password", answered with a code sent to the address on the
+ * account.
+ *
+ * Three things this has to get right at once:
+ *
+ * - it never tells anybody whether an address is registered. The reply is the
+ *   same sentence either way, because a site that answers "no account here" is a
+ *   directory of who reads the news;
+ * - the code is only ever stored hashed, only ever reaches the address already on
+ *   the account, and dies in ten minutes after five wrong tries;
+ * - if the server cannot send mail at all, it says so. Promising a message that
+ *   will never arrive is the worst thing a recovery screen can do, because the
+ *   reader waits instead of asking the newsroom for help.
+ */
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const mail = require('../services/mailerService');
+    const state = mail.status();
+    if (!state.configured) {
+      // Not a per-account answer - this is true for every address on the server -
+      // so it gives a probe nothing, and it stops a reader waiting for a mail
+      // that cannot exist.
+      return errorResponse(res, 503, 'This server is not able to send email. Ask the newsroom to reset it for you.');
+    }
+
+    const email = plainText(req.body?.email, { maxLength: 120 }).toLowerCase();
+    // A code has to land somewhere, and the same sentence answers the rest.
+    if (!email.includes('@')) return successResponse(res, 200, RECOVERY_ANSWER, { sent: false });
+
+    const user = await User.findOne({ email }).select('+resetCodeSentAt +resetCodeExpires');
+    if (!user || !user.isActive) return successResponse(res, 200, RECOVERY_ANSWER, { sent: false });
+
+    if (resendIsCoolingDown(user.resetCodeSentAt)) {
+      return successResponse(res, 200, RECOVERY_COOLING, { sent: false, cooling: true });
+    }
+
+    const { code, codeHash } = mintCode();
+    await User.updateOne({ _id: user._id }, { $set: newResetFields(codeHash) });
+
+    const sent = await mail.send({
+      to: email,
+      subject: 'Your RADAR sign-in code',
+      text: [
+        `Someone asked to reset the password on the RADAR account ${email}.`,
+        '',
+        `Your code is ${code}`,
+        '',
+        'It works once and stops working after ten minutes, or after five wrong tries.',
+        'Type it on the RADAR sign-in screen, then choose a new password.',
+        '',
+        'RADAR will never ask you for this code by phone, message or email. If you did',
+        'not ask for it, ignore this mail and change your password the next time you sign in.',
+      ].join('\n'),
+    });
+
+    if (!sent.delivered) {
+      // The relay refused. Take the code back out of the account: leaving it
+      // live would mean a code a reader was told to expect, plus a mail that
+      // nobody can check their spam folder for. Nothing else is touched - a
+      // mail that never left must not end the reader's session or claim a
+      // password changed.
+      await User.updateOne({ _id: user._id }, wipedCodeFields());
+      console.warn('recovery code mail was refused by the sender');
+      return errorResponse(res, 502, 'The recovery email could not be sent. Try again, or ask the newsroom to reset it for you.');
+    }
+
+    return successResponse(res, 200, RECOVERY_ANSWER, { sent: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.post('/reset-password', async (req, res) => {
-  return successResponse(res, 200, 'Password reset successful');
+/**
+ * The code and the new password, in one request, because a code that only
+ * proves who you are - and then hands out a session - turns a stolen mailbox
+ * into a stolen account.
+ *
+ * On success: the password is replaced, the code and its counters are wiped from
+ * the document, and every token issued before this moment stops working.
+ */
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const email = plainText(req.body?.email, { maxLength: 120 }).toLowerCase();
+    const code = String(req.body?.code || '').trim();
+    const password = String(req.body?.password || '');
+
+    const problem = passwordProblem(password);
+    if (problem) return errorResponse(res, 400, problem);
+
+    const user = await User.findOne({ email }).select('+password +resetCodeHash +resetCodeExpires +resetCodeAttempts');
+    const verdict = checkCode(user, code);
+    if (!verdict.ok) {
+      if (user && verdict.reason !== 'EXPIRED' && verdict.reason !== 'NO_CODE') {
+        await User.updateOne({ _id: user._id }, { $inc: { resetCodeAttempts: 1 } });
+      }
+      // One answer for every kind of no. An attacker with a stolen mailbox
+      // learns nothing about which of the four reasons applied.
+      return errorResponse(res, 400, RESET_REFUSAL);
+    }
+
+    if (await bcrypt.compare(password, user.password)) {
+      return errorResponse(res, 400, 'Choose a password you are not already using.');
+    }
+
+    // One write: the new password, the password-changed timestamp that kills the
+    // old sessions, and the code and its counters gone. Nothing is left that
+    // could be replayed against the next time this address asks.
+    const cleared = clearedResetFields();
+    cleared.$set.password = await bcrypt.hash(password, 10);
+    await User.updateOne({ _id: user._id }, cleared);
+
+    return successResponse(res, 200, 'Your password has been changed. Sign in with the new one.', { reset: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;

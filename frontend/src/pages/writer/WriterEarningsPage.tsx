@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { writerAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
-import { DollarSign, TrendingUp, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { DollarSign, TrendingUp, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { SkeletonBlock } from '../../components/common/Skeleton'
 
 export default function WriterEarningsPage() {
   const { t } = useI18n()
@@ -20,7 +21,7 @@ export default function WriterEarningsPage() {
           writerAPI.getDashboard(),
         ])
         // The API wraps these lists in an object, never a bare array. Reading
-        // data.data as an array is what threw ".reduce is not a function".
+        // data.data as an array is what threw".reduce is not a function".
         const earningsData = (earningsRes.data.data as any)?.earnings
         const payoutsData = (payoutsRes.data.data as any)?.payouts
         setEarnings(Array.isArray(earningsData) ? earningsData : [])
@@ -55,7 +56,7 @@ export default function WriterEarningsPage() {
       case 'approved': return <CheckCircle className="h-4 w-4 text-blue-500" />
       case 'pending': return <Clock className="h-4 w-4 text-amber-500" />
       case 'rejected': return <XCircle className="h-4 w-4 text-red-500" />
-      default: return <Loader2 className="h-4 w-4 text-slate-400" />
+      default: return <span className="inline-block h-2 w-2 rounded-full bg-slate-300" />
     }
   }
 
@@ -91,7 +92,9 @@ export default function WriterEarningsPage() {
             <p className="mt-1 text-xs text-slate-500">Please reload the page to try again.</p>
           </div>
         ) : loading ? (
-          <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
+          <div className="p-8">
+            <SkeletonBlock lines={4} />
+          </div>
         ) : ledgerNeverRan ? (
           <div className="p-8 text-center">
             <DollarSign className="mx-auto h-12 w-12 text-slate-300" />

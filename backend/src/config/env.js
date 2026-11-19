@@ -45,6 +45,14 @@ module.exports = {
   // A research answer is shorter than a story, so it waits for less time. The
   // chat is the one AI call an admin can make many times in a sitting.
   GEMINI_CHAT_TIMEOUT_MS: Number(process.env.GEMINI_CHAT_TIMEOUT_MS || 45000),
+  // Ask the model to look the answer up on the open web before it speaks. This
+  // is off by default for two honest reasons: the free-tier key this newsroom
+  // runs on does not offer search grounding to every model, and a reader asking
+  // "how do I publish on RADAR" must be answered from our own handbook, not
+  // from whatever a search page says about us. Switch it on together with a
+  // model that supports it (GEMINI_MODEL=gemini-2.5-flash) when the newsroom
+  // wants the AI desk to cite the wider web.
+  GEMINI_GROUND_SEARCH: process.env.GEMINI_GROUND_SEARCH === 'true',
   // What readers are searching for right now, read from Google's own feed on the
   // server. No secret is involved and nothing is sent to the browser.
   TREND_GEOS: process.env.TREND_GEOS || '',

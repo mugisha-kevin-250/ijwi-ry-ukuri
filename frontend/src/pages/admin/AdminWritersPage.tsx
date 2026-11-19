@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ExternalLink, Loader2, PenLine, RefreshCw, X } from 'lucide-react'
+import { Check, ExternalLink, PenLine, RefreshCw, X } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { WriterApplicationRecord } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
@@ -81,7 +81,7 @@ export default function AdminWritersPage() {
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className="h-4 w-4" />
           Refresh
         </button>
       </div>
@@ -179,7 +179,7 @@ export default function AdminWritersPage() {
                       onClick={() => { setPending(application); setApprove(false) }}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
                     >
-                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                      <X className="h-3.5 w-3.5" />
                       {t('admin.writers.reject')}
                     </button>
                     <button
@@ -188,7 +188,7 @@ export default function AdminWritersPage() {
                       onClick={() => { setPending(application); setApprove(true) }}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-60"
                     >
-                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      <Check className="h-3.5 w-3.5" />
                       {t('admin.writers.approve')}
                     </button>
                   </div>

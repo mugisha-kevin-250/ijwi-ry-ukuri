@@ -19,6 +19,14 @@ const articleSchema = new mongoose.Schema({
   // credit on purpose: one line says where the picture came from, the other says
   // what is in it, and a reader searching an image wants both.
   imageCaption: String,
+  // The clip an author attached to the story. `videoUrl` is what they pasted or
+  // uploaded, kept so the form can show and edit it; `videoEmbedUrl` is what the
+  // reader's page is allowed to load and is rebuilt from the video id, never
+  // taken from the request. `videoSource` says which player it needs - an iframe
+  // for somebody else's platform, a plain <video> for a file.
+  videoUrl: String,
+  videoSource: { type: String, enum: ['', 'youtube', 'vimeo', 'file'], default: '' },
+  videoEmbedUrl: String,
   // Paid content has to look like paid content. A story an advertiser paid for
   // carries who paid, and the reader sees it before the headline is finished.
   // Only an editor or an admin can set it - a writer declaring their own copy
@@ -66,6 +74,47 @@ const articleSchema = new mongoose.Schema({
     to: String,
     by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     note: String,
+    at: { type: Date, default: Date.now }
+  }],
+  // What the story said before somebody rewrote it. Only the three fields a
+  // reader acts on are kept, only for a story that has already left the
+  // writer's own drafts, and only the newest handful - the question this
+  // answers is "what did we publish at nine o'clock", not "reconstruct every
+  // keystroke". Nothing here edits the live text: a revision is written from
+  // the copy that is being replaced, in the same save.
+  //
+  // `select: false` is what keeps it internal. A revision is the previous
+  // version of a story that is still on the site, and printing it next to the
+  // live text would be the newsroom arguing with itself in public. The desk
+  // asks for it by name in editorRoutes.
+  revisions: {
+    type: [{
+      title: String,
+      summary: String,
+      content: String,
+      by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      note: String,
+      at: { type: Date, default: Date.now }
+    }],
+    select: false
+  },
+  // What the story is standing on. An author lists their own sources, in their
+  // own words, and may withdraw one that is still the desk's to judge; whether
+  // a source counts as verified is never the writer's call, which is why the
+  // two fields below are staff-only - the status itself is shown to readers,
+  // because "we checked" is a claim the page should make openly.
+  sources: [{
+    title: String,
+    organization: String,
+    url: String,
+    // link | document | interview | official-data | observation
+    type: { type: String, default: 'link' },
+    quote: String,
+    accessedAt: Date,
+    verificationStatus: { type: String, default: 'pending' },
+    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', select: false },
+    reviewNote: { type: String, select: false },
     at: { type: Date, default: Date.now }
   }],
   scheduledAt: Date,

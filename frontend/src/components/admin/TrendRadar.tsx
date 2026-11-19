@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, ExternalLink, Loader2, RefreshCw, TrendingUp } from 'lucide-react'
+import { AlertTriangle, ExternalLink, RefreshCw, TrendingUp } from 'lucide-react'
 import { adminAPI, type TrendGeoRecord, type TrendRadar as TrendRadarData, type TrendTopicRecord } from '../../services/api'
 
 /**
@@ -47,7 +47,7 @@ function TopicRow({ topic, onUse }: { topic: TrendTopicRecord; onUse?: (topic: s
         >
           <span className="text-sm font-bold text-slate-900">{topic.topic}</span>
           <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            {/* The band is printed exactly as Google wrote it - "200+" is a band, not a count. */}
+            {/* The band is printed exactly as Google wrote it -"200+" is a band, not a count. */}
             {topic.trafficLabel && (
               <span className="rounded-full bg-slate-100 px-2 py-0.5 font-bold text-slate-700">{topic.trafficLabel} searches</span>
             )}
@@ -156,7 +156,7 @@ export default function TrendRadar({ onUse }: { onUse?: (topic: string, geo: str
           disabled={loading || refreshing}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
         >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw className="h-4 w-4" />
           {refreshing ? 'Asking Google…' : 'Refresh'}
         </button>
       </div>
@@ -242,7 +242,7 @@ export default function TrendRadar({ onUse }: { onUse?: (topic: string, geo: str
       )}
       {refreshing && (
         <p className="flex items-center gap-2 border-t border-slate-100 px-5 py-2.5 text-xs text-slate-500">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Re-reading {data?.geos.length || 0} regions from Google…
+ Re-reading {data?.geos.length || 0} regions from Google…
         </p>
       )}
     </section>

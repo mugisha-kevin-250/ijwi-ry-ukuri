@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bookmark, Clock3, Loader2, X } from 'lucide-react'
+import { Bookmark, Clock3, X } from 'lucide-react'
 import { articleAPI, userAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
@@ -9,6 +9,7 @@ import { useSeo } from '../../utils/useSeo'
 import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
 import EmptyState from '../../components/common/EmptyState'
+import { SkeletonBlock } from '../../components/common/Skeleton'
 
 interface SavedRow {
   _id: string
@@ -145,9 +146,8 @@ export default function MyLibraryPage() {
             }
           />
         ) : loading ? (
-          <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t('library.loading')}
+          <div className="py-8">
+            <SkeletonBlock lines={5} />
           </div>
         ) : loadError ? (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -196,7 +196,7 @@ export default function MyLibraryPage() {
                         aria-label={`${t('library.remove')}: ${row.article.title}`}
                         className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:border-red-300 hover:text-red-700 disabled:opacity-60"
                       >
-                        {busy === `bookmark:${row.article._id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                        <X className="h-3.5 w-3.5" />
                         {t('library.remove')}
                       </button>
                     </li>
@@ -249,7 +249,7 @@ export default function MyLibraryPage() {
                         aria-label={`${t('library.unfollow')}: ${row.writer.user.fullName}`}
                         className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:border-red-300 hover:text-red-700 disabled:opacity-60"
                       >
-                        {busy === `follow:${row.writer.user._id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                        <X className="h-3.5 w-3.5" />
                         {t('library.unfollow')}
                       </button>
                     </li>

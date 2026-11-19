@@ -30,7 +30,7 @@ const env = require('../config/env');
 const SportScoreboard = require('../models/SportScoreboard');
 const SportMatch = require('../models/SportMatch');
 const SportStandings = require('../models/SportStandings');
-const { wallClock, MINUTE_MS, HOUR_MS } = require('../utils/clock');
+const { wallClock, instantFor, MINUTE_MS, HOUR_MS, DAY_MS } = require('../utils/clock');
 
 // A number read from the environment is only trusted when it is one. A typo in
 // the dashboard would otherwise make every fetch abort before it started and
@@ -51,6 +51,33 @@ const REFRESH_MS = REFRESH_SECONDS * 1000;
 // pass, and the newsroom would pay for the whole watch list sixty times an hour.
 const CRON_PERIOD_MS = MINUTE_MS;
 const LIVE_TTL = Math.max(REFRESH_MS, CRON_PERIOD_MS);
+// A day with nothing on it is asked about often enough to catch a fixture list
+// being published, and not more: with sixty competitions on the watch list, an
+// empty day checked every minute is sixty calls a minute for a page that says
+// "no matches" either way. Five minutes is the compromise, and the moment a day
+// has a fixture on it this number stops applying to it.
+const QUIET_DAY_TTL = 5 * MINUTE_MS;
+// The whole football world's day, in one request.
+//
+// The newsroom follows sixty-odd competitions, and a match played anywhere else -
+// a cup tie in Spain, a women's fixture in Sweden, a league in Bolivia - was not
+// on this page at all, which is what "not getting all live matches" meant. The
+// feed answers that with one board: every competition it carries, on one day, for
+// the price of a single call. The rows that come off it are kept on a slower clock
+// than a followed league's, because they are the extra and not the reason.
+const WORLD_CODE = 'all';
+const WORLD_LIVE_TTL = 2 * MINUTE_MS;
+const WORLD_QUIET_TTL = 5 * MINUTE_MS;
+// A Saturday across every competition is two hundred and twenty-five fixtures. The
+// page shows the ones that are being played or are about to be, so the rows worth
+// keeping are a couple of dozen; the cap is there for the day the feed decides to
+// be creative about "about to be".
+const MAX_WORLD_ROWS = 80;
+// How soon an un-followed competition's kick-off has to be to earn a place on the
+// page. Without this the day view becomes three hundred rows of third-tier
+// football, and the Premier League scoreboard a reader came for is forty screens
+// down the page.
+const WORLD_SOON_MS = 6 * HOUR_MS;
 // Days are kept long enough to cover "the match on Saturday" being read on
 // Monday, and no longer: this is a scores page, not an archive.
 const KEEP_DAYS = 8;
@@ -117,6 +144,12 @@ const PROVIDER = 'espn';
 
 const scoreboardUrl = (code, dateKey) =>
   `${BASE}/site/v2/sports/soccer/${encodeURIComponent(code)}/scoreboard?dates=${dateKey}&limit=100`;
+// The limit is deliberately higher than a league's: this board is everybody's, and
+// a day cut to a hundred rows loses the evening kick-offs along with the ones
+// nobody in Rwanda is asking about. Anything the page wanted and the cap dropped
+// is a missing match, so the cap sits above the largest day the feed has printed.
+const worldUrl = (dateKey) =>
+  `${BASE}/site/v2/sports/soccer/${WORLD_CODE}/scoreboard?dates=${dateKey}&limit=400`;
 const summaryUrl = (code, id) =>
   `${BASE}/site/v2/sports/soccer/${encodeURIComponent(code)}/summary?event=${encodeURIComponent(id)}`;
 const standingsUrl = (code) => `${BASE}/v2/sports/soccer/${encodeURIComponent(code)}/standings`;
@@ -149,6 +182,62 @@ function validCode(code) {
 function dayKey(offsetDays = 0, now = new Date()) {
   const clock = wallClock(new Date(now.getTime() - offsetDays * 24 * HOUR_MS), env.SCHEDULER_TZ);
   return clock.dateKey.replace(/-/g, '');
+}
+
+/** YYYYMMDD one calendar day before another, in the same shape the page asks in. */
+function dayKeyBefore(key) {
+  const text = String(key || '');
+  if (!/^[0-9]{8}$/.test(text)) return '';
+  const dashed = `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`;
+  const stamp = Date.parse(`${dashed}T00:00:00Z`);
+  if (!Number.isFinite(stamp)) return '';
+  return wallClock(new Date(stamp - DAY_MS), env.SCHEDULER_TZ).dateKey.replace(/-/g, '');
+}
+
+/**
+ * The hours a kick-off has to fall inside to be "the day the reader asked for".
+ *
+ * The feed files a match under its own day, and its own day is not Kigali's: a
+ * 21:30 kick-off in São Paulo is three in the morning in Rwanda, and a Saturday
+ * evening game in Europe finishes after midnight here. A page that trusted the
+ * feed's date alone would put those matches on a day the reader never looks at,
+ * which is exactly how a live scores page ends up "not showing all the matches".
+ * So a day on this page is the newsroom's day, measured in the instants its own
+ * midnight happens at, and every row is placed by when it is actually played.
+ */
+function dayWindow(key) {
+  const text = String(key || '');
+  if (!/^[0-9]{8}$/.test(text)) return null;
+  const dashed = `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`;
+  const from = instantFor(dashed, 0, env.SCHEDULER_TZ);
+  const next = wallClock(new Date(from + DAY_MS), env.SCHEDULER_TZ).dateKey;
+  const to = instantFor(next, 0, env.SCHEDULER_TZ);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return null;
+  return { from, to };
+}
+
+/** Whether one row's kick-off belongs to the day the reader asked for. */
+function onTheDay(match, window, fromTheAskedDay) {
+  // A fixture the feed never gave a time to cannot be moved by a clock. It stays
+  // on the day it was read for, which is the day the reader was looking at.
+  if (!window) return true;
+  const started = dateOf(match && match.start);
+  if (!started) return fromTheAskedDay;
+  const at = started.getTime();
+  return at >= window.from && at < window.to;
+}
+
+/**
+ * Whether the day just started, on the newsroom's clock.
+ *
+ * This is the only hour band in which yesterday's fixtures can still be worth
+ * paying the feed for: a match that kicks off in the last two hours of another
+ * continent's day is finished before Kigali's morning, and after six o'clock the
+ * day before holds nothing but results - which the page shows from the database
+ * when it already has them, and does not go out and buy.
+ */
+function isEarlyHours(now) {
+  return wallClock(now, env.SCHEDULER_TZ).at < 6 * 60;
 }
 
 /**
@@ -296,6 +385,34 @@ function sideOf(competitor, state) {
   };
 }
 
+/**
+ * Whose match this is, when the board that carried it did not say.
+ *
+ * A league's own scoreboard knows its own name, and the row goes into a group
+ * already labelled with it. The all-competitions board is everybody's at once, and
+ * prints the competition beside the fixture instead - "UEFA Women's Champions
+ * League, League Phase" - which is the only place a page can learn that the match
+ * being played right now belongs to a competition nobody thought to follow.
+ */
+function competitionOf(event) {
+  const note = String(((event.competitions || [])[0] || {}).altGameNote || '');
+  // The round after the comma is the fixture's own business, and the row already
+  // prints the feed's status text; the part before it is the competition.
+  const name = note.split(',')[0].trim().slice(0, 90);
+  // The feed's league identity ("s:600~l:19483~e:401916980"), kept so two
+  // competitions that print the same short name do not merge into one group.
+  const id = (String(event.uid || '').match(/~l:(\d+)/) || [])[1] || '';
+  return { id, name };
+}
+
+/** Whether one row from the world board is worth keeping and printing. */
+function worldRowIsWanted(row, now = Date.now()) {
+  if (row.state === 'in') return true;
+  if (row.state !== 'pre') return false;
+  const started = dateOf(row.start);
+  return Boolean(started && started.getTime() - now <= WORLD_SOON_MS);
+}
+
 function matchRowOf(event) {
   const competition = (event.competitions || [])[0] || {};
   const status = competition.status || {};
@@ -319,6 +436,7 @@ function matchRowOf(event) {
     clock: state === 'pre' ? '' : String(status.displayClock ?? ''),
     period: Number(status.period) || 0,
     venue: (competition.venue && competition.venue.fullName) || (event.venue && event.venue.fullName) || '',
+    competition: competitionOf(event),
     home: sideOf(home, state),
     away: sideOf(away, state),
   };
@@ -563,6 +681,17 @@ function recentlyRefused(key) {
  */
 function ttlFor(doc, now = Date.now()) {
   const matches = (doc && doc.matches) || [];
+  // The world board is the biggest thing the newsroom asks the feed for and the
+  // least important thing on the page, so it keeps its own clock: two minutes
+  // while one of its matches is being played, five when they are only fixtures.
+  if (doc && doc.code === WORLD_CODE) {
+    if (matches.some((match) => match.state === 'in')) return WORLD_LIVE_TTL;
+    const today = dayKey(0, new Date(now));
+    if (doc.dateKey === today || doc.dateKey === dayKey(1, new Date(now))) return WORLD_QUIET_TTL;
+    // Any other day is one where nothing is being played that this page would
+    // print, and this is the largest request the newsroom makes.
+    return 30 * MINUTE_MS;
+  }
   if (matches.some((match) => match.state === 'in')) return LIVE_TTL;
   const upcoming = matches
     .filter((match) => match.state === 'pre' && match.start)
@@ -574,7 +703,15 @@ function ttlFor(doc, now = Date.now()) {
     // Today or later: keep asking, because the fixtures may simply not have
     // been published yet. A past day that really was empty is not going to fill
     // itself in, and is not worth an upstream call every minute of forever.
-    return doc && doc.dateKey >= dayKey(0, new Date(now)) ? LIVE_TTL : 6 * HOUR_MS;
+    //
+    // Five minutes rather than one, because a newsroom that follows sixty
+    // competitions has fifty of them with nothing on at any given moment, and a
+    // minute was the number that made the whole watch list too expensive to read:
+    // the quiet days ate the pass, and the league with a match being played in it
+    // went to the back of the queue. A fixture list published at midday is on the
+    // page by ten past; a match that has kicked off is on a day that is no longer
+    // empty, and is still read every minute.
+    return doc && doc.dateKey >= dayKey(0, new Date(now)) ? QUIET_DAY_TTL : 6 * HOUR_MS;
   }
   return 6 * HOUR_MS;
 }
@@ -611,7 +748,7 @@ async function loadScoreboard(code, dateKey, { urgent = false, now = new Date() 
   if (refused) return { ok: true, doc, fetched: false, reason: refused };
 
   const run = (async () => {
-    const upstream = await fetchJson(scoreboardUrl(code, dateKey), { urgent });
+    const upstream = await fetchJson(code === WORLD_CODE ? worldUrl(dateKey) : scoreboardUrl(code, dateKey), { urgent });
     // The row that was already here travels back with the bad news, so the
     // caller never has to guess whether an empty answer means "no matches" or
     // "no feed".
@@ -621,6 +758,20 @@ async function loadScoreboard(code, dateKey, { urgent = false, now = new Date() 
     }
     failures.delete(key);
     const league = (upstream.body.leagues || [])[0] || {};
+    const rows = (upstream.body.events || []).map(matchRowOf);
+    // The world board is everybody's competition at once, and the page prints a
+    // few of its rows: what is being played and what is about to be. A match the
+    // feed never named is dropped rather than grouped under its code, because a
+    // scores page whose heading is "19483" is a page that showed the reader a
+    // number instead of a competition. What is left is sorted so the live ones
+    // are at the front, and the cap can only ever cut fixtures.
+    const matches = code === WORLD_CODE
+      ? rows
+          .filter((row) => row.competition && row.competition.name && worldRowIsWanted(row, now.getTime()))
+          .sort((a, b) => (a.state === 'in' ? 0 : 1) - (b.state === 'in' ? 0 : 1)
+            || new Date(a.start || 0) - new Date(b.start || 0))
+          .slice(0, MAX_WORLD_ROWS)
+      : rows.slice(0, MAX_MATCHES_PER_DAY);
     // Stamped with the clock the caller is working to, so one minute of this
     // page has one answer to "how old is this" wherever it is asked.
     const fetchedAt = new Date(now.getTime());
@@ -633,7 +784,7 @@ async function loadScoreboard(code, dateKey, { urgent = false, now = new Date() 
         name: league.name || '',
         logo: preferredLogo(league.logos),
       },
-      matches: (upstream.body.events || []).map(matchRowOf).slice(0, MAX_MATCHES_PER_DAY),
+      matches,
       fetchedAt,
       watchedAt: fetchedAt,
     });
@@ -695,30 +846,59 @@ function withBudget(promise, ms) {
  * `stale` is decided by that league's own freshness window, not by whether some
  * other competition happened to still be loading when this request gave up
  * waiting. A reader is told exactly which numbers were not re-read.
+ *
+ * The rows come from up to two day documents - the day the reader asked for and
+ * the one before it - because the feed's day and Kigali's day are not the same
+ * day. Every row is then placed by its own kick-off, so a match that started at
+ * eleven at night here is on the day the reader is looking at, whichever date the
+ * feed filed it under.
  */
-function leagueRows(doc, { error = null, pending = false, now = new Date() } = {}) {
-  const matches = (doc.matches || [])
-    .map((match) => ({
-      id: match.id,
-      name: match.name,
-      shortName: match.shortName,
-      start: match.start || null,
-      state: match.state,
-      statusText: match.statusText || '',
-      clock: match.clock || '',
-      period: match.period || 0,
-      venue: match.venue || '',
-      home: match.home || {},
-      away: match.away || {},
-    }))
-    .sort((a, b) => new Date(a.start || 0) - new Date(b.start || 0));
+function leagueRows(doc, { error = null, pending = false, now = new Date(), carry = null, window = null } = {}) {
+  const sources = carry && carry !== doc ? [doc, carry] : [doc];
+  const merged = [];
+  const seen = new Set();
+  // A match a row is still being played for, on a day document nobody has re-read
+  // in this minute, is the one thing on this page that must be flagged: the score
+  // beside it is a number from the last time somebody looked.
+  let liveRowIsOld = false;
+
+  for (const source of sources) {
+    const askedDay = source === doc;
+    const current = isFresh(source, now.getTime());
+    for (const match of source.matches || []) {
+      const id = String(match.id || '');
+      if (id && seen.has(id)) continue;
+      if (id) seen.add(id);
+      if (!onTheDay(match, window, askedDay)) continue;
+      if (match.state === 'in' && !current) liveRowIsOld = true;
+      merged.push({
+        id: match.id,
+        name: match.name,
+        shortName: match.shortName,
+        start: match.start || null,
+        state: match.state,
+        statusText: match.statusText || '',
+        clock: match.clock || '',
+        period: match.period || 0,
+        venue: match.venue || '',
+        home: match.home || {},
+        away: match.away || {},
+      });
+    }
+  }
+
+  const fetched = sources
+    .map((source) => dateOf(source.fetchedAt))
+    .filter(Boolean)
+    .map((when) => when.getTime());
+
   return {
     code: doc.code,
     name: (doc.league && doc.league.name) || doc.code,
     logo: (doc.league && doc.league.logo) || '',
-    matches,
-    fetchedAt: doc.fetchedAt || null,
-    stale: !isFresh(doc, now.getTime()),
+    matches: merged.sort((a, b) => new Date(a.start || 0) - new Date(b.start || 0)),
+    fetchedAt: fetched.length ? new Date(Math.max(...fetched)) : null,
+    stale: !isFresh(doc, now.getTime()) || liveRowIsOld,
     pending,
     error,
   };
@@ -735,34 +915,173 @@ function counts(groups) {
 }
 
 /**
+ * The matches from competitions this newsroom does not follow.
+ *
+ * The day's world board carries every competition the feed has, and the followed
+ * leagues have already been printed above - so what is left here is the football
+ * being played somewhere nobody subscribed to: a cup tie in Spain, a women's
+ * fixture in Sweden, a league in Bolivia. That is what was missing from a page
+ * that claimed to show the day's live scores.
+ *
+ * Each competition gets its own heading, named with the words the feed printed
+ * beside the fixture, and the groups are ordered with the ones being played at
+ * the front. A row already shown under a followed league is never shown twice.
+ */
+function worldGroups(sources, { groups, window, now, pending = false } = {}) {
+  const already = new Set();
+  for (const group of groups) {
+    for (const match of group.matches) already.add(String(match.id || ''));
+  }
+
+  const byCompetition = new Map();
+  const staleIds = new Set();
+  for (const source of sources) {
+    const doc = source.doc;
+    if (!doc) continue;
+    const current = isFresh(doc, now.getTime());
+    for (const match of doc.matches || []) {
+      const id = String(match.id || '');
+      const competition = match.competition || {};
+      if (!id || already.has(id) || !competition.name) continue;
+      if (!onTheDay(match, window, source.isAskedDay)) continue;
+      if (match.state !== 'in' && match.state !== 'pre') continue;
+      if (!current && match.state === 'in') staleIds.add(id);
+      const key = `${competition.id || ''}|${competition.name}`;
+      if (!byCompetition.has(key)) byCompetition.set(key, { id: competition.id, name: competition.name, rows: [], fetchedAt: null });
+      const bucket = byCompetition.get(key);
+      bucket.rows.push({
+        id: match.id,
+        name: match.name,
+        shortName: match.shortName,
+        start: match.start || null,
+        state: match.state,
+        statusText: match.statusText || '',
+        clock: match.clock || '',
+        period: match.period || 0,
+        venue: match.venue || '',
+        home: match.home || {},
+        away: match.away || {},
+      });
+      const stamp = dateOf(doc.fetchedAt);
+      if (stamp && (!bucket.fetchedAt || stamp.getTime() > bucket.fetchedAt.getTime())) bucket.fetchedAt = stamp;
+    }
+  }
+
+  const built = [...byCompetition.values()].map((bucket) => {
+    const rows = bucket.rows.sort((a, b) => new Date(a.start || 0) - new Date(b.start || 0));
+    return {
+      code: WORLD_CODE,
+      name: bucket.name,
+      logo: '',
+      matches: rows,
+      fetchedAt: bucket.fetchedAt,
+      stale: rows.some((row) => staleIds.has(String(row.id))),
+      pending,
+      error: null,
+    };
+  });
+
+  // A competition with a match being played in it belongs above one whose fixtures
+  // are still to come: the reader who opens the Live tab is looking for the first.
+  return built.sort((a, b) => (b.matches.some((row) => row.state === 'in') ? 1 : 0)
+    - (a.matches.some((row) => row.state === 'in') ? 1 : 0)
+    || a.name.localeCompare(b.name));
+}
+
+/**
  * Every league we follow on one day, grouped.
  *
  * A cold cache would be thirteen upstream calls, and a reader should not have to
  * wait thirteen fetches out loud: the page is answered from the database, the
  * missing leagues keep fetching in the background, and the poll half a minute
  * later arrives to a filled page.
+ *
+ * "One day" is the newsroom's day, not the feed's, so the day before is read
+ * along with it and every row is placed by its own kick-off. See `dayWindow`.
+ *
+ * Underneath the followed leagues comes the day's world board - the competitions
+ * this newsroom does not follow, live or about to kick off - because a page that
+ * says "live scores" and leaves out the matches being played is a page a reader
+ * correctly calls broken. See `worldGroups`.
  */
 async function scoreboard({ date, league, live = false, now = new Date() } = {}) {
   const asked = String(date || '').trim();
   if (asked && !dayAllowed(asked, now)) return { ok: false, reason: 'DATE_OUT_OF_RANGE' };
   const dateKey = asked || dayKey(0, now);
-  const wanted = String(league || '').trim();
+  let wanted = String(league || '').trim();
   if (wanted && !validCode(wanted)) return { ok: false, reason: 'UNKNOWN_LEAGUE' };
-  const codes = wanted ? [wanted] : leagueList().map((item) => item.code);
+  // Asking for the world board by name is the same question as asking for the
+  // page: it has no single competition to show.
+  if (wanted === WORLD_CODE) wanted = '';
+  const codes = wanted
+    ? [wanted]
+    : leagueList().map((item) => item.code).filter((code) => code !== WORLD_CODE);
 
-  // One read for the whole page rather than thirteen. The cost of a poll on this
-  // server stays independent of how many competitions are being followed.
-  const stored = await SportScoreboard.find({ code: { $in: codes }, dateKey })
+  const window = dayWindow(dateKey);
+  const before = dayKeyBefore(dateKey);
+  const carries = before && before !== dateKey && dayAllowed(before, now) ? before : '';
+
+  // One read for the whole page rather than thirteen, and one read for both days
+  // rather than two. The cost of a poll on this server stays independent of how
+  // many competitions are being followed. The world board comes along in the same
+  // read; it is one more document in a query that was already asking for dozens.
+  const readCodes = wanted ? codes : [...codes, WORLD_CODE];
+  const stored = await SportScoreboard
+    .find({ code: { $in: readCodes }, dateKey: { $in: carries ? [dateKey, carries] : [dateKey] } })
     .select('code dateKey league matches fetchedAt')
     .lean();
-  const byCode = new Map(stored.map((doc) => [doc.code, doc]));
+  const byCode = new Map();
+  const carriedByCode = new Map();
+  for (const doc of stored) {
+    if (doc.dateKey === dateKey) byCode.set(doc.code, doc);
+    else if (doc.dateKey === carries) carriedByCode.set(doc.code, doc);
+  }
+  const worldDoc = wanted ? null : byCode.get(WORLD_CODE) || null;
+  const worldCarry = wanted ? null : carriedByCode.get(WORLD_CODE) || null;
+  byCode.delete(WORLD_CODE);
+  carriedByCode.delete(WORLD_CODE);
   const missing = codes.filter((code) => !isFresh(byCode.get(code), now.getTime()));
+  // Yesterday's fixtures are only worth going out for while they can still be
+  // about to be played or still being played - the small hours here, which is
+  // where another continent's evening lands. The rest of the day they are
+  // results, and a result the database does not have is a result nobody asked for.
+  //
+  // "The day being looked at", not "the day nobody typed": the page sends today's
+  // date explicitly on every load, and a reader who picks today from the date box
+  // is asking the same question as the one who never opened it.
+  const missingCarry = carries && isEarlyHours(now) && dateKey === dayKey(0, now)
+    ? codes.filter((code) => !carriedByCode.has(code))
+    : [];
 
+  // The world board goes first in the queue. The pass has six seconds of a
+  // reader's patience and, on a production watch list, sixty-odd leagues to spend
+  // it on - and the one document that says what is being played anywhere in the
+  // world is the last thing that should be left for a later poll.
+  const today = dayKey(0, now);
+  const worldTasks = [];
+  if (!wanted && dateKey >= today && !isFresh(worldDoc, now.getTime())) {
+    worldTasks.push({ code: WORLD_CODE, day: dateKey });
+  }
+  // In the small hours, the match being played here was filed by the feed under
+  // the day before - and the board that carries it is the day before's.
+  if (!wanted && carries && dateKey === today && isEarlyHours(now) && !isFresh(worldCarry, now.getTime())) {
+    worldTasks.push({ code: WORLD_CODE, day: carries, carry: true });
+  }
+
+  const tasks = [
+    ...worldTasks,
+    ...missing.map((code) => ({ code, day: dateKey })),
+    ...missingCarry.map((code) => ({ code, day: carries, carry: true })),
+  ];
   const outcome = new Map();
-  if (missing.length) {
+  if (tasks.length) {
     await withBudget(
-      mapLimit(missing, MAX_CONCURRENT_FETCHES, async (code) => {
-        outcome.set(code, await loadScoreboard(code, dateKey, { now }));
+      mapLimit(tasks, MAX_CONCURRENT_FETCHES, async (task) => {
+        const result = await loadScoreboard(task.code, task.day, { now });
+        outcome.set(`${task.code}|${task.day}`, result);
+        // The carried day is a bonus: whatever it brought is used if it arrived,
+        // and the page does not wait for it or report it as a failure.
+        if (task.carry && result.doc) carriedByCode.set(task.code, result.doc);
       }),
       REQUEST_BUDGET_MS,
     );
@@ -770,13 +1089,17 @@ async function scoreboard({ date, league, live = false, now = new Date() } = {})
 
   // Whoever was looking at this day when the request arrived is what keeps the
   // cron interested in it. A page nobody opens is a page that stops being fetched.
-  await SportScoreboard.updateMany({ code: { $in: codes }, dateKey }, { $set: { watchedAt: now } }).catch(() => {});
+  // The day before is marked watched on the same turn, because the match still
+  // being played at two in the morning is on that document and has to keep moving.
+  await SportScoreboard
+    .updateMany({ code: { $in: readCodes }, dateKey: { $in: carries ? [dateKey, carries] : [dateKey] } }, { $set: { watchedAt: now } })
+    .catch(() => {});
 
   const groups = [];
   const pending = [];
   const errors = [];
   for (const code of codes) {
-    const result = outcome.get(code) || {};
+    const result = outcome.get(`${code}|${dateKey}`) || {};
     if (result.ok === false || result.reason) errors.push({ code, reason: result.reason || result.error || 'PROVIDER_ERROR' });
     if (result.queued) pending.push(code);
     const doc = result.doc || byCode.get(code);
@@ -787,7 +1110,29 @@ async function scoreboard({ date, league, live = false, now = new Date() } = {})
       if (!pending.includes(code) && missing.includes(code)) pending.push(code);
       continue;
     }
-    groups.push(leagueRows(doc, { error: result.ok === false ? result.reason || 'PROVIDER_ERROR' : null, pending: Boolean(result.queued), now }));
+    groups.push(leagueRows(doc, {
+      error: result.ok === false ? result.reason || 'PROVIDER_ERROR' : null,
+      pending: Boolean(result.queued),
+      now,
+      carry: carriedByCode.get(code) || null,
+      window,
+    }));
+  }
+
+  // Then the competitions nobody follows, so that a match being played somewhere
+  // else in the world is on a page that says it shows the day's live scores.
+  if (!wanted) {
+    const worldAnswer = outcome.get(`${WORLD_CODE}|${dateKey}`) || {};
+    const worldCarryAnswer = outcome.get(`${WORLD_CODE}|${carries}`) || {};
+    if (worldAnswer.ok === false) errors.push({ code: WORLD_CODE, reason: worldAnswer.reason || 'PROVIDER_ERROR' });
+    const worldPending = worldAnswer.ok !== false
+      && (Boolean(worldAnswer.queued) || (!worldDoc && !worldAnswer.doc && worldTasks.length > 0));
+    const sources = [
+      { doc: worldAnswer.doc || worldDoc, isAskedDay: true },
+      { doc: worldCarryAnswer.doc || worldCarry, isAskedDay: false },
+    ].filter((source) => source.doc);
+    if (worldPending && !pending.includes(WORLD_CODE)) pending.push(WORLD_CODE);
+    groups.push(...worldGroups(sources, { groups, window, now, pending: worldPending }));
   }
 
   const filtered = live
@@ -1157,12 +1502,30 @@ async function refreshWatched({ now = new Date() } = {}) {
   let refreshed = 0;
   let failedCount = 0;
 
+  // Oldest read first, and only while somebody keeps looking at the row. Sorting
+  // by when a reader last looked cannot work here: one page view marks every
+  // competition it shows as watched at the same instant, so with sixty-odd
+  // competitions the same dozen win the minute every single time and the rest
+  // never move again - which is how a match that is being played stays off the
+  // page. Asking for the row the feed has not been told about in the longest time
+  // makes the whole watch list turn instead.
   const warm = await SportScoreboard.find({ watchedAt: { $gte: since }, dateKey: { $in: days } })
-    .sort({ watchedAt: -1 })
-    .limit(MAX_REFRESH_PER_RUN)
+    .sort({ fetchedAt: 1 })
+    .limit(MAX_REFRESH_PER_RUN * 4)
     .select('code dateKey fetchedAt matches')
     .lean();
-  const needs = warm.filter((doc) => !isFresh(doc, now.getTime()));
+  // The number the log prints is the number of competitions somebody is actually
+  // keeping open, not the number this pass was willing to look at - the query
+  // above is deliberately read wider than the pass can spend, and reporting that
+  // window as the watch list would make a sixty-league afternoon read as twelve.
+  const watchedCount = await SportScoreboard
+    .countDocuments({ watchedAt: { $gte: since }, dateKey: { $in: days } })
+    .catch(() => warm.length);
+  // The window is read wider than the pass can spend, and then cut down: a
+  // competition whose day is already finished is legitimately weeks old in the
+  // queue and would hold the minute up if the first twelve rows were the twelve
+  // the database happened to return.
+  const needs = warm.filter((doc) => !isFresh(doc, now.getTime())).slice(0, MAX_REFRESH_PER_RUN);
   // One pass, one budget. A feed that stops answering one league is not allowed
   // to hold the whole minute, because the minute is what every reader on the
   // page is counting on.
@@ -1225,7 +1588,7 @@ async function refreshWatched({ now = new Date() } = {}) {
   return {
     refreshed,
     failed: failedCount,
-    watched: warm.length,
+    watched: watchedCount,
     pruned: (pruned.deletedCount || 0) + (prunedMatches.deletedCount || 0),
   };
 }
@@ -1300,10 +1663,12 @@ async function search({ q, now = new Date() } = {}) {
   const earliest = dayKey(KEEP_DAYS - 1, now);
   const latest = dayKey(-AHEAD_DAYS, now);
   // The codes come first so the read uses the same index every other read on
-  // this collection uses, instead of walking the whole cache for one name.
+  // this collection uses, instead of walking the whole cache for one name. The
+  // world board is one of those codes, which is how a team playing in a
+  // competition nobody follows is findable at all.
   const stored = await SportScoreboard
     .find({
-      code: { $in: list.map((league) => league.code) },
+      code: { $in: [...new Set([...list.map((league) => league.code).filter((code) => code !== WORLD_CODE), WORLD_CODE])] },
       dateKey: { $gte: earliest, $lte: latest },
       $or: [
         { 'matches.home.name': pattern },
@@ -1316,6 +1681,7 @@ async function search({ q, now = new Date() } = {}) {
     .lean();
 
   const matches = [];
+  const seen = new Set();
   for (const doc of stored) {
     for (const match of doc.matches || []) {
       const home = match.home || {};
@@ -1325,6 +1691,12 @@ async function search({ q, now = new Date() } = {}) {
       // against the whole sentence here so the answer is the name the reader
       // typed and not a sibling that happened to share a substring.
       if (!pattern.test(named)) continue;
+      // A match being played in a followed league is on that league's own row and
+      // on the day's world board. The reader asked for a club, not for the cache's
+      // filing, so it is printed once.
+      const matchId = String(match.id || '');
+      if (matchId && seen.has(matchId)) continue;
+      if (matchId) seen.add(matchId);
       matches.push({
         id: match.id,
         name: match.name,
@@ -1338,7 +1710,10 @@ async function search({ q, now = new Date() } = {}) {
         home,
         away,
         code: doc.code,
-        leagueName: (doc.league && doc.league.name) || doc.code,
+        // A row off the world board belongs to a competition this newsroom does
+        // not follow, and the feed wrote that competition's name beside the
+        // fixture. The reader sees the name, not the cache's own label.
+        leagueName: (match.competition && match.competition.name) || (doc.league && doc.league.name) || doc.code,
         dateKey: doc.dateKey,
       });
     }
@@ -1393,6 +1768,17 @@ module.exports = {
   scoreboardUrl,
   summaryUrl,
   standingsUrl,
+  worldUrl,
+  WORLD_CODE,
+  competitionOf,
+  worldRowIsWanted,
+  worldGroups,
+  dayWindow,
+  dayKeyBefore,
+  onTheDay,
+  leagueRows,
+  ttlFor,
+  isFresh,
   PROVIDER,
   REFRESH_MS,
   REFRESH_SECONDS,

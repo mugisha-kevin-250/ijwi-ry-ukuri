@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { Article, Category } from '../../types'
 import { publicAPI } from '../../services/api'
-import { Loading, LoadingGrid } from '../../components/common/Loading'
+import { SkeletonCards, SkeletonLine } from '../../components/common/Skeleton'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
 import { useSeo } from '../../utils/useSeo'
@@ -260,7 +260,7 @@ export default function ArticleListPage() {
   const category = searchParams.get('category') || ''
   const sort = searchParams.get('sort') || 'latest'
   // One chip per section, even though the database keeps the same section under
-  // two spellings ("Sports" and "Amasport").
+  // two spellings ("Sports" and"Amasport").
   const sections = useMemo(() => resolveCategories(categories), [categories])
 
   useEffect(() => {
@@ -343,10 +343,10 @@ export default function ArticleListPage() {
     return (
       <div className="space-y-6">
         <div className="flex gap-4">
-          <Loading className="h-10 w-64" />
-          <Loading className="h-10 w-64" />
+          <SkeletonLine className="h-10 w-64" />
+          <SkeletonLine className="h-10 w-64" />
         </div>
-        <LoadingGrid count={6} />
+        <SkeletonCards count={6} />
       </div>
     )
   }

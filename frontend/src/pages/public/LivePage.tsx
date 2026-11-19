@@ -11,7 +11,7 @@ import { connectLiveSocket, relayConfigured } from '../../utils/liveSocket'
 import { openCamera, startBroadcaster, startFrameRelay, startViewer, stopTracks } from '../../utils/liveMedia'
 import { shareArticle } from '../../utils/shareArticle'
 import { requestSignIn } from '../../utils/signInPrompt'
-import { Loading } from '../../components/common/Loading'
+import { SkeletonLine } from '../../components/common/Skeleton'
 import { useSeo } from '../../utils/useSeo'
 import { serverMessage } from '../../services/apiClient'
 import MediaImage from '../../components/common/MediaImage'
@@ -298,7 +298,7 @@ export default function LivePage() {
       const response = await liveAPI.start({
         title: title.trim(),
         description: description.trim(),
-        // An empty link is the answer to "we are going live on the camera", which
+        // An empty link is the answer to"we are going live on the camera", which
         // is why the field is optional rather than something to guess at.
         videoUrl: videoUrl.trim(),
       })
@@ -344,8 +344,8 @@ export default function LivePage() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-10">
-        <Loading className="h-8 w-48" />
-        <Loading className="mt-6 aspect-video w-full" />
+        <SkeletonLine className="h-8 w-48" />
+        <SkeletonLine className="mt-6 aspect-video w-full rounded-xl" />
       </div>
     )
   }

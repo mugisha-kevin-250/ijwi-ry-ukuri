@@ -6,7 +6,7 @@ import { skipStory, stop, togglePause } from '../../utils/newsAnnouncer'
 import { cn } from '../../utils/cn'
 
 // Three bars that move while the voice is talking and stop the moment it does.
-// It is the only honest "on air" signal a text-to-speech desk can show.
+// It is the only honest"on air" signal a text-to-speech desk can show.
 function Equaliser({ active }: { active: boolean }) {
   return (
     <span className="flex h-4 items-end gap-0.5" aria-hidden="true">

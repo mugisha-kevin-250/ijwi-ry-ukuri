@@ -1,5 +1,4 @@
-import { Loading } from './Loading'
-import { useI18n } from '../../context/I18nContext'
+import { SkeletonBlock, SkeletonCards } from './Skeleton'
 
 /**
  * What the page area shows while the page the reader asked for is still arriving.
@@ -11,19 +10,20 @@ import { useI18n } from '../../context/I18nContext'
  * particular use for, and making a phone on a Rwandan network download all of
  * them before it draws the home page was the wrong trade.
  *
- * Two rules made here, both about what a swap is allowed to do to the rest of the
- * screen. It keeps the chrome: this sits inside the layout, so the header, the
- * footer and a bulletin that is already speaking all stay exactly where they are
- * while the page underneath arrives. And it reserves the height it will be
- * replaced by, so the layout does not jump when the real content lands - a page
- * that moves under a reader's thumb is a page they mis-tap.
+ * The pieces are asked for the moment a link is hovered or touched, so by the
+ * time the tap lands the page is usually already in the phone and the reader
+ * never sees this at all - they stay on the page they were on, and the next one
+ * replaces it when it is ready.
+ *
+ * What is left here is not a loader. The bar across the top of every page is the
+ * only thing on RADAR that says"hold on"; this only reserves the height the
+ * arriving page will take, so the layout does not jump under a reader's thumb.
  */
 export default function RouteFallback() {
-  const { t } = useI18n()
   return (
-    <div className="flex min-h-[60vh] items-center justify-center" role="status">
-      <Loading size="md" />
-      <span className="sr-only">{t('common.loading')}</span>
+    <div className="min-h-[60vh] space-y-8 px-4 py-10 sm:px-6" aria-hidden="true">
+      <SkeletonBlock lines={2} className="mx-auto max-w-md" />
+      <SkeletonCards count={3} className="mx-auto max-w-5xl" />
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { useI18n } from '../../context/I18nContext'
 import { resolvePathIn, sectionLabel, useSections } from '../../utils/sectionsStore'
 import { featuresFor, type SectionNode } from '../../data/sections'
 import ArticleList from '../../components/news/ArticleList'
-import { Loading, LoadingGrid } from '../../components/common/Loading'
+import { SkeletonCards, SkeletonLine } from '../../components/common/Skeleton'
 import EmptyState from '../../components/common/EmptyState'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
@@ -39,7 +39,7 @@ export default function SectionPage() {
   const path = section ? `/${section.slug}${child ? `/${child.slug}` : ''}` : '/'
 
   // The name comes from the language the reader is reading in, so a section the
-  // database spells "Amasport" still prints as Sports in English.
+  // database spells"Amasport" still prints as Sports in English.
   const labelOf = (node: SectionNode | null) => sectionLabel(node, t)
   const label = child ? labelOf(child) : labelOf(section)
   const description = payload.category?.description || ''
@@ -113,7 +113,7 @@ export default function SectionPage() {
   // The address is only a dead end once the server has said what its sections
   // are; before that, sending the reader home would be a guess.
   if (!resolved) {
-    if (!isLoaded) return <Loading className="py-20" />
+    if (!isLoaded) return <SkeletonLine className="mx-auto my-20 h-4 w-52" />
     return <Navigate to="/" replace />
   }
 
@@ -141,8 +141,8 @@ export default function SectionPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Loading className="h-10 w-56" />
-        <LoadingGrid count={6} />
+        <SkeletonLine className="h-10 w-56" />
+        <SkeletonCards count={6} />
       </div>
     )
   }

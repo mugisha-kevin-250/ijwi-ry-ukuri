@@ -8,7 +8,7 @@ import { consentIsSet, onConsentChange, setConsent } from '../../utils/consent'
 /**
  * Asked once, and only when there is something to ask about. With no analytics
  * id and no ad unit in the build, nothing on this site watches a reader, so a
- * banner would be theatre - and a question that is always answered "nothing
+ * banner would be theatre - and a question that is always answered"nothing
  * happens" teaches readers to click without reading.
  */
 export default function ConsentBanner() {

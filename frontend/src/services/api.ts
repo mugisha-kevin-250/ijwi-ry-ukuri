@@ -1,5 +1,5 @@
 import { apiClient, serverMessage } from './apiClient'
-import type { AdminDashboardStats, Article, AuthResponse, Category, Comment, DashboardStats, Live, LiveComment, User } from '../types'
+import type { AdminDashboardStats, Article, ArticleSource, AuthResponse, Category, Comment, DashboardStats, Live, LiveComment, User } from '../types'
 
 interface ArticleQuery {
   page?: number
@@ -16,6 +16,23 @@ interface ArticleResults {
   articles: Article[]
   total: number
 }
+
+/**
+ * A source as its author files it. `verificationStatus` is deliberately not one
+ * of these fields: whether a source has been checked is the desk's call, and the
+ * API starts every new one at `pending` whatever a client sends.
+ */
+export interface SourceInput {
+  title?: string
+  organization?: string
+  url?: string
+  type?: ArticleSource['type']
+  quote?: string
+  accessedAt?: string
+}
+
+/** The three things the desk can say about one source. */
+export type SourceVerdict = 'pending' | 'verified' | 'rejected'
 
 /** One node of the published section tree, as the backend seeds it. */
 export interface SectionRecord {
@@ -204,6 +221,22 @@ export const authAPI = {
   logout: () =>
     apiClient.post('/auth/logout'),
 
+  /**
+   * Recovery by emailed code. Asking is safe to fire at any address: the server
+   * answers the same way whether or not the account exists, and `sent` only says
+   * whether this server can mail at all.
+   */
+  sendRecoveryCode: (email: string) =>
+    apiClient.post<{ sent: boolean; cooling?: boolean }>('/auth/forgot-password', { email }),
+
+  /**
+   * The code and the new password together. Nothing is signed in by this: the
+   * reader proves the new password works by using it, and every session opened
+   * before it is over.
+   */
+  resetPassword: (data: { email: string; code: string; password: string }) =>
+    apiClient.post<{ reset: boolean }>('/auth/reset-password', data),
+
   getMe: () =>
     apiClient.get<User>('/auth/me'),
 }
@@ -308,6 +341,15 @@ export const writerAPI = {
 
   withdrawArticle: (id: string) =>
     apiClient.post(`/writers/articles/${id}/unpublish`),
+
+  // What the story is standing on. An author can name a source and withdraw one
+  // the desk has not judged; saying a source has been checked is not a call the
+  // writer can make, and the API refuses the field rather than ignoring it.
+  addSource: (id: string, source: SourceInput) =>
+    apiClient.post<{ sources: ArticleSource[]; sourceId: string }>(`/writers/articles/${id}/sources`, source),
+
+  removeSource: (id: string, sourceId: string) =>
+    apiClient.delete<{ sources: ArticleSource[] }>(`/writers/articles/${id}/sources/${sourceId}`),
 
   getEarnings: () =>
     apiClient.get('/writers/me/earnings'),
@@ -570,6 +612,16 @@ export const editorAPI = {
     sponsor?: string
     correctionNote?: string
   }) => apiClient.put(`/editor/articles/${id}/disclosure`, input),
+
+  /**
+   * The desk's ruling on one source, with the reason kept internal: a reader
+   * gets the status, never the note or the name of whoever ruled.
+   */
+  setSourceVerdict: (id: string, sourceId: string, verdict: SourceVerdict, reviewNote?: string) =>
+    apiClient.put<{ sources: ArticleSource[] }>(`/editor/articles/${id}/sources/${sourceId}`, {
+      verificationStatus: verdict,
+      reviewNote,
+    }),
 
   // The comment queue. How many readers flagged a comment is returned, never
   // which ones.
@@ -2106,6 +2158,14 @@ export interface AiStatus {
 export interface AiAnswer {
   answer: string
   generatedAt: string
+  /**
+   * Which desk wrote the answer: `news` is grounded in published reporting,
+   * `site` is the newsroom explaining its own site, `research` is general
+   * knowledge the newsroom has not reported. The panel labels every answer with
+   * it, because an answer about RADAR and an answer from RADAR's reporting are
+   * not the same claim.
+   */
+  kind: 'news' | 'site' | 'research'
   /** The published story the answer was grounded in, when there was one. */
   groundedOn: { slug: string; title: string } | null
   /** How many published stories the desk could see at all. */
@@ -2155,8 +2215,13 @@ export const aiAPI = {
       const answer = typeof payload.answer === 'string' ? payload.answer.trim() : ''
       if (!answer) return { error: 'RADAR AI did not answer. Please try again in a moment.' }
       const ground = (payload.groundedOn || null) as Record<string, unknown> | null
+      const kinds = ['news', 'site', 'research'] as const
+      const kind = kinds.includes(payload.kind as (typeof kinds)[number])
+        ? (payload.kind as (typeof kinds)[number])
+        : 'news'
       return {
         answer,
+        kind,
         generatedAt: typeof payload.generatedAt === 'string' ? payload.generatedAt : new Date().toISOString(),
         groundedOn: ground && typeof ground.slug === 'string'
           ? { slug: ground.slug, title: String(ground.title || '') }

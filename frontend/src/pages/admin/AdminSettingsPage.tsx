@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { AlertTriangle, Bell, BellOff, KeyRound, Loader2, Send, ShieldCheck, UserCog } from 'lucide-react'
+import { AlertTriangle, Bell, BellOff, KeyRound, Send, ShieldCheck, UserCog } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { pushAPI } from '../../services/api'
 import { disablePushNotifications, enablePushNotifications, isSubscribedToPush, pushSupported } from '../../pwa/pushNotifications'
@@ -162,7 +162,7 @@ function NewsAlertsPanel() {
         </p>
 
         <button type="submit" disabled={busy || !configured} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-60">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          <Send className="h-4 w-4" />
           Send alert now
         </button>
         {status && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-800">{status}</div>}
@@ -290,7 +290,7 @@ export default function AdminSettingsPage() {
         {detailsSuccess && <div role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-800">{detailsSuccess}</div>}
 
         <button type="submit" disabled={detailsSaving} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-60">
-          {detailsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+          <ShieldCheck className="h-4 w-4" />
           {detailsSaving ? 'Saving…' : 'Save login details'}
         </button>
       </form>
@@ -314,7 +314,7 @@ export default function AdminSettingsPage() {
         {passwordSuccess && <div role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-800">{passwordSuccess}</div>}
 
         <button type="submit" disabled={passwordSaving} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-60">
-          {passwordSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+          <KeyRound className="h-4 w-4" />
           {passwordSaving ? 'Updating…' : 'Change password'}
         </button>
       </form>

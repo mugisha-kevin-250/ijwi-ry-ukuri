@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Loader2, Search } from 'lucide-react'
+import { Check, Search } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
 import { nearbyLanguages, useLanguageCatalog } from '../../utils/languageCatalog'
 import { flagFor } from '../../utils/languageFlag'
+import { SkeletonLine } from '../common/Skeleton'
 import { cn } from '../../utils/cn'
 
 /**
@@ -89,9 +90,10 @@ export default function LanguageOptions({ className, onPicked, autoFocus }: Lang
           <p className="border-b border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-gray-800">{t('lang.englishNote')}</p>
         )}
         {!isLoaded && (
-          <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            {t('lang.translating')}
+          <div className="px-4 py-3">
+            <SkeletonLine className="h-3 w-32" />
+            <SkeletonLine className="mt-2 h-3 w-24" />
+            <p className="mt-2 text-sm text-gray-500">{t('lang.translating')}</p>
           </div>
         )}
 

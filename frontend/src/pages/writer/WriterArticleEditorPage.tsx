@@ -4,8 +4,9 @@ import { toast } from 'react-toastify'
 import { writerAPI, publicAPI } from '../../services/api'
 import { uploadImage } from '../../services/apiClient'
 import MediaImage from '../../components/common/MediaImage'
+import StoryVideoField from '../../components/writers/StoryVideoField'
 import { useI18n } from '../../context/I18nContext'
-import type { Category } from '../../types'
+import type { ArticleSource, Category } from '../../types'
 import { canonicalCategoryId, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 
 export default function WriterArticleEditorPage() {
@@ -23,12 +24,35 @@ export default function WriterArticleEditorPage() {
     // what it shows, and whose picture it is.
     imageCredit: '',
     imageCaption: '',
+    // The clip for this story: a link the video already lives behind, or the
+    // file itself. Kept as one address in the form; the server decides what the
+    // reader's page is allowed to load.
+    videoUrl: '',
     tags: ''
   })
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [imageFileName, setImageFileName] = useState('')
+
+  // Two things the desk reads alongside the copy: what the story stands on, and
+  // what the writer changed. A source is filed with its own request rather than
+  // with the story, so it exists the moment it is named; the note travels with a
+  // save and is what the review desk sees next to the version it replaces.
+  const [status, setStatus] = useState('')
+  const [editNote, setEditNote] = useState('')
+  const [sources, setSources] = useState<ArticleSource[]>([])
+  const [sourceForm, setSourceForm] = useState({
+    title: '',
+    organization: '',
+    url: '',
+    type: 'link',
+    quote: '',
+    accessedAt: ''
+  })
+  const [sourceBusy, setSourceBusy] = useState('')
+  const [sourceError, setSourceError] = useState('')
+  const [sourceNotice, setSourceNotice] = useState('')
 
   useEffect(() => {
     publicAPI.getCategories().then((res:any) => {
@@ -48,8 +72,11 @@ export default function WriterArticleEditorPage() {
             featuredImage: article.featuredImage || '',
             imageCredit: article.imageCredit || '',
             imageCaption: article.imageCaption || '',
+            videoUrl: article.videoUrl || '',
             tags: (article.tags || []).join(', ')
           })
+          setStatus(article.status || '')
+          setSources(Array.isArray(article.sources) ? article.sources : [])
           if (article.featuredImage) {
             const parts = article.featuredImage.split('/')
             setImageFileName(parts[parts.length - 1] || '')
@@ -109,7 +136,11 @@ export default function WriterArticleEditorPage() {
         // the image they describe and are cleared when it is removed.
         imageCredit: form.featuredImage ? form.imageCredit.trim() : '',
         imageCaption: form.featuredImage ? form.imageCaption.trim() : '',
-        tags: form.tags.split(',').map((t:any) => t.trim()).filter(Boolean)
+        videoUrl: form.videoUrl.trim(),
+        tags: form.tags.split(',').map((t:any) => t.trim()).filter(Boolean),
+        // Only the desk's earlier copy is recorded, and this says what the new
+        // one fixes. A draft has no published version to answer for.
+        editNote: editNote.trim() || undefined
       }
       let publishRefusal = ''
       if (id) {
@@ -147,6 +178,48 @@ export default function WriterArticleEditorPage() {
       toast.error(message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const addSource = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!id) return
+    setSourceBusy('add')
+    setSourceError('')
+    setSourceNotice('')
+    try {
+      const res = await writerAPI.addSource(id, {
+        title: sourceForm.title.trim(),
+        organization: sourceForm.organization.trim(),
+        url: sourceForm.url.trim(),
+        type: sourceForm.type as ArticleSource['type'],
+        quote: sourceForm.quote.trim(),
+        accessedAt: sourceForm.accessedAt || undefined,
+      })
+      setSources((res.data.data as any)?.sources || [])
+      setSourceForm({ title: '', organization: '', url: '', type: 'link', quote: '', accessedAt: '' })
+      setSourceNotice(t('writer.sourceAdded'))
+    } catch (err: any) {
+      // The API answers with the sentence a writer can act on - no address and
+      // no name, or the twenty-source ceiling - so that is what goes on screen.
+      setSourceError(err?.response?.data?.message || t('writer.sourceAddFailed'))
+    } finally {
+      setSourceBusy('')
+    }
+  }
+
+  const dropSource = async (sourceId?: string) => {
+    if (!id || !sourceId) return
+    setSourceBusy(sourceId)
+    setSourceError('')
+    setSourceNotice('')
+    try {
+      const res = await writerAPI.removeSource(id, sourceId)
+      setSources((res.data.data as any)?.sources || [])
+    } catch (err: any) {
+      setSourceError(err?.response?.data?.message || t('writer.sourceRemoveFailed'))
+    } finally {
+      setSourceBusy('')
     }
   }
 
@@ -211,6 +284,122 @@ export default function WriterArticleEditorPage() {
             </div>
           )}
         </div>
+        <StoryVideoField value={form.videoUrl} onChange={(videoUrl) => setForm({ ...form, videoUrl })} />
+        {/* What the story is standing on. Filed per source rather than with the
+            save, because a source is a fact about the reporting and not a line
+            of the copy: it is on the record the moment it is named, and the desk
+            - never the writer - is the one who says it was checked. */}
+        {id && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-bold text-slate-800">{t('writer.sources')}</p>
+            <p className="mt-1 text-xs text-slate-500">{t('writer.sourcesHint')}</p>
+
+            {sources.length > 0 && (
+              <ul className="mt-3 space-y-2">
+                {sources.map((source, index) => (
+                  <li key={source._id || `source-${index}`} className="flex items-start justify-between gap-3 rounded-lg bg-white p-2.5 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-800">{source.title || source.organization || source.url}</p>
+                      <p className="text-xs text-slate-500">
+                        {t(`articles.sourceType.${source.type || 'link'}`)}
+                        {source.organization ? ` · ${source.organization}` : ''}
+                        {' · '}
+                        {source.verificationStatus === 'verified'
+                          ? t('articles.sourceVerified')
+                          : source.verificationStatus === 'rejected'
+                            ? t('articles.sourceRejected')
+                            : t('articles.sourcePending')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void dropSource(source._id)}
+                      disabled={sourceBusy !== ''}
+                      className="shrink-0 text-xs font-semibold text-red-600 hover:underline disabled:opacity-40"
+                    >
+                      {sourceBusy === source._id ? t('writer.removing') : t('writer.removeSource')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <form onSubmit={addSource} className="mt-3 space-y-2">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input
+                  value={sourceForm.title}
+                  onChange={(e) => setSourceForm({ ...sourceForm, title: e.target.value })}
+                  maxLength={200}
+                  placeholder={t('writer.sourceTitle')}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
+                <input
+                  value={sourceForm.organization}
+                  onChange={(e) => setSourceForm({ ...sourceForm, organization: e.target.value })}
+                  maxLength={160}
+                  placeholder={t('writer.sourceOrg')}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
+                <input
+                  value={sourceForm.url}
+                  onChange={(e) => setSourceForm({ ...sourceForm, url: e.target.value })}
+                  placeholder={t('writer.sourceUrl')}
+                  inputMode="url"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-2"
+                />
+                <select
+                  value={sourceForm.type}
+                  onChange={(e) => setSourceForm({ ...sourceForm, type: e.target.value })}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                >
+                  {['link', 'document', 'interview', 'official-data', 'observation'].map((kind) => (
+                    <option key={kind} value={kind}>{t(`articles.sourceType.${kind}`)}</option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={sourceForm.accessedAt}
+                  onChange={(e) => setSourceForm({ ...sourceForm, accessedAt: e.target.value })}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
+                <textarea
+                  value={sourceForm.quote}
+                  onChange={(e) => setSourceForm({ ...sourceForm, quote: e.target.value })}
+                  rows={2}
+                  maxLength={600}
+                  placeholder={t('writer.sourceQuote')}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-2"
+                />
+              </div>
+              {sourceError && <p role="alert" className="text-xs font-semibold text-red-700">{sourceError}</p>}
+              {sourceNotice && <p className="text-xs font-semibold text-emerald-700">{sourceNotice}</p>}
+              <button
+                type="submit"
+                disabled={sourceBusy !== '' || (!sourceForm.title.trim() && !sourceForm.url.trim())}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                {sourceBusy === 'add' ? t('writer.addingSource') : t('writer.addSource')}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* A live story rewritten is a story somebody already shared. The note
+            says what the new copy answers, and the desk reads it with the
+            version it replaces. */}
+        {id && status !== 'draft' && (
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600">{t('writer.editNote')}</label>
+            <input
+              value={editNote}
+              onChange={(e) => setEditNote(e.target.value)}
+              maxLength={300}
+              placeholder={t('writer.editNoteHint')}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+          </div>
+        )}
+
         <button disabled={loading} className="rounded-lg bg-blue-700 px-6 py-2 text-sm font-bold text-white disabled:opacity-50">{loading ? t('writer.saving') : t('writer.save')}</button>
       </form>
     </div>

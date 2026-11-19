@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, DollarSign, Loader2, RefreshCw, Wallet, XCircle } from 'lucide-react'
+import { CheckCircle2, DollarSign, RefreshCw, Wallet, XCircle } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { Payout } from '../../types'
 
@@ -94,7 +94,7 @@ export default function AdminPayoutsPage() {
           <p className="mt-1 text-sm text-slate-500">Review, approve and settle writer payment requests.</p>
         </div>
         <button type="button" onClick={() => void loadPayouts()} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60">
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
+          <RefreshCw className="h-4 w-4" />Refresh
         </button>
       </div>
 
@@ -137,7 +137,7 @@ export default function AdminPayoutsPage() {
         ) : visible.length === 0 ? (
           <div className="px-5 py-12 text-center">
             <DollarSign className="mx-auto h-8 w-8 text-slate-300" />
-            <p className="mt-2 text-sm text-slate-500">No payouts to show{filter !== 'ALL' ? ` for "${filter}"` : ''}.</p>
+            <p className="mt-2 text-sm text-slate-500">No payouts to show{filter !== 'ALL' ? ` for"${filter}"` : ''}.</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -165,7 +165,7 @@ export default function AdminPayoutsPage() {
                           onClick={() => void runAction(payout._id, 'approve')}
                           className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
                         >
-                          {busyId === payout._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}Approve
+                          <CheckCircle2 className="h-3.5 w-3.5" />Approve
                         </button>
                         <button
                           type="button"
@@ -184,7 +184,7 @@ export default function AdminPayoutsPage() {
                         onClick={() => void runAction(payout._id, 'paid')}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
                       >
-                        {busyId === payout._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}Mark paid
+                        <DollarSign className="h-3.5 w-3.5" />Mark paid
                       </button>
                     )}
                     {(payout.status === 'paid' || payout.status === 'rejected') && (

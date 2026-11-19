@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Loader2, Send, Sparkles, X } from 'lucide-react'
+import { ArrowRight, Send, Sparkles, X } from 'lucide-react'
 import { aiAPI, type AiAskTurn, type AiAnswer } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 
@@ -9,7 +9,7 @@ import { useI18n } from '../../context/I18nContext'
  *
  * One panel, two jobs. On the home page it sits where the red breaking strip
  * used to - a line you can open a conversation from. At the bottom of a story
- * it is the button that says "explain more about this", and the question is
+ * it is the button that says"explain more about this", and the question is
  * seeded with the headline the reader just finished, so they do not have to
  * type anything to get an answer that means something.
  *
@@ -17,7 +17,7 @@ import { useI18n } from '../../context/I18nContext'
  *
  * - Pretend to be staffed. If the server says the desk is not connected, the
  *   panel says that in words and does not show a text box. A chat window that
- *   only ever errors is worse than an honest "not yet".
+ *   only ever errors is worse than an honest"not yet".
  * - Store the conversation anywhere but this tab. Nothing is written to
  *   localStorage and no account is needed; reload and it is gone. The reader's
  *   questions are theirs.
@@ -31,6 +31,8 @@ interface Entry extends AiAskTurn {
   id: string
   /** Only on an assistant entry: the story the answer came from. */
   groundedOn?: AiAnswer['groundedOn']
+  /** Only on an assistant entry: which desk wrote it. */
+  kind?: AiAnswer['kind']
 }
 
 interface AskRadarAiProps {
@@ -47,7 +49,7 @@ interface AskRadarAiProps {
   suggestions?: string[]
   /**
    * The question sent when the reader opens a story panel and presses send
-   * without typing - the "explain more about this news" the newsroom promised.
+   * without typing - the"explain more about this news" the newsroom promised.
    */
   seedQuestion?: string
 }
@@ -110,7 +112,7 @@ export default function AskRadarAi({
       } else {
         setEntries((current) => [
           ...current,
-          { id: nextId(), role: 'assistant', text: result.answer, groundedOn: result.groundedOn },
+          { id: nextId(), role: 'assistant', text: result.answer, groundedOn: result.groundedOn, kind: result.kind },
         ])
       }
       setBusy(false)
@@ -143,7 +145,6 @@ export default function AskRadarAi({
         }
       >
         <span className="inline-flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
           {t('ai.checking')}
         </span>
       </div>
@@ -237,6 +238,20 @@ export default function AskRadarAi({
                   }
                 >
                   <p className="whitespace-pre-line">{entry.text}</p>
+                  {/* Where the answer came from is part of the answer. Three
+                      desks share this box - the one that reads our reporting,
+                      the one that explains this site, and the one that
+                      answers anything else - and a reader has to be able to
+                      tell them apart without reading the whole reply. */}
+                  {entry.role === 'assistant' && entry.kind && (
+                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      {entry.kind === 'site'
+                        ? t('ai.sourceSite')
+                        : entry.kind === 'research'
+                          ? t('ai.sourceResearch')
+                          : t('ai.sourceNews')}
+                    </p>
+                  )}
                   {entry.role === 'assistant' && entry.groundedOn && (
                     <Link
                       to={`/article/${entry.groundedOn.slug}`}
@@ -252,7 +267,6 @@ export default function AskRadarAi({
             {busy && (
               <div className="flex justify-start">
                 <span className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-3 py-2 text-xs text-slate-500">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   {t('ai.thinking')}
                 </span>
               </div>
@@ -297,7 +311,7 @@ export default function AskRadarAi({
             disabled={busy || !draft.trim()}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-blue-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-800 disabled:opacity-50"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <Send className="h-4 w-4" />
             <span className="hidden sm:inline">{t('ai.send')}</span>
           </button>
         </form>

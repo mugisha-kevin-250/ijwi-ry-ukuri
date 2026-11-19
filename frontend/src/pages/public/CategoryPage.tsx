@@ -4,7 +4,7 @@ import type { Category, Article } from '../../types'
 import { publicAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import ArticleList from '../../components/news/ArticleList'
-import { Loading, LoadingGrid } from '../../components/common/Loading'
+import { SkeletonCards, SkeletonLine } from '../../components/common/Skeleton'
 import EmptyState from '../../components/common/EmptyState'
 import Pagination from '../../components/common/Pagination'
 import { cn } from '../../utils/cn'
@@ -68,10 +68,10 @@ export default function CategoryPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <Loading className="h-10 w-48" />
-          <Loading className="h-10 w-64" />
+          <SkeletonLine className="h-10 w-48" />
+          <SkeletonLine className="h-10 w-64" />
         </div>
-        <LoadingGrid count={6} />
+        <SkeletonCards count={6} />
       </div>
     )
   }

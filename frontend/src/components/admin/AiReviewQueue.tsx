@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ExternalLink, Eye, Loader2, RefreshCw, Trash2, X } from 'lucide-react'
+import { Check, ExternalLink, Eye, RefreshCw, Trash2, X } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { Article } from '../../types'
 import Modal, { ConfirmDialog } from '../common/Modal'
@@ -137,7 +137,7 @@ export default function AiReviewQueue({ reloadKey = 0 }: { reloadKey?: number })
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className="h-3.5 w-3.5" />
           Reload
         </button>
       </div>
@@ -222,7 +222,7 @@ export default function AiReviewQueue({ reloadKey = 0 }: { reloadKey?: number })
                       onClick={() => void moveTo(article, 'published')}
                       className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-500 disabled:opacity-60"
                     >
-                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      <Check className="h-3.5 w-3.5" />
                       {waiting ? 'Approve & publish' : 'Publish'}
                     </button>
                   )}

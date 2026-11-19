@@ -74,7 +74,7 @@ export default function AdSlot({ name, shape, className = '' }: AdSlotProps) {
 
   // Give the auction its few seconds, then read what it decided. Anything under
   // ten pixels tall is a unit that never got a creative, and a unit that says
-  // "unavailable" has already said it in as many words.
+  //"unavailable" has already said it in as many words.
   useEffect(() => {
     if (!enabled) {
       setUnsold(false)

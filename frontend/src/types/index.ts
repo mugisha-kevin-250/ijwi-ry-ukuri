@@ -25,6 +25,40 @@ export interface Category {
   updatedAt: string
 }
 
+/**
+ * One thing the story is standing on. An author writes their own sources; only
+ * the desk can move `verificationStatus` off `pending`, and the reader sees the
+ * status but never the staffer's note or name.
+ */
+export interface ArticleSource {
+  _id?: string
+  title?: string
+  organization?: string
+  url?: string
+  type?: 'link' | 'document' | 'interview' | 'official-data' | 'observation'
+  quote?: string
+  accessedAt?: string
+  verificationStatus?: 'pending' | 'verified' | 'rejected'
+  addedBy?: string
+  at?: string
+  /** Desk-only: present when the review desk asked for the story. */
+  reviewedBy?: string | { _id: string; fullName?: string; role?: string }
+  reviewNote?: string
+}
+
+/**
+ * Desk-only: the copy as it was before somebody rewrote it. A story never shows
+ * these next to its live text.
+ */
+export interface ArticleRevision {
+  title?: string
+  summary?: string
+  content?: string
+  note?: string
+  at?: string
+  by?: string | { _id: string; fullName?: string; username?: string; role?: string } | null
+}
+
 export interface Article {
   _id: string
   title: string
@@ -50,6 +84,13 @@ export interface Article {
    * and rendered on the story; a correction is never edited over.
    */
   corrections?: { note: string; at: string; by?: string }[]
+  /**
+   * What the story is standing on. Readers see the list and each status; the
+   * desk's note and the staffer who ruled are not sent to anybody else.
+   */
+  sources?: ArticleSource[]
+  /** Desk-only, and `select: false` on the model: an earlier version of the copy. */
+  revisions?: ArticleRevision[]
   author: string | { _id: string; fullName: string; username: string; avatar?: string; bio?: string }
   category: string | { _id: string; name: string; slug: string }
   tags: string[]

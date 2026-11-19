@@ -5,7 +5,6 @@ import {
   EyeOff,
   ExternalLink,
   FolderTree,
-  Loader2,
   Plus,
   RefreshCw,
   Save,
@@ -219,7 +218,7 @@ export default function AdminCategoriesPage() {
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={() => void load()} disabled={isLoading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60">
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />Refresh
+            <RefreshCw className="h-4 w-4" />Refresh
           </button>
           <button type="button" onClick={startNew} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700">
             <Plus className="h-4 w-4" />New section
@@ -313,7 +312,7 @@ export default function AdminCategoriesPage() {
               Show it to readers
             </label>
             <button type="button" onClick={() => void save()} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              <Save className="h-4 w-4" />
               {openId === 'new' ? 'Create section' : 'Save section'}
             </button>
           </div>

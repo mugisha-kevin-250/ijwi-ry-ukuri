@@ -32,7 +32,8 @@ async function callGemini({
   topP = 0.95,
   maxOutputTokens = 1600,
   responseMimeType,
-  timeoutMs = TIMEOUT_MS
+  timeoutMs = TIMEOUT_MS,
+  useSearchGrounding = false
 }) {
   if (!isConfigured()) {
     const error = new Error('Gemini is not configured on the server');
@@ -58,7 +59,13 @@ async function callGemini({
           topP,
           maxOutputTokens,
           ...(responseMimeType ? { responseMimeType } : {})
-        }
+        },
+        // Grounding on the open web is a switch the newsroom throws, not a
+        // guess this server makes: it costs more per answer, only some models
+        // accept it, and the site's own handbook must be answered from the
+        // handbook. When it is on, the model reads the web before it speaks and
+        // the call comes back with the pages it used.
+        ...(useSearchGrounding ? { tools: [{ google_search: {} }] } : {})
       }),
       signal: controller.signal
     });
@@ -295,6 +302,49 @@ const READER_SYSTEM_BASE = [
   '- When you rely on a specific article, name it the way a reader would recognise it - its headline - so they can go and read it.'
 ].join('\n');
 
+/**
+ * The two other things a reader asks a newsroom's AI desk.
+ *
+ * Both exist because the rule above - "say nothing that is not in a published
+ * story" - is right about the news and wrong about everything else. A question
+ * about how to publish here, or about what a place or a term means, is not a
+ * request for reporting this site does not have, and refusing it made the desk
+ * look broken to the person most likely to become a writer.
+ *
+ * The difference between the three is kept honest rather than smoothed over:
+ * each mode is told which of its sentences are the newsroom's own and which
+ * are not, and the answer carries that label out to the page.
+ */
+const READER_SITE_SYSTEM = [
+  'You are RADAR AI, the help desk of RADAR, answering a question about RADAR itself: how to use the site, how to write or publish here, how an account, a section, an alert, an advert or a correction works.',
+  'This is not a news question and it is not answered from stories. It is answered from the handbook of this newsroom, written below, which is the only description of this site you may repeat.',
+  '',
+  'How to answer:',
+  '- Walk the reader through it in order: the page they open, the button they press, what happens next, and who decides. Number the steps when there is more than one.',
+  '- Name the real addresses - /writer/dashboard, /contact, /advertising, /search, /weather, /live-sports, /corrections - exactly as the handbook gives them. Never invent an address, a menu item, a button label or a rule.',
+  '- Say what is true and uncomfortable when it is true: applying to write does not make anyone a writer, an editor decides, and nothing here is promised on a timetable.',
+  '- If the handbook does not cover the question, say that plainly in a sentence and send the reader to /contact. Do not fill the gap with a plausible-sounding process.',
+  '- A reader is not staff. Never describe a step only an editor or an admin can do as something they can do.',
+  '- Answer in the language the reader wrote in, in plain prose, and never longer than the question needs.'
+].join('\n');
+
+const READER_RESEARCH_SYSTEM = [
+  'You are RADAR AI, the question desk of a Rwandan news site. The reader has asked you something this newsroom has not reported - a term, a place, an institution, a person, a rule of a game, how something works, a piece of history or science, or a general "what does this mean for" question.',
+  'Answer it. A reader is allowed to ask you anything, and "we have not published about that" is not an answer to a question that is not about our publication.',
+  '',
+  'What you may say, and how to mark it:',
+  '- Your own general knowledge is fair game here. Use it, and be useful with it: explain, define, put the thing in context, give the well-established background.',
+  '- The list of what RADAR has published, when it is given below, is the only thing you may present as this newsroom\'s reporting. If a published story touches the subject, say so and name the headline; if none does, say RADAR has not reported on it.',
+  '- Never dress general knowledge up as news, a quotation, a statistic, or something this site confirmed. Do not attribute to RADAR, to any news agency, or to any person a statement you cannot stand behind.',
+  '- Say "I am not sure" rather than guessing a number, a date, a name or a result, and say plainly when something may have changed since your knowledge was last updated.',
+  '- A question that turns on a live event - who won today, what the central bank decided this week, whether someone is still in office - is the newsroom\'s business, not yours. Answer what you can in background terms and point the reader to the section that would carry it.',
+  '',
+  'How to answer:',
+  '- Three or four short paragraphs, or a few numbered points when the reader asked for steps or a list. No headings, no preamble, no restating the question.',
+  '- Answer in the language the reader wrote in.',
+  '- Be direct and generous: the reader came to a news site to find something out, and leaving them knowing more is the whole job.'
+].join('\n');
+
 function readerBriefing({ story, headlines } = {}) {
   const blocks = [];
 
@@ -329,7 +379,7 @@ function readerBriefing({ story, headlines } = {}) {
   return `${blocks.join('\n\n')}\n\nRemember: the above is everything you may treat as fact.`;
 }
 
-async function askReader({ question, history = [], story = null, headlines = [] } = {}) {
+async function askReader({ question, history = [], story = null, headlines = [], mode = 'news', guide = '' } = {}) {
   const asked = String(question || '').trim().slice(0, 2000);
   if (!asked) {
     const error = new Error('Ask RADAR AI a question first');
@@ -344,13 +394,29 @@ async function askReader({ question, history = [], story = null, headlines = [] 
     throw error;
   }
 
+  // Which of the three desks answers decides what the model is allowed to lean
+  // on. The site desk gets the handbook and no stories; the research desk gets
+  // the headlines as a pointer and its own knowledge as the substance; the news
+  // desk gets the story, the headlines, and nothing else.
+  let systemInstruction;
+  if (mode === 'site') {
+    systemInstruction = `${READER_SITE_SYSTEM}\n\nTHE HANDBOOK OF THIS SITE\n${guide}`;
+  } else if (mode === 'research') {
+    systemInstruction = `${READER_RESEARCH_SYSTEM}\n\n${readerBriefing({ headlines })}`;
+  } else {
+    systemInstruction = `${READER_SYSTEM_BASE}\n\n${readerBriefing({ story, headlines })}`;
+  }
+
   const answer = await callGemini({
     contents,
-    systemInstruction: `${READER_SYSTEM_BASE}\n\n${readerBriefing({ story, headlines })}`,
+    systemInstruction,
     temperature: 0.4,
     topP: 0.9,
-    maxOutputTokens: 900,
-    timeoutMs: CHAT_TIMEOUT_MS
+    maxOutputTokens: 1200,
+    timeoutMs: CHAT_TIMEOUT_MS,
+    // Only a question the newsroom cannot answer from its own files goes
+    // looking, and only when the owner has thrown the switch.
+    useSearchGrounding: mode === 'research' && env.GEMINI_GROUND_SEARCH
   });
 
   return { answer, model: activeModel(), generatedAt: new Date().toISOString() };

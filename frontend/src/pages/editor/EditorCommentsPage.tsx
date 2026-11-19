@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Flag, Inbox, Loader2, MessageSquareOff, RefreshCw, Search } from 'lucide-react'
+import { Flag, Inbox, MessageSquareOff, RefreshCw, Search } from 'lucide-react'
 import { editorAPI, type CommentState, type ModeratedComment } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../../components/common/Avatar'
@@ -105,7 +105,7 @@ export default function EditorCommentsPage() {
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          <RefreshCw className="h-4 w-4" />
           {t('moderation.refresh')}
         </button>
       </div>
@@ -231,7 +231,6 @@ export default function EditorCommentsPage() {
                       {t('moderation.delete')}
                     </button>
                   )}
-                  {busyId === comment._id && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
                 </div>
               </div>
             ))}

@@ -92,12 +92,18 @@ export function hasHeldWork(): boolean {
  * A click is the moment the reader decided to wait, so the line starts there and
  * not when the new page happens to arrive. Whoever opens it - the link handler -
  * is not whoever closes it: the progress bar releases it as soon as the address
- * in the bar has changed under it, and eight seconds is the promise's expiry, so
- * a press that turned out to go nowhere cannot strand a full line across the top.
+ * in the bar has changed under it.
+ *
+ * The expiry is short on purpose. A tap on a link that turns out not to
+ * navigate - a menu that closes, a chip that is already the current page, a
+ * swipe that never became a click - must not leave a full line hanging across
+ * the top of a page that has nothing loading on it. One second is long enough
+ * for a real navigation to begin and short enough that a false one is over
+ * before the reader has wondered about it.
  */
 let navigationHold: (() => void) | null = null
 let navigationTimer = 0
-const NAVIGATION_HOLD_MAX_MS = 8000
+const NAVIGATION_HOLD_MAX_MS = 1200
 
 export function holdNavigation(): void {
   if (navigationHold) return

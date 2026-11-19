@@ -66,7 +66,7 @@ export default function CategoryPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 px-4 py-6 sm:px-6">
         <div className="flex items-center justify-between">
           <SkeletonLine className="h-10 w-48" />
           <SkeletonLine className="h-10 w-64" />
@@ -78,7 +78,7 @@ export default function CategoryPage() {
 
   if (!category) {
     return (
-      <div className="text-center py-16">
+      <div className="px-4 py-16 text-center sm:px-6">
         <EmptyState
           icon={<svg className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>}
           title={t('category.notFound')}
@@ -90,7 +90,10 @@ export default function CategoryPage() {
   }
 
   return (
-    <div className="space-y-6">
+    /* The layout only offsets the fixed header, so the gutter is each page's
+       own job. A section listing that skips it puts every headline against the
+       edge of the screen on a phone. */
+    <div className="space-y-6 px-4 py-6 sm:px-6">
       <header className="space-y-4">
         <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" aria-label={t('nav.categories')}>
           <Link to="/categories" className="hover:text-brand-600 dark:hover:text-brand-400">{t('nav.categories')}</Link>

@@ -32,7 +32,10 @@ export default function PublisherPage({
   const { pathname } = useLocation()
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    /* Every public page is responsible for its own gutter - the layout only
+       offsets the fixed header - so a shell that never had one set its legal
+       copy against the edge of the phone, with no gutter on either side. */
+    <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-6">
       <nav aria-label={t('articles.breadcrumb')} className="text-sm text-gray-500 dark:text-gray-400">
         <ol className="flex flex-wrap items-center gap-1.5">
           <li>

@@ -75,14 +75,22 @@ not mail anybody again. Confirmation and unsubscribe links are the same token,
 stored only as a sha256 hash, and `GET /api/newsletter/unsubscribe?token=…` is
 what the link inside a mail opens.
 
-Owner action: none of these six values exist on Render yet, so email alerts are
-off on the live site. Add `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`,
-`SMTP_SECURE`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME` to the Render service (and to
-`.env.render` for local runs against production data) with the credentials from
-whichever relay you choose, then restart. `render.yaml` deliberately does not
-declare them: adding a Blueprint variable you have not filled in would publish an
-empty `SMTP_HOST`, which counts as configured to nothing but is still a value you
-have to clear by hand.
+Owner action: add `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`,
+`MAIL_FROM_EMAIL`, `MAIL_FROM_NAME` to the Render service (and to `.env.render`
+for local runs against production data) with the credentials from whichever relay
+is in use, then restart. `render.yaml` deliberately does not declare them: adding
+a Blueprint variable nobody filled in would publish an empty `SMTP_HOST`, which
+counts as configured to nothing but is still a value to clear by hand.
+
+The relay in use is Mailjet's SMTP credentials, which need exactly these values —
+`SMTP_HOST=in-v3.mailjet.com`, `SMTP_PORT=587`, `SMTP_SECURE` absent or `false`
+(587 upgrades with STARTTLS; `true` there means the connection is waited for
+forever and no mail leaves), `SMTP_USER` and `SMTP_PASS` from the SMTP panel, and
+`MAIL_FROM_EMAIL` set to a sender Mailjet has actually validated, because a
+refused sender looks like a bug in the site. Only the key is secret, and putting a
+key in this file would be the mistake this table exists to prevent. `GET
+/api/health` answers `wired.email` and, when it is false, names the variable that
+is missing.
 
 `JWT_REFRESH_SECRET` no longer exists anywhere — there is no refresh endpoint, so
 the value in the Render dashboard is dead. Delete it there when convenient;

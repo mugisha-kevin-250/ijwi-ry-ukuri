@@ -18,6 +18,7 @@ const adService = require('../services/adService');
 const { publicHttpsUrl } = require('../services/urlGuard');
 const radioService = require('../services/radioService');
 const storyVideo = require('../services/storyVideo');
+const storyMedia = require('../services/storyMedia');
 const trendService = require('../services/trendService');
 const generateSlug = require('../utils/generateSlug');
 const lifecycle = require('../utils/articleLifecycle');
@@ -647,6 +648,7 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       imageCaption,
       imageSourceUrl,
       videoUrl,
+      media,
       publish
     } = req.body || {};
     if (!title || !summary || !content || !category) {
@@ -654,6 +656,10 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
     }
     const video = storyVideo.resolve(videoUrl);
     if (!video.ok) return errorResponse(res, 400, video.reason);
+    // Read before anything is looked up or written, so a refused picture cannot
+    // leave half a story behind.
+    const extra = storyMedia.normalize(media);
+    if (!extra.ok) return errorResponse(res, 400, extra.reason);
     const categoryDoc = await Category.findById(category);
     if (!categoryDoc) return errorResponse(res, 404, 'Category not found');
 
@@ -680,6 +686,7 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
       imageCaption: imageCaption ? plainText(imageCaption, { maxLength: 240 }) : '',
       imageSourceUrl: safeMediaUrl(imageSourceUrl),
       ...video.fields,
+      media: extra.media,
       author: req.user._id,
       category: categoryDoc._id,
       tags: cleanTags(tags, { max: 6 }),

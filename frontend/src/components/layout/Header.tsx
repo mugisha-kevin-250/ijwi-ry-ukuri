@@ -226,10 +226,14 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             )}
 
             {variant === 'public' && (
-              <>
+              /* The radio and the TV are the two things on this row that a phone
+                 does not need twice: both also sit at the end of the section
+                 strip directly underneath, and again in the menu. Kept here from
+                 640px up, where there is room for them. */
+              <div className="hidden items-center gap-1 sm:flex">
                 <RadioNewsButton />
                 <LiveButton />
-              </>
+              </div>
             )}
 
             <LanguageSelector className="hidden sm:block" labelClassName="hidden xl:inline" buttonClassName="border-gray-200 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" />
@@ -328,7 +332,11 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                 )}
               </div>
             ) : (
-              <div className={`items-center gap-2 sm:gap-3 ${variant === 'public' ? 'flex' : 'hidden md:flex'}`}>
+              /* On a phone these two are not on the masthead: the bottom bar ends
+                 in the same sign-in, the menu carries both, and the row has to
+                 leave room for the button that opens it. From 640px up there is
+                 space and they come back. */
+              <div className={`items-center gap-2 sm:gap-3 ${variant === 'public' ? 'hidden sm:flex' : 'hidden md:flex'}`}>
                 <Link
                   to="/login"
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"

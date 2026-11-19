@@ -27,6 +27,7 @@ const {
 } = require('../utils/writerAnalytics');
 const { plainText, cleanText, cleanTags, safeMediaUrl, safeLinkUrl } = require('../utils/textFields');
 const storyVideo = require('../services/storyVideo');
+const storyMedia = require('../services/storyMedia');
 const revisions = require('../utils/articleRevisions');
 
 const router = express.Router();
@@ -89,13 +90,15 @@ router.get('/me/status', protect, async (req, res, next) => {
 
 router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
   try {
-    const { title, summary, content, category, tags = [], featuredImage, imageCredit, imageCaption, imageSourceUrl, videoUrl } = req.body;
+    const { title, summary, content, category, tags = [], featuredImage, imageCredit, imageCaption, imageSourceUrl, videoUrl, media } = req.body;
     if (!title || !summary || !content || !category) {
       return errorResponse(res, 400, 'Title, summary, content and category are required');
     }
 
     const video = storyVideo.resolve(videoUrl);
     if (!video.ok) return errorResponse(res, 400, video.reason);
+    const extra = storyMedia.normalize(media);
+    if (!extra.ok) return errorResponse(res, 400, extra.reason);
 
     // Cleaning happens after the presence check so an all-markup title is
     // refused as missing rather than stored as an empty headline.
@@ -111,6 +114,10 @@ router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async 
       imageCaption: imageCaption ? plainText(imageCaption, { maxLength: 240 }) : '',
       imageSourceUrl: safeMediaUrl(imageSourceUrl),
       ...video.fields,
+      // Everything after the one picture at the top: the second photograph, the
+      // wider shot, the clip that comes after the first. Each carries its own
+      // caption and credit, which is the part an author would otherwise skip.
+      media: extra.media,
       tags: cleanTags(tags)
     };
     if (!story.title || !story.summary || !story.content) {
@@ -165,6 +172,12 @@ function cleanDraft(req) {
     error.statusCode = 400;
     throw error;
   }
+  const extra = storyMedia.normalize(body.media);
+  if (!extra.ok) {
+    const error = new Error(extra.reason);
+    error.statusCode = 400;
+    throw error;
+  }
   return {
     title: plainText(body.title, { maxLength: 200 }),
     summary: cleanText(body.summary, { maxLength: 600 }),
@@ -176,6 +189,7 @@ function cleanDraft(req) {
     imageCaption: body.imageCaption ? plainText(body.imageCaption, { maxLength: 240 }) : '',
     imageSourceUrl: safeMediaUrl(body.imageSourceUrl),
     ...video.fields,
+    media: extra.media,
     category: body.category
   };
 }
@@ -340,6 +354,16 @@ router.put('/articles/:id', protect, async (req, res, next) => {
       const video = storyVideo.resolve(req.body.videoUrl);
       if (!video.ok) return errorResponse(res, 400, video.reason);
       Object.assign(changes, video.fields);
+    }
+
+    // The extra pictures and clips are a list the author assembles in the form,
+    // so the whole list is read at once rather than field by field. A save that
+    // says nothing about them leaves the story's gallery alone; an empty list is
+    // the author saying "take them off".
+    if (req.body.media !== undefined) {
+      const extra = storyMedia.normalize(req.body.media);
+      if (!extra.ok) return errorResponse(res, 400, extra.reason);
+      changes.media = extra.media;
     }
 
     // Remember what readers had already been shown before this text replaces it.

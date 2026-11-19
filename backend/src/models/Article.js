@@ -27,6 +27,20 @@ const articleSchema = new mongoose.Schema({
   videoUrl: String,
   videoSource: { type: String, enum: ['', 'youtube', 'vimeo', 'file'], default: '' },
   videoEmbedUrl: String,
+  // Everything the story carries after the one picture at the top and the one
+  // clip under it: the second photograph, the wider shot, the statement played
+  // after the first. The list is the author's, in the order they put it, and
+  // each item states what it shows and whose it is - the disclosure that is
+  // easiest to forget on picture two. `embedUrl` is written by the server from
+  // what was pasted (see services/storyMedia.js), never taken from the form.
+  media: [{
+    kind: { type: String, enum: ['image', 'video'], default: 'image' },
+    url: String,
+    source: { type: String, enum: ['', 'youtube', 'vimeo', 'file'], default: '' },
+    embedUrl: String,
+    caption: String,
+    credit: String
+  }],
   // Paid content has to look like paid content. A story an advertiser paid for
   // carries who paid, and the reader sees it before the headline is finished.
   // Only an editor or an admin can set it - a writer declaring their own copy

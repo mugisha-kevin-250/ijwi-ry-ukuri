@@ -256,3 +256,46 @@ reported it). Open a story and press the button at the bottom; the answer arrive
 with a link back to the story it was standing on. Then sign in as a writer, use
 **Draft with the AI writer** on their dashboard, and confirm the result appears in
 their shelf as a draft — never as a published page.
+
+## 14. Put the Mailjet keys in Render — this is what makes a recovery code arrive
+
+**Status: shipped, waiting only on these variables.** The site can send mail as soon as
+they are in Render → `studentnews-backend` → Environment → Add Environment Variables →
+Save Changes (the service restarts by itself). Nobody has to edit a file, and nothing here
+belongs in the repository — these six names are read at boot, every time.
+
+| Render variable | Value | Where to find it |
+|---|---|---|
+| `SMTP_HOST` | `in-v3.mailjet.com` | Mailjet → Account settings → SMTP and SEND API settings |
+| `SMTP_PORT` | `587` | same page; use `465` only together with `SMTP_SECURE=true` |
+| `SMTP_USER` | the SMTP username Mailjet gives | same page |
+| `SMTP_PASS` | the SMTP secret key Mailjet gives | same page (the app also accepts the name `SMTP_PASSWORD`) |
+| `MAIL_FROM_EMAIL` | the address you validated in Mailjet's Senders & Domains | **this is the one that breaks it** — an unvalidated from-address is refused by Mailjet, and the variable is also what the app checks before it will try at all |
+| `MAIL_FROM_NAME` | `RADAR` | optional; it becomes the display name in the reader's inbox |
+
+Leave `SMTP_SECURE` absent, or set it to `false`. Port 587 is STARTTLS, which is what the
+mail library expects; setting this flag to true on 587 makes the connection try to speak TLS
+before the server has offered it, and nothing arrives.
+
+Three things to know about what these switch on:
+
+- **They are shared by the whole site.** The password-recovery code, the newsletter
+  confirmation link, the unsubscribe mails, and the alerts the publish flow sends all go
+  through the one transport these variables build. If Mailjet is off, all of them report
+  honestly that email is not configured; nothing pretends a mail was sent.
+- **A missing value names itself.** `GET https://studentnews-backend.onrender.com/api/health`
+  answers `wired.email` and, when it is false, the reason says which variable is unset
+  (`MAIL_FROM_EMAIL is not set` is the usual one). Before this was added, a forgotten
+  password request just returned "ask the newsroom to reset it for you" and there was no
+  way to tell a missing key from a broken code.
+- **The keys you pasted into a chat are no longer secret.** The Brevo key from the earlier
+  attempt should be deleted in the Brevo dashboard, and if the Mailjet secret has been
+  typed into a chat window too, regenerate it in Mailjet before putting it in Render —
+  the dashboard is the only place a key should be typed.
+
+**Check.** After the restart, `curl https://studentnews-backend.onrender.com/api/health`
+should show `"email": true`. Then open the hosted sign-in page, press **Forgot password?**
+and put in an address that has an account: the answer stays the same neutral sentence
+whatever the address is, and the six-digit code should be in that mailbox within a minute.
+Type a wrong code once — it is refused — then the right one; the new password works and
+the account is signed out everywhere else.

@@ -23,6 +23,9 @@ const PRIVATE_HOST_PATTERNS = [
   /^\[?::1\]?$/,
   /^\[?f[cd][0-9a-f]{2}:/i,
   /\.local$/i,
+  // `.localhost` is not a real domain - a resolver sends it to the machine doing
+  // the asking - and it survives the single-label test above because of the dot.
+  /\.localhost$/i,
   /\.internal$/i
 ];
 
@@ -57,4 +60,30 @@ function isPublicHttpsImage(value) {
   return publicHttpsUrl(value);
 }
 
-module.exports = { publicHttpsUrl, isPublicHttpsImage };
+/**
+ * Fill in the scheme a pasted link lost on the way here.
+ *
+ * A phone's share sheet hands over `youtube.com/watch?v=...`, and a chat app
+ * strips the protocol on purpose (`//youtu.be/...`). `new URL()` calls both of
+ * those garbage, so a perfectly good link is refused as "not a readable
+ * address" - which is how a working feature looks broken to the person who
+ * typed it. This only ever adds the scheme this site is willing to load; it
+ * grants nothing. A bare `127.0.0.1:27017` becomes `https://127.0.0.1:27017`
+ * and `publicHttpsUrl` refuses it for naming a private host and a port, exactly
+ * as before, and a text that is not an address at all still fails to parse.
+ *
+ * Callers that paste text from a form use this before the guard. Callers that
+ * fetch on behalf of an admin do not, and still take only what they were given.
+ */
+function withHttpsScheme(value) {
+  const text = String(value || '').trim();
+  if (!text) return text;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
+  // A single leading slash is not a link missing its scheme, it is a path inside
+  // this app - `/uploads/…` from an upload, or a page in the SPA - and turning it
+  // into `https://uploads/…` would break the one address format we always accept.
+  if (text.startsWith('/') && !text.startsWith('//')) return text;
+  return `https://${text.replace(/^\/+/, '')}`;
+}
+
+module.exports = { publicHttpsUrl, isPublicHttpsImage, withHttpsScheme };

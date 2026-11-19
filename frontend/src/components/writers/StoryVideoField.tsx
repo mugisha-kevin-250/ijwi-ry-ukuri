@@ -22,7 +22,7 @@ const FILE = /\.(mp4|webm|ogv|ogg|m4v|mov)(\?|#|$)/i
  * with a player rather than a paragraph of text - and an address that matches
  * nothing stays a plain line instead of pretending to be a video.
  */
-function previewFor(url: string): { kind: 'youtube' | 'vimeo' | 'file' | 'none'; embed: string } {
+export function previewFor(url: string): { kind: 'youtube' | 'vimeo' | 'file' | 'none'; embed: string } {
   const value = url.trim()
   if (!value) return { kind: 'none', embed: '' }
   const youtube = YOUTUBE.exec(value)
@@ -108,6 +108,9 @@ export default function StoryVideoField({ value, onChange }: Props) {
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
         />
+      )}
+      {preview.kind === 'none' && value && (
+        <p role="alert" className="mt-2 text-xs font-semibold text-amber-700">{t('writer.addressNotPlayable')}</p>
       )}
     </div>
   )

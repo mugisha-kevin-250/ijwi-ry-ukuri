@@ -15,10 +15,14 @@ const TICK_MS = 150
 // everything has actually arrived.
 const CEILING = 92
 const QUIET_TICKS = 2
-// Requests always settle (axios gives up at 30s), so this only exists to catch a
-// counted request that never reported back - a cold Render instance can take far
-// longer than a page should make a reader watch a full bar.
-const MAX_MS = 20000
+// How long one bar is allowed to stay on screen, counted from the moment the
+// page it answers appeared. A navigation is capped short - the reader has the
+// next page in front of them, and a line that keeps crawling because one
+// picture is still coming down reads as a fault, not as news. Work the reader
+// is waiting an answer for (an upload, a city typed at the weather desk) gets
+// the long allowance instead, because there the bar is the only answer coming.
+const NAVIGATION_MAX_MS = 1600
+const READER_MAX_MS = 20000
 // A page asked to be waited for (a city typed at the weather desk) after the
 // navigation that opened this bar was long finished.
 const HELD_START = 14
@@ -49,7 +53,7 @@ export default function RouteProgressBar() {
   // `forReader` is the one exception to counting by navigation: a bar opened by
   // a press waits on the work that press started, however long the page has
   // already been on screen.
-  const run = useRef<{ base: number; startedAt: number; quiet: number; forReader: boolean } | null>(null)
+  const run = useRef<{ base: number; startedAt: number; quiet: number; forReader: boolean; maxMs: number } | null>(null)
   const timer = useRef(0)
   const hideTimer = useRef(0)
   const revealTimer = useRef(0)
@@ -62,8 +66,10 @@ export default function RouteProgressBar() {
       document.readyState === 'complete' &&
       visibleImagesSettled()
     active.quiet = idle ? active.quiet + 1 : 0
-    // A slow or dead request must not strand the bar across the top.
-    if (active.quiet >= QUIET_TICKS || Date.now() - active.startedAt > MAX_MS) {
+    // Either the work has stopped, or this bar has had the time it is allowed.
+    // A page whose third picture is still coming down is a page the reader is
+    // already reading; the line is not what they are waiting for any more.
+    if (active.quiet >= QUIET_TICKS || Date.now() - active.startedAt > active.maxMs) {
       run.current = null
       window.clearInterval(timer.current)
       timer.current = 0
@@ -80,7 +86,13 @@ export default function RouteProgressBar() {
   const start = useCallback(
     (at: number, forReader = false) => {
       window.clearTimeout(hideTimer.current)
-      run.current = { base: currentRequestId(), startedAt: Date.now(), quiet: 0, forReader }
+      run.current = {
+        base: currentRequestId(),
+        startedAt: Date.now(),
+        quiet: 0,
+        forReader,
+        maxMs: forReader ? READER_MAX_MS : NAVIGATION_MAX_MS,
+      }
       // A line that is still on screen - or still fading out from the wait the
       // reader just watched - keeps where it got to. Dropping a second piece of
       // work back to the left edge read as the page starting over.
@@ -107,6 +119,10 @@ export default function RouteProgressBar() {
       active.startedAt = Date.now()
       active.quiet = 0
       active.forReader = false
+      // Whatever is still arriving belongs to the page the reader is now
+      // looking at, not to the click that got them there, so this bar gets the
+      // short navigation allowance and finishes on its own.
+      active.maxMs = NAVIGATION_MAX_MS
     } else {
       start(10)
     }

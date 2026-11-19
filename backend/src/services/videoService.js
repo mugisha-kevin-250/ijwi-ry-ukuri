@@ -21,7 +21,7 @@
  * admin reads that reason instead of wondering why the screen stayed black.
  */
 
-const { publicHttpsUrl } = require('./urlGuard');
+const { publicHttpsUrl, withHttpsScheme } = require('./urlGuard');
 
 const YOUTUBE_HOSTS = new Set([
   'youtube.com',
@@ -50,7 +50,7 @@ function fail(reason) {
  *          | {ok: false, reason: string}}
  */
 function describe(value) {
-  const guarded = publicHttpsUrl(value);
+  const guarded = publicHttpsUrl(withHttpsScheme(value));
   if (!guarded.ok) return fail(guarded.reason);
   const parsed = guarded.url;
   const host = parsed.hostname.toLowerCase();

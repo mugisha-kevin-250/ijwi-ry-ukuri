@@ -59,6 +59,22 @@ export interface ArticleRevision {
   by?: string | { _id: string; fullName?: string; username?: string; role?: string } | null
 }
 
+/**
+ * A picture or a clip after the one at the top of the story. The author's list,
+ * in their order, each with what it shows and whose it is.
+ */
+export interface StoryMedia {
+  _id?: string
+  kind: 'image' | 'video'
+  /** What the author pasted or uploaded. Shown to them, never trusted as loadable. */
+  url: string
+  source?: 'youtube' | 'vimeo' | 'file' | ''
+  /** What the reader's page is allowed to load, written by the server. */
+  embedUrl?: string
+  caption?: string
+  credit?: string
+}
+
 export interface Article {
   _id: string
   title: string
@@ -73,6 +89,16 @@ export interface Article {
   imageSourceUrl?: string
   /** What the photograph shows, in the newsroom's words. Printed with the credit. */
   imageCaption?: string
+  /**
+   * The clip attached to the story. `videoUrl` is what the author pasted or
+   * uploaded; the server classifies it and stores the address the reader's page
+   * may load in `videoEmbedUrl`, so the embed is never the typed text itself.
+   */
+  videoUrl?: string
+  videoSource?: 'youtube' | 'vimeo' | 'file' | ''
+  videoEmbedUrl?: string
+  /** The extra pictures and clips, in the order the author put them. */
+  media?: StoryMedia[]
   /**
    * Paid content. Only an editor or an admin can set it, and a story that says
    * it is sponsored has to say who paid.

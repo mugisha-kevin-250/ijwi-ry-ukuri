@@ -9,6 +9,8 @@ import { useI18n } from '../../context/I18nContext'
 import ArticleList from '../../components/news/ArticleList'
 import { SkeletonArticle, SkeletonCards } from '../../components/common/Skeleton'
 import EmptyState from '../../components/common/EmptyState'
+import StoryVideo from '../../components/common/StoryVideo'
+import StoryGallery from '../../components/common/StoryGallery'
 import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
 import AdSlot from '../../components/ads/AdSlot'
@@ -243,7 +245,7 @@ export default function ArticleDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="mx-auto max-w-4xl space-y-8 px-4 py-6 sm:px-6">
         <SkeletonArticle className="max-w-4xl" lines={6} />
         <SkeletonCards count={3} />
       </div>
@@ -252,7 +254,7 @@ export default function ArticleDetailPage() {
 
   if (!article) {
     return (
-      <div className="max-w-4xl mx-auto text-center py-16">
+      <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6">
         <EmptyState
           icon={<FileQuestion className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />}
           title={t('articles.notFound')}
@@ -289,7 +291,7 @@ export default function ArticleDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,270px)_minmax(0,1fr)] lg:items-start lg:gap-10">
+    <div className="mx-auto max-w-4xl px-4 pt-6 sm:px-6 lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,270px)_minmax(0,1fr)] lg:items-start lg:gap-10">
       <article className="space-y-8 lg:col-start-2 lg:row-start-1">
       <nav aria-label={t('articles.breadcrumb')} className="text-sm text-gray-500 dark:text-gray-400">
         <ol className="flex flex-wrap items-center gap-1.5">
@@ -415,6 +417,26 @@ export default function ArticleDetailPage() {
           )}
         </figure>
       )}
+
+      {/* The clip the author attached, between the picture and the copy. It is
+          the player the platform serves - YouTube's or Vimeo's own, or the
+          browser's for a file the newsroom holds - and it waits for the reader
+          to press play. */}
+      {(article.videoEmbedUrl || article.videoUrl) && (
+        <figure>
+          <StoryVideo
+            source={article.videoSource}
+            embedUrl={article.videoEmbedUrl}
+            videoUrl={article.videoUrl}
+            title={article.title}
+          />
+        </figure>
+      )}
+
+      {/* Whatever else the reporting carries: the second photograph, the wider
+          shot, the clip that comes after the first. In the order the author put
+          them, each with what it shows and whose it is. */}
+      <StoryGallery items={article.media} title={article.title} />
 
       <div className="space-y-7">
         <p className="max-w-[42rem] text-lg sm:text-xl leading-relaxed font-medium text-gray-700 dark:text-gray-300">

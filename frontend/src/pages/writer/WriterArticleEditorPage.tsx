@@ -5,8 +5,9 @@ import { writerAPI, publicAPI } from '../../services/api'
 import { uploadImage } from '../../services/apiClient'
 import MediaImage from '../../components/common/MediaImage'
 import StoryVideoField from '../../components/writers/StoryVideoField'
+import StoryMediaField from '../../components/writers/StoryMediaField'
 import { useI18n } from '../../context/I18nContext'
-import type { ArticleSource, Category } from '../../types'
+import type { ArticleSource, Category, StoryMedia } from '../../types'
 import { canonicalCategoryId, categoryLabel, resolveCategories } from '../../data/categoryVisuals'
 
 export default function WriterArticleEditorPage() {
@@ -34,6 +35,9 @@ export default function WriterArticleEditorPage() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [imageFileName, setImageFileName] = useState('')
+  // Everything after the picture at the top. Kept apart from `form` because it
+  // is a list the author adds to and takes away from, not a line they type.
+  const [media, setMedia] = useState<StoryMedia[]>([])
 
   // Two things the desk reads alongside the copy: what the story stands on, and
   // what the writer changed. A source is filed with its own request rather than
@@ -76,6 +80,7 @@ export default function WriterArticleEditorPage() {
             tags: (article.tags || []).join(', ')
           })
           setStatus(article.status || '')
+          setMedia(Array.isArray(article.media) ? article.media : [])
           setSources(Array.isArray(article.sources) ? article.sources : [])
           if (article.featuredImage) {
             const parts = article.featuredImage.split('/')
@@ -137,6 +142,9 @@ export default function WriterArticleEditorPage() {
         imageCredit: form.featuredImage ? form.imageCredit.trim() : '',
         imageCaption: form.featuredImage ? form.imageCaption.trim() : '',
         videoUrl: form.videoUrl.trim(),
+        // The list is sent whole every time: the author edits it in place, and
+        // the server reads it as one statement of what the story carries.
+        media,
         tags: form.tags.split(',').map((t:any) => t.trim()).filter(Boolean),
         // Only the desk's earlier copy is recorded, and this says what the new
         // one fixes. A draft has no published version to answer for.
@@ -285,6 +293,10 @@ export default function WriterArticleEditorPage() {
           )}
         </div>
         <StoryVideoField value={form.videoUrl} onChange={(videoUrl) => setForm({ ...form, videoUrl })} />
+        {/* One picture and one clip were never enough for a day's reporting.
+            What comes after them is the author's list, in their order, each with
+            its own caption and credit. */}
+        <StoryMediaField value={media} onChange={setMedia} />
         {/* What the story is standing on. Filed per source rather than with the
             save, because a source is a fact about the reporting and not a line
             of the copy: it is on the record the moment it is named, and the desk

@@ -186,6 +186,65 @@ them from the code:
   keeps it to the desk, where `GET /api/editor/articles/:id` and `/history` ask for it by
   name.
 
+- **One loader, and it holds the page.** The blue bar across the top
+  (`RouteProgressBar`) is the only progress indicator on the site; every spinner in
+  every component was deleted rather than hidden, including the splash. Navigation
+  waits for its data: clicking a link starts the bar and the reader stays where
+  they are until the new page's request has settled, then the route swaps in with
+  content already on it. The hold applies to reader routes only, is skipped when
+  the reader is mid-typing or mid-click in the page they are on, and always
+  releases itself after eight seconds so a dead request cannot trap anyone. An
+  upload is held the same way through `holdProgress()` because fetch is invisible
+  to the request counter. The corollary is that a page never paints a spinner next
+  to a skeleton next to a bar, and a slow network looks like a slow phone, not
+  like a broken site. (Owner request, batch #170.)
+- **A dropped connection is announced, not thrown.** Losing the network is normal,
+  so it gets a sentence rather than a stack: `utils/offline.ts` watches the
+  browser's own connection state and `OfflineBanner` says so above the page, a hard
+  failure shows a retry panel that re-runs the real request, and `AppErrorBoundary`
+  was added behind everything so any unmapped React crash lands on a "reload" page
+  instead of a white screen. (Batch #167.)
+- **Video on TV and in stories.** A TV broadcast or a story clip can come from
+  three places: YouTube, Vimeo, or a file uploaded to the newsroom. Both live
+  screens read the source through `getLiveStream()`, so a YouTube link handed to
+  the admin panel plays in the reader's embed instead of waiting for a WebRTC peer
+  connection that no camera will ever make; the server resolves a pasted URL into a
+  provider-verified embed (`videoService.describe`) rather than putting the author's
+  text into an `iframe src`, and an unknown link is refused on save with a readable
+  reason instead of a broken player. A story can also carry up to twelve extra
+  attachments (`Article.media`), image or clip, each with its own caption and credit,
+  and the reader's page shows them in the order the author filed them. Uploaded
+  video is capped at 12MB because the bytes live inside one Mongo document; longer
+  or larger material goes on YouTube and gets pasted as a link, which is the same
+  path the newsroom already uses for broadcast material. (Owner request, batch
+  #171 and #173; live TV verified on the hosted site 2026-11-19.)
+- **A story must be readable on the phone it is read on.** The article page had
+  zero horizontal padding at every ancestor, so body text touched both edges of a
+  335px screen; it now carries `px-4 sm:px-6` at every breakpoint, prose is set in
+  ink (`--color-text-body`) instead of the muted grey reserved for timestamps, a
+  paragraph is a 40rem measure with 1.8 leading, and long addresses break anywhere
+  instead of widening the page. The masthead's icon cluster and Login/Register
+  pair are hidden below `sm` - both actions already exist in the drawer, the
+  section line and the bottom bar - because at phone width they ran 82px off the
+  screen and took the hamburger with them. (Batch #172.)
+- **A forgotten password is recovered by a code sent to the account's email.**
+  `POST /api/auth/forgot-password` answers the same neutral sentence whether the
+  address is a reader, a writer, an admin, a deactivated account, or nobody, and
+  never says whether a mail went out - the enumeration guard the newsletter routes
+  already follow. A six-digit code comes from `crypto.randomInt`, is stored only as
+  a SHA-256 hash, and dies when it is used; the mail is sent before the new code is
+  written, so a refusal cannot lock out the code the reader still has. Resending is
+  capped by ten minutes of real time rather than a row count, because the rows
+  deleted by the resend are exactly the evidence the counter would need. Mail is
+  sent through the site's SMTP provider - currently Mailjet (`in-v3.mailjet.com`,
+  port 587, STARTTLS) - configured entirely by Render environment variables named
+  `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM_EMAIL` and
+  `MAIL_FROM_NAME`; the from address has to be a sender validated in that provider
+  or the provider refuses the message, and no key is ever stored in this repository.
+  Resetting ends every session of that account, the same rule the change-password
+  route already followed. (Owner request, batch #164; verified live 2026-11-19 -
+  neutral answer for an unknown address, 429 on the resend window, no leaked codes.)
+
 - AdSense readiness checklist/report (owner-reviewed), consent-aware ad management, SEO editorial tooling, contributor/partnership workflows, audience metrics (privacy-compliant). Mobile app only after stable audience/product evidence. **No guarantees of approval/ranking/inclusion.**
 
 ## Cross-cutting execution rules (every phase)

@@ -631,6 +631,9 @@ const translations: Record<string, Translations> = {
     'search.placeholder': 'Search news, authors...',
     'search.emptyHint': 'Type a word, a beat or a writer. The desk looks through the stories and the people who filed them.',
     'search.noResults': 'Nothing matched that. Try a shorter word, or the writer\'s name.',
+    'video.youtube': 'Video: YouTube',
+    'video.vimeo': 'Video: Vimeo',
+    'video.file': 'Video',
     // The sentences a reader gets when the network or the page gives up. They
     // are here rather than hardcoded because a reader with no connection is
     // exactly the reader who cannot rely on the translation service: these have
@@ -753,6 +756,36 @@ const translations: Record<string, Translations> = {
     'writer.imageCaptionHint': 'One line a reader needs to understand the photograph',
     'writer.imageCredit': 'Who took it',
     'writer.imageCreditHint': 'Photographer, agency or newsroom - not us, say so',
+    'writer.video': 'Video for this story',
+    'writer.videoHint': 'Paste a YouTube or Vimeo link, or the https address of a video file',
+    'writer.chooseVideo': 'Choose a video file',
+    'writer.videoUploading': 'Sending the clip...',
+    'writer.videoRemove': 'Remove the video',
+    'writer.videoUploadFailed': 'The clip could not be sent. Try again.',
+    'writer.videoNote': 'A clip uploaded here has to be under 12MB. Put anything longer on YouTube and paste its link instead.',
+    // Said out loud the moment a typed address matches nothing, because the
+    // alternative is a writer saving a story, opening it, and finding the video
+    // they pasted simply is not there, with no clue when they typed it.
+    'writer.addressNotPlayable': 'That address is not one the site can show yet - use a YouTube or Vimeo link, the https address of a file, or choose the file itself.',
+    // Everything after the one picture at the top. The two short lines each item
+    // carries are the same two the featured photograph has: what it shows, and
+    // whose it is.
+    'writer.media': 'More pictures and clips on this story',
+    'writer.mediaHint': 'They appear under the picture at the top, in this order.',
+    'writer.mediaImage': 'Picture',
+    'writer.mediaVideo': 'Clip',
+    'writer.mediaAddress': 'Paste an address, or choose a file',
+    'writer.mediaAdd': 'Add it to the story',
+    'writer.mediaChooseFile': 'Choose a file',
+    'writer.mediaUploading': 'Sending the file...',
+    'writer.mediaCaption': 'What it shows',
+    'writer.mediaCredit': 'Who took it',
+    'writer.mediaRemove': 'Remove',
+    'writer.mediaUp': 'Move up',
+    'writer.mediaDown': 'Move down',
+    'writer.mediaNote': 'Up to twelve per story. A clip uploaded here has to be under 12MB - put a longer one on YouTube and paste its link instead.',
+    'writer.mediaTooMany': 'A story carries twelve at most. Remove one before adding another.',
+    'writer.mediaUploadFailed': 'The file could not be sent. Try again.',
     // Evidence and honesty, filed by the person who did the reporting.
     'writer.sources': 'What this story stands on',
     'writer.sourcesHint': 'Name a source and it is on the record at once. Whether it has been checked is the desk’s call, never yours.',

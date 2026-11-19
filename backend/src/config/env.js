@@ -63,13 +63,23 @@ module.exports = {
   // Email alerts. Like VAPID, a missing value is a supported state: every
   // newsletter route reports that email is not configured instead of
   // pretending a mail went out. SMTP_SECURE is true only for an implicit-TLS
-  // port (465); 587 stays on STARTTLS.
+  // port (465); 587 and 2525 stay on STARTTLS.
+  //
+  // Provider dashboards do not agree on the names. Brevo's SMTP screen prints
+  // SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS, while this file has always
+  // read SMTP_PASSWORD - so the second spelling is accepted here too. A reader
+  // whose recovery mail never arrived because the key went in under the other
+  // name is not something the newsroom can see from the site, and an alias
+  // costs nothing.
   SMTP_HOST: process.env.SMTP_HOST || '',
   SMTP_PORT: Number(process.env.SMTP_PORT || 587),
   SMTP_SECURE: process.env.SMTP_SECURE === 'true',
   SMTP_USER: process.env.SMTP_USER || '',
-  SMTP_PASSWORD: process.env.SMTP_PASSWORD || '',
-  MAIL_FROM_EMAIL: process.env.MAIL_FROM_EMAIL || '',
+  SMTP_PASSWORD: process.env.SMTP_PASSWORD || process.env.SMTP_PASS || '',
+  // The address a mail is signed from has to be one the sending provider has
+  // verified for this account, so it is never guessed here; it is only looked
+  // for under the names an operator is likely to have typed.
+  MAIL_FROM_EMAIL: process.env.MAIL_FROM_EMAIL || process.env.SMTP_FROM || process.env.EMAIL_FROM || '',
   MAIL_FROM_NAME: process.env.MAIL_FROM_NAME || '',
   // Google Cloud Translation. A reader picks any language the service knows and
   // the news is delivered in it. No key means no translation: every read then

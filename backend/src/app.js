@@ -226,7 +226,26 @@ if (env.NODE_ENV !== 'production') {
 }
 
 app.get('/api/health', (req, res) => {
-  res.json({ success: true, message: 'StudentNews API is running' });
+  // Which desks this server can actually run. Every value here is a boolean or
+  // the NAME of a variable that is missing - never a key, a password or an
+  // address - because this route answers without a login. It exists so an
+  // operator can see from outside why recovery mail or the weather page gave up,
+  // instead of reading a Render log to find a typo in one variable name.
+  const mail = require('./services/mailerService');
+  const mailState = mail.status();
+  res.json({
+    success: true,
+    message: 'StudentNews API is running',
+    wired: {
+      email: mailState.configured,
+      // The variable to set, when email is false: SMTP_HOST or MAIL_FROM_EMAIL.
+      emailReason: mailState.reason || null,
+      push: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
+      ai: Boolean(env.GEMINI_API_KEY),
+      weather: Boolean(env.WEATHERAPI_KEY),
+      translate: Boolean(env.GOOGLE_TRANSLATE_API_KEY),
+    },
+  });
 });
 
 app.use('/api/auth', authRoutes);

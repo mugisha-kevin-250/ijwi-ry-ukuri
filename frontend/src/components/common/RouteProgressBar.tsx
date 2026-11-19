@@ -167,13 +167,18 @@ export default function RouteProgressBar() {
 
   // A press, a tap or a keystroke is what makes the work after it worth showing.
   // Recorded on the way in, before any handler has asked the newsroom for
-  // anything, so the request that follows knows somebody is waiting on it.
+  // anything, so the request that follows knows somebody is waiting on it. The
+  // click is listened for as well as the pointer going down, because a control
+  // activated from the keyboard - or by a script that fires the click itself -
+  // never produces a pointerdown, and the reader waiting on it is just as real.
   useEffect(() => {
     const mark = () => markReaderAction()
     document.addEventListener('pointerdown', mark, true)
+    document.addEventListener('click', mark, true)
     document.addEventListener('keydown', mark, true)
     return () => {
       document.removeEventListener('pointerdown', mark, true)
+      document.removeEventListener('click', mark, true)
       document.removeEventListener('keydown', mark, true)
     }
   }, [])

@@ -192,8 +192,15 @@ them from the code:
   waits for its data: clicking a link starts the bar and the reader stays where
   they are until the new page's request has settled, then the route swaps in with
   content already on it. The hold applies to reader routes only, is skipped when
-  the reader is mid-typing or mid-click in the page they are on, and always
-  releases itself after eight seconds so a dead request cannot trap anyone. An
+  the reader is mid-typing or mid-click in the page they are on, and releases
+  itself after 1.2 seconds so a dead request cannot trap anyone. The bar that
+  answers the press then finishes by itself: 1.6 seconds after the new page
+  arrives (`NAVIGATION_MAX_MS`), and nothing that began before that can bring it
+  back — a picture still coming down under a story the reader is already reading
+  is recorded in `settledAbove` and refused, because a loader that reappears
+  mid-page is the fault the owner reported, not the answer. Only a page that
+  holds progress itself (a video uploaded, a city typed at the weather desk)
+  keeps the long 20 second allowance, since there the bar is the answer. An
   upload is held the same way through `holdProgress()` because fetch is invisible
   to the request counter. The corollary is that a page never paints a spinner next
   to a skeleton next to a bar, and a slow network looks like a slow phone, not
@@ -211,7 +218,14 @@ them from the code:
   connection that no camera will ever make; the server resolves a pasted URL into a
   provider-verified embed (`videoService.describe`) rather than putting the author's
   text into an `iframe src`, and an unknown link is refused on save with a readable
-  reason instead of a broken player. A story can also carry up to twelve extra
+  reason instead of a broken player. A link pasted without its scheme - what a
+  phone's share sheet and a chat app both hand over (`youtube.com/watch?v=…`,
+  `//youtu.be/…`) - is completed to https by `urlGuard.withHttpsScheme` before any
+  guard reads it, so a working link is never refused for the way it arrived; a
+  `/uploads/...` path is left exactly as it is, and a private or port-bearing host
+  is still refused after the scheme is added. The writer's box now previews what
+  was typed and says in one line when an address is not one the site can show,
+  rather than saving a blank nothing. (Batch #175.) A story can also carry up to twelve extra
   attachments (`Article.media`), image or clip, each with its own caption and credit,
   and the reader's page shows them in the order the author filed them. Uploaded
   video is capped at 12MB because the bytes live inside one Mongo document; longer
@@ -223,7 +237,13 @@ them from the code:
   335px screen; it now carries `px-4 sm:px-6` at every breakpoint, prose is set in
   ink (`--color-text-body`) instead of the muted grey reserved for timestamps, a
   paragraph is a 40rem measure with 1.8 leading, and long addresses break anywhere
-  instead of widening the page. The masthead's icon cluster and Login/Register
+  instead of widening the page. The same gutter now belongs to every page that
+  is not the home page - the section front door (`SectionPage`), the category
+  page, the news list while it loads, and the shared shell behind About, Privacy,
+  Terms, Editorial Policy, Disclaimer, Contact, Corrections and Advertising -
+  because the layout only offsets the fixed header and leaves the padding to the
+  page, and a rounded bordered card pressed against the edge of a phone reads as
+  a screen that failed to load. The masthead's icon cluster and Login/Register
   pair are hidden below `sm` - both actions already exist in the drawer, the
   section line and the bottom bar - because at phone width they ran 82px off the
   screen and took the hamburger with them. (Batch #172.)

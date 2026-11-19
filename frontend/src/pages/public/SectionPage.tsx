@@ -140,7 +140,7 @@ export default function SectionPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 px-4 py-6 sm:px-6">
         <SkeletonLine className="h-10 w-56" />
         <SkeletonCards count={6} />
       </div>
@@ -148,7 +148,9 @@ export default function SectionPage() {
   }
 
   return (
-    <div className="space-y-6">
+    // The card below is rounded and bordered, so it needs the page's own gutter:
+    // against the edge of a phone it reads as a screen that failed to load.
+    <div className="space-y-6 px-4 py-6 sm:px-6">
       {/*
         The section's own front door: the name and what is filed under it on the
         band above, then one line of controls underneath. The pills scroll

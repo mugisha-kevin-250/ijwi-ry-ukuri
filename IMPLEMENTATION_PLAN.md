@@ -195,7 +195,9 @@ them from the code:
   the reader is mid-typing or mid-click in the page they are on, and releases
   itself after 1.2 seconds so a dead request cannot trap anyone. The bar that
   answers the press then finishes by itself: 1.6 seconds after the new page
-  arrives (`NAVIGATION_MAX_MS`), and nothing that began before that can bring it
+  arrives (`NAVIGATION_MAX_MS`) and four seconds after the tap that asked for it
+  (`NAVIGATION_TOTAL_MS`), whichever comes first, and nothing that began before
+  that can bring it
   back — a picture still coming down under a story the reader is already reading
   is recorded in `settledAbove` and refused, because a loader that reappears
   mid-page is the fault the owner reported, not the answer. A page that holds
@@ -218,8 +220,20 @@ them from the code:
   made there (`actedRecently()`) can open a line again. Page work that answers
   nothing paints nothing. An upload is held the same way through `holdProgress()`
   because fetch is invisible to the request counter, and it still gets the long
-  allowance because the press that chose the file is recent. The fade was cut to
-  300ms with no delay so a finished bar is gone, not half-there. The corollary is
+  allowance because the press that chose the file is recent. The last piece was
+  where the time is counted from: a bar capped at 1.6 seconds *from the page
+  arriving* still crawled for six seconds after a tap when the chunk behind that
+  page took four seconds to download, so a run now carries both an `openedAt`
+  (the tap) and a `startedAt` (the arrival). A navigation that has not arrived
+  yet - the hold `holdNavigation()` opened under the click - is a `pending` run
+  capped at four seconds from the tap (`NAVIGATION_TOTAL_MS`); the moment the
+  page appears the same run becomes an arrival-capped one. `isNavigationHoldOpen`
+  is what tells the two apart, so a click is never mistaken for a reader waiting
+  between two pages they already have. The press stamp is taken from a `click`
+  as well as a `pointerdown`, because a control fired by keyboard or by a script
+  produces no pointer event and its request still deserves an answer. The fade
+  was cut to 300ms with no delay so a finished bar is gone, not half-there. The
+  corollary is
   that a page never paints a spinner next to a skeleton next to a bar, and a slow
   network looks like a slow phone, not like a broken site. (Owner request,
   batches #170 and #176; "the loder is not finished it continue running when we
@@ -302,7 +316,16 @@ them from the code:
   `MAIL_FROM_NAME`; the from address has to be a sender validated in that provider
   or the provider refuses the message, and no key is ever stored in this repository.
   Resetting ends every session of that account, the same rule the change-password
-  route already followed. (Owner request, batch #164; verified live 2026-11-19 -
+  route already followed. The mail itself is built by `sendSignInCode` in the
+  mailer, not by the route: a text-only body was arriving as one unbroken block in
+  which the number could not be found, so the message now goes out as a real HTML
+  document (table layout, inline styles, no images and nothing that phones home),
+  with the code repeated three ways - in the first line of the plain text
+  alternative, in the hidden preview line an inbox prints under the subject, and in
+  a large monospaced box of its own - plus the expiry and the "we never ask for
+  this code" warning. Every other mail the site sends goes through the same shell,
+  so a confirmation or an alert reads as one newsroom rather than three formats.
+  (Owner request, batch #164; verified live 2026-11-19 -
   neutral answer for an unknown address, 429 on the resend window, no leaked codes.)
 
 - AdSense readiness checklist/report (owner-reviewed), consent-aware ad management, SEO editorial tooling, contributor/partnership workflows, audience metrics (privacy-compliant). Mobile app only after stable audience/product evidence. **No guarantees of approval/ranking/inclusion.**

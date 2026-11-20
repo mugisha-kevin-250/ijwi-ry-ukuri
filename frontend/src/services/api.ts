@@ -1176,7 +1176,11 @@ export const newsletterAPI = {
     email: string,
     source = 'home',
   ): Promise<NewsletterSubscribeResult> => {
-    const response = await apiClient.post('/newsletter/subscribe', { email, source })
+    // postWakingUp, not post: this is the press readers were told "we could not
+    // reach the newsroom" about, and the reason was the API being asleep rather
+    // than the address being refused. The server itself no longer waits for the
+    // mail relay to answer before it replies.
+    const response = await apiClient.postWakingUp('/newsletter/subscribe', { email, source })
     const payload = (response.data?.data || {}) as { delivered?: boolean; queued?: boolean; needsConfirmation?: boolean; configured?: boolean }
     return {
       delivered: payload.delivered === true,

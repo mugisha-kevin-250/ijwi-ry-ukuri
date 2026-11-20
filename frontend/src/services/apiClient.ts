@@ -219,6 +219,35 @@ class ApiClient {
     return this.client.post<ApiResponse<T>>(url, data)
   }
 
+  /**
+   * A POST for a press that must not be lost to a sleeping API.
+   *
+   * The backend runs on a Render plan that switches off when nobody is looking,
+   * and the request that wakes it is the one that never gets an answer - so a
+   * reader pressing Subscribe was told "we could not reach the newsroom" by a
+   * server that had, in fact, just been woken up. The first attempt is cut short
+   * on purpose, to learn about the sleep early, and the press is sent once more
+   * for the awake service to answer.
+   *
+   * Only a request that got no answer at all is repeated. A refusal the server
+   * wrote back is its considered answer, and asking twice would make the reader
+   * wait twice for a decision that has already been made. Routes used here must
+   * therefore be safe to receive twice from the same reader - the newsletter is,
+   * because it keeps one row per address.
+   */
+  public async postWakingUp<T = unknown>(
+    url: string,
+    data?: unknown,
+    wakeUpTimeoutMs = 12000,
+  ): Promise<AxiosResponse<ApiResponse<T>>> {
+    try {
+      return await this.client.post<ApiResponse<T>>(url, data, { timeout: wakeUpTimeoutMs })
+    } catch (error) {
+      if (!axios.isAxiosError(error) || error.response) throw error
+      return await this.client.post<ApiResponse<T>>(url, data)
+    }
+  }
+
   public put<T = unknown>(url: string, data?: unknown): Promise<AxiosResponse<ApiResponse<T>>> {
     return this.client.put<ApiResponse<T>>(url, data)
   }

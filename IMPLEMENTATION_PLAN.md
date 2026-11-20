@@ -128,6 +128,10 @@ complaint was. The nodemailer transport also has hard `connectionTimeout`/`greet
 now, so a hung relay cannot occupy the request either. The API returns `delivered` and `queued`
 separately and both UIs say "we are mailing you a link" rather than promising a mail that has not left
 yet; `tests/email-alerts.test.js` pins that behaviour with a relay that takes 1.5 s to answer.
+The remaining slowness is the host, not the mail: `/api/health` itself answers in 5-13 s because the
+Render service sleeps when nobody is looking, so `apiClient.postWakingUp()` gives the Subscribe press a
+short first attempt and repeats it exactly once, and only when nothing answered at all - a refusal the
+server wrote back is never pressed twice.
 
 | Work item | Existing | Required changes | Dependencies | DB impact | Security impact | Acceptance criteria | Testing |
 |---|---|---|---|---|---|---|---|

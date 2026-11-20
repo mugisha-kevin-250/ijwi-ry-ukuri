@@ -7,6 +7,7 @@ import {
   hasHeldWork,
   hasReaderWork,
   heldSince,
+  isNavigationHoldOpen,
   markReaderAction,
   onProgressChange,
   pendingSince,
@@ -31,6 +32,17 @@ const QUIET_TICKS = 2
 // past that the bar would only be reporting a stalled request.
 const NAVIGATION_MAX_MS = 1600
 const READER_MAX_MS = 8000
+// ...and the whole time one navigation may keep the line on screen, counted from
+// the click that started it rather than from the page it opened. A story page
+// behind a slow connection spends seconds fetching its chunk before the reader
+// even sees the first word, and a bar capped only from the moment the page
+// arrives therefore crawled for the length of that download plus its own
+// allowance - measured live at close to six seconds for one tap on the News
+// link. The reader pressed a link; they are not watching a download, so four
+// seconds from the tap the line finishes, whether or not the last picture has
+// arrived. The shorter cap counted from the page still decides every ordinary
+// navigation, which is well under this.
+const NAVIGATION_TOTAL_MS = 4000
 // A page asked to be waited for (a city typed at the weather desk) after the
 // navigation that opened this bar was long finished.
 const HELD_START = 14
@@ -61,8 +73,16 @@ export default function RouteProgressBar() {
   // `forReader` is the one exception to counting by navigation: a bar opened by
   // a press waits on the work that press started, however long the page has
   // already been on screen.
-  const run = useRef<{ base: number; startedAt: number; quiet: number; forReader: boolean; maxMs: number } | null>(null)
+  const run = useRef<{ base: number; startedAt: number; openedAt: number; quiet: number; forReader: boolean; maxMs: number } | null>(null)
   const timer = useRef(0)
+  // The two ceilings a run is allowed, armed as real timeouts rather than left
+  // to the tick loop. A background tab clamps a 150 millisecond interval down to
+  // one a second, and a bar that only notices its own expiry when the next tick
+  // happens to come round will still be crawling when the reader looks up. A
+  // timeout is not clamped like that, so the line ends on time whatever the tab
+  // is doing.
+  const hardStop = useRef(0)
+  const totalStop = useRef(0)
   const hideTimer = useRef(0)
   const revealTimer = useRef(0)
   // Every request at or below this id has already been answered by a bar that
@@ -74,6 +94,37 @@ export default function RouteProgressBar() {
   // already have; a hold below it is the page loading itself.
   const routeBase = useRef(0)
 
+  const finish = useCallback(() => {
+    if (!run.current) return
+    run.current = null
+    window.clearInterval(timer.current)
+    timer.current = 0
+    window.clearTimeout(hardStop.current)
+    hardStop.current = 0
+    window.clearTimeout(totalStop.current)
+    totalStop.current = 0
+    // Whatever was in flight when this line ended belonged to the page the
+    // reader already has. It is answered by the next press, not by a bar that
+    // starts again under a story they are already reading.
+    settledAbove.current = currentRequestId()
+    setDisplay({ value: 100, finishing: true })
+    hideTimer.current = window.setTimeout(() => setDisplay(null), 300)
+  }, [])
+
+  const arm = useCallback(
+    (active: NonNullable<typeof run.current>) => {
+      window.clearTimeout(hardStop.current)
+      window.clearTimeout(totalStop.current)
+      hardStop.current = window.setTimeout(finish, Math.max(60, active.maxMs - (Date.now() - active.startedAt)))
+      // Only a navigation has a ceiling counted from the tap. A press waiting
+      // for its answer has that answer as its finish line.
+      totalStop.current = active.forReader
+        ? 0
+        : window.setTimeout(finish, Math.max(60, NAVIGATION_TOTAL_MS - (Date.now() - active.openedAt)))
+    },
+    [finish],
+  )
+
   const tick = useCallback(() => {
     const active = run.current
     if (!active) return
@@ -82,37 +133,37 @@ export default function RouteProgressBar() {
       document.readyState === 'complete' &&
       visibleImagesSettled()
     active.quiet = idle ? active.quiet + 1 : 0
-    // Either the work has stopped, or this bar has had the time it is allowed.
-    // A page whose third picture is still coming down is a page the reader is
-    // already reading; the line is not what they are waiting for any more.
+    // Either the work has stopped, or this bar has had the time it is allowed:
+    // measured from the page it answers, and - for a navigation - measured from
+    // the click that asked for it. A page whose third picture is still coming
+    // down is a page the reader is already reading; the line is not what they
+    // are waiting for any more.
     if (active.quiet >= QUIET_TICKS || Date.now() - active.startedAt > active.maxMs) {
-      run.current = null
-      window.clearInterval(timer.current)
-      timer.current = 0
-      // Whatever was in flight when this line ended belonged to the page the
-      // reader already has. It is answered by the next press, not by a bar that
-      // starts again under a story they are already reading.
-      settledAbove.current = currentRequestId()
-      setDisplay({ value: 100, finishing: true })
-      hideTimer.current = window.setTimeout(() => setDisplay(null), 300)
+      finish()
       return
     }
     setDisplay((value) => {
       const current = value?.value ?? CEILING
       return { value: Math.min(CEILING, current + (CEILING - current) * 0.18 + 0.8), finishing: false }
     })
-  }, [])
+  }, [finish])
 
   const start = useCallback(
-    (at: number, kind: 'reader' | 'navigation' = 'navigation') => {
+    (at: number, kind: 'reader' | 'navigation' | 'pending' = 'navigation') => {
       window.clearTimeout(hideTimer.current)
-      run.current = {
+      const active = {
         base: currentRequestId(),
         startedAt: Date.now(),
+        openedAt: Date.now(),
         quiet: 0,
         forReader: kind === 'reader',
-        maxMs: kind === 'reader' ? READER_MAX_MS : NAVIGATION_MAX_MS,
+        // A press waiting for an answer gets the long allowance. A page that is
+        // on its way gets one counted from the tap, so a slow chunk cannot keep
+        // the line alive indefinitely. And a page that has arrived gets the
+        // short one, because the reader is already looking at it.
+        maxMs: kind === 'reader' ? READER_MAX_MS : kind === 'pending' ? NAVIGATION_TOTAL_MS : NAVIGATION_MAX_MS,
       }
+      run.current = active
       // A line that is still on screen - or still fading out from the wait the
       // reader just watched - keeps where it got to. Dropping a second piece of
       // work back to the left edge read as the page starting over.
@@ -122,8 +173,9 @@ export default function RouteProgressBar() {
       }))
       window.clearInterval(timer.current)
       timer.current = window.setInterval(tick, TICK_MS)
+      arm(active)
     },
-    [tick],
+    [tick, arm],
   )
 
   useEffect(() => {
@@ -152,6 +204,7 @@ export default function RouteProgressBar() {
       // looking at, not to the click that got them there, so this bar gets the
       // short navigation allowance and finishes on its own.
       active.maxMs = NAVIGATION_MAX_MS
+      arm(active)
     } else {
       start(10)
     }
@@ -159,11 +212,15 @@ export default function RouteProgressBar() {
       run.current = null
       window.clearInterval(timer.current)
       window.clearTimeout(revealTimer.current)
+      window.clearTimeout(hardStop.current)
+      window.clearTimeout(totalStop.current)
       timer.current = 0
       revealTimer.current = 0
+      hardStop.current = 0
+      totalStop.current = 0
       window.clearTimeout(hideTimer.current)
     }
-  }, [route, start])
+  }, [route, start, arm])
 
   // A press, a tap or a keystroke is what makes the work after it worth showing.
   // Recorded on the way in, before any handler has asked the newsroom for
@@ -192,10 +249,17 @@ export default function RouteProgressBar() {
       // desk - is a different thing, and this is the one place on the site that
       // says so.
       onProgressChange(() => {
-        if (run.current !== null) return
+        const active = run.current
+        if (active) {
+          // A request coming back is the first honest moment after the line has
+          // had its time, so an overdue bar dies here rather than waiting for a
+          // tick the browser may be slow to hand out.
+          if (Date.now() - active.startedAt > active.maxMs) finish()
+          return
+        }
         // A hold is a page saying out loud that it is waiting. A hold taken
-        // while the page is still arriving is the wait the link press already
-        // opened a line for, and that line has its own cap. A hold taken on a
+        // while the page is still arriving is answered by the line the link
+        // press already opened, and that line has its own cap. A hold taken on a
         // page already in front of them - a city typed at the weather desk, a
         // day picked on the scores board, a clip being uploaded - is a question
         // with no other answer coming, and it is only a question because
@@ -203,7 +267,11 @@ export default function RouteProgressBar() {
         // itself quietly reopened a line under a story the reader was already
         // reading, which is what made it look like it never finished.
         if (hasHeldWork()) {
-          if (heldSince(routeBase.current) && actedRecently()) start(HELD_START, 'reader')
+          if (heldSince(routeBase.current) && actedRecently()) {
+            // A hold opened by the link click itself is still the navigation, so
+            // its line is timed from the tap rather than from the arrival.
+            start(HELD_START, isNavigationHoldOpen() ? 'pending' : 'reader')
+          }
           return
         }
         if (!hasReaderWork()) {
@@ -219,11 +287,11 @@ export default function RouteProgressBar() {
         revealTimer.current = window.setTimeout(() => {
           revealTimer.current = 0
           if (run.current === null && actedRecently() && readerWorkSince(settledAbove.current)) {
-            start(HELD_START, 'reader')
+            start(HELD_START, isNavigationHoldOpen() ? 'pending' : 'reader')
           }
         }, REVEAL_MS)
       }),
-    [start],
+    [start, finish],
   )
 
   if (display === null) return null

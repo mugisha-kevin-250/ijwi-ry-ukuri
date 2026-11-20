@@ -169,6 +169,20 @@ export function releaseNavigation(): void {
   navigationHold = null
 }
 
+/**
+ * Is the work a page is waiting on the navigation itself?
+ *
+ * The progress bar asks this before it decides how long a line may live. A hold
+ * taken because somebody clicked a link is the wait for the next page, and that
+ * line is capped from the tap - not from the moment the page happens to arrive,
+ * which on a slow connection can be the best part of ten seconds later. A hold
+ * taken for anything else is a reader waiting between two pages they already
+ * have, and gets its answer instead of a ceiling.
+ */
+export function isNavigationHoldOpen(): boolean {
+  return navigationHold !== null
+}
+
 /** Anything on this page that a reader is entitled to see an answer to. */
 export function hasReaderWork(): boolean {
   if (held.size > 0) return true

@@ -89,9 +89,20 @@ and reported honestly: Google serves no RSS for `RW`, so that chip says so inste
 anything invented. GDELT is deliberately not wired — its public API answers 429 from this network,
 so there is no way to verify it here and no code pretending otherwise. The trend writer will only
 write a topic the server itself fetched (`evidenceFor()` returns nothing else, and the route 400s),
-so a story can never be seeded from a headline nobody saw. Reader `/trending` is still first-party
-engagement: search interest is an editorial input, never an auto-publish source.
-Missing: a transparent trend score, topic clustering and history views.
+so a story can never be seeded from a headline nobody saw. Search interest is an editorial input,
+never an auto-publish source.
+Status 2026-11-20: the reader shelf now answers to what readers are opening. `backend/src/services/trendingService.js`
+computes a decaying heat per story — every `ArticleView` and `Like` in the last 30 days counted at
+`exp(-age/3 days)`, completed reads weighted above bounces, likes above reads, plus a small recency
+term — and writes it to `Article.trendingScore`, which every reader-facing `sort=trending` and
+`/api/trending` sorts by. The refresh is lazy (at most once a minute, never awaited by the read that
+triggered it), so the reader pays for one indexed sort instead of an aggregation. `sort=popular` keeps
+the all-time career total, which is what that word means: the old stories did not stop being the most
+read ever, they just stopped being what is trending today. `tests/trending.test.js` covers
+today's reads beating a hundred times the lifetime views, nine-day decay, an unread story ordered by
+publication date, section filters surviving the new sort, and the score being stored rather than
+recomputed on every read.
+Missing: topic clustering and history views.
 
 | Work item | Existing | Required changes | Dependencies | DB impact | Security impact | Acceptance criteria | Testing |
 |---|---|---|---|---|---|---|---|
@@ -104,10 +115,19 @@ Missing: a transparent trend score, topic clustering and history views.
 Every language Google Cloud Translation supports is selectable from the header globe
 menu — labels and story text are translated server-side and cached — but content is
 not routed by language: no `/en` `/rw` `/fr` prefixes, no hreflang, and the English
-original is the only version the newsroom stores. The newsletter form
-stores an address in the browser and sends it to nobody. Live video works but needs a TURN
+original is the only version the newsroom stores. Live video works but needs a TURN
 relay to reach everyone. No podcast, radio, social distribution or reader-preference
 controls yet.
+
+Status 2026-11-20: the newsletter is no longer a browser-only capture. `POST /api/newsletter/subscribe`
+stores the address and then hands the confirmation mail to `mailerService.answerWithin()`, which
+answers the reader inside `MAIL_ANSWER_BUDGET_MS` (three seconds by default) and lets the SMTP
+transaction finish behind the response — a relay that is slow, or a page that is pressed twice, can no
+longer make the newsroom look unreachable, which is exactly what the "We could not reach the newsroom"
+complaint was. The nodemailer transport also has hard `connectionTimeout`/`greetingTimeout`/`socketTimeout`
+now, so a hung relay cannot occupy the request either. The API returns `delivered` and `queued`
+separately and both UIs say "we are mailing you a link" rather than promising a mail that has not left
+yet; `tests/email-alerts.test.js` pins that behaviour with a relay that takes 1.5 s to answer.
 
 | Work item | Existing | Required changes | Dependencies | DB impact | Security impact | Acceptance criteria | Testing |
 |---|---|---|---|---|---|---|---|

@@ -24,10 +24,14 @@ const mailer = require('../src/services/mailerService');
 const { connectDatabase, disconnectDatabase } = require('../src/config/database');
 
 const outbox = [];
+// A relay that takes ten seconds to answer is the case this file exists to
+// catch, so the stub can be made to stall. It is 0 for every other test.
+let mailDelayMs = 0;
 // Nothing in this file may reach a network, so the transport is a collector
 // and "configured" is faked by mutating the env object the mailer re-reads.
 test.mock.method(nodemailer, 'createTransport', () => ({
   sendMail: async (message) => {
+    if (mailDelayMs) await new Promise((resolve) => setTimeout(resolve, mailDelayMs));
     outbox.push(message);
     return { messageId: 'stubbed' };
   },
@@ -245,10 +249,34 @@ test('the recovery mail is a formatted document with the code set apart', async 
   assert.equal(signedIn.status, 200);
 });
 
+test('a relay that is slow to answer still gets the reader an answer at once', async () => {
+  fakeConfigured();
+  mailDelayMs = 1500;
+  env.MAIL_ANSWER_BUDGET_MS = 150;
+
+  const before = outbox.length;
+  const started = Date.now();
+  const response = await request(app).post('/api/newsletter/subscribe').send({ email: 'slowrelay@example.com' });
+  const waited = Date.now() - started;
+
+  assert.ok(waited < 1200, `the press was answered in ${waited}ms while the relay kept talking`);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.delivered, false, 'nobody is told a mail landed before it has left');
+  assert.equal(response.body.data.queued, true, 'and the answer says the mail is on its way');
+
+  const stored = await NewsletterSubscriber.findOne({ email: 'slowrelay@example.com' });
+  assert.ok(stored, 'the address is on the list before the relay has had its say');
+
+  await new Promise((resolve) => setTimeout(resolve, mailDelayMs + 400));
+  assert.equal(outbox.length, before + 1, 'the confirmation mail went out behind the answer');
+});
+
 test.afterEach(() => {
   // Back to the honest off state, so no later test can mail anything even by
   // accident, and the stubbed transport is never pointed at a real host.
   env.SMTP_HOST = '';
   env.SMTP_PORT = 587;
   env.MAIL_FROM_EMAIL = '';
+  mailDelayMs = 0;
+  env.MAIL_ANSWER_BUDGET_MS = 3000;
 });

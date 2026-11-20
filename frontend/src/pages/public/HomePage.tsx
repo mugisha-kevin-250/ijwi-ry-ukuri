@@ -343,7 +343,10 @@ export default function HomePage() {
     try {
       const result = await newsletterAPI.subscribe(email, 'home')
       if (!result.needsConfirmation) setNewsletterMessage(t('home.newsletterAlready'))
-      else if (result.delivered) setNewsletterMessage(t('home.newsletterMailed'))
+      // "Being sent" counts as sent: the address is stored and the mail left
+      // the page either way, and a reader does not need to hear about the
+      // relay's response time.
+      else if (result.delivered || result.queued) setNewsletterMessage(t('home.newsletterMailed'))
       else setNewsletterMessage(t('home.newsletterNotMailing'))
       setNewsletterEmail('')
       // Remembering the address on this device only prefills the box next time;

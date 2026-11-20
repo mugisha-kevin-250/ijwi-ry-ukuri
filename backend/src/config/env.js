@@ -81,6 +81,11 @@ module.exports = {
   // for under the names an operator is likely to have typed.
   MAIL_FROM_EMAIL: process.env.MAIL_FROM_EMAIL || process.env.SMTP_FROM || process.env.EMAIL_FROM || '',
   MAIL_FROM_NAME: process.env.MAIL_FROM_NAME || '',
+  // How long a reader may be made to wait on a button while the mail relay is
+  // being talked to. The address is stored first and the mail answers later, so
+  // this is only the patience budget of a Subscribe press - a slow relay must
+  // not be able to turn into "we could not reach the newsroom".
+  MAIL_ANSWER_BUDGET_MS: Number(process.env.MAIL_ANSWER_BUDGET_MS || 3000),
   // Google Cloud Translation. A reader picks any language the service knows and
   // the news is delivered in it. No key means no translation: every read then
   // returns the English original and the page says why, which is a supported

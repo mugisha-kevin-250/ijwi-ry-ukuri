@@ -33,6 +33,13 @@ function getTransport() {
       port: env.SMTP_PORT,
       secure: env.SMTP_SECURE,
       auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD } : undefined,
+      // A relay that stopped answering must not be allowed to hold a reader's
+      // press open. Nodemailer's own defaults are two minutes for a connection
+      // and three for a socket - a lifetime when somebody is standing on a
+      // Subscribe button waiting to find out whether the site is alive.
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 15000,
     });
   }
   return transport;
@@ -52,6 +59,40 @@ async function send({ to, subject, text, html }) {
     console.warn('newsletter email send failed:', error.message);
     return { delivered: false, error: 'SEND_FAILED' };
   }
+}
+
+/**
+ * Do some mail work, but answer the caller inside the budget if the relay has
+ * not had its say by then.
+ *
+ * A Subscribe press used to wait for the whole SMTP conversation - connect,
+ * starttls, login, mail, quit - before the reader got a word back. Mailjet
+ * taking twenty seconds was therefore what looked like "we could not reach the
+ * newsroom": the site's own request budget ran out first, on a page that had
+ * already stored the address perfectly well. Past the budget the send keeps
+ * running, its result is logged, and the answer says a mail is on its way
+ * rather than claiming one has landed.
+ */
+async function answerWithin(work, budgetMs) {
+  const budget = Number(budgetMs || env.MAIL_ANSWER_BUDGET_MS || 3000);
+  const sending = Promise.resolve().then(work);
+  let timer = 0;
+  // The losing promise is left unresolved on purpose: the timer below is
+  // cleared, so nothing keeps the process alive waiting for it.
+  const outcome = await Promise.race([
+    sending,
+    new Promise((resolve) => { timer = setTimeout(() => resolve(null), budget); }),
+  ]);
+  clearTimeout(timer);
+  if (outcome) return outcome;
+  sending
+    .then((result) => {
+      if (!result || !result.delivered) {
+        console.warn('mail did not go out after the reader was already answered:', (result && (result.skipped || result.error)) || 'no result');
+      }
+    })
+    .catch((error) => console.warn('background mail failed:', error.message));
+  return { delivered: false, queued: true };
 }
 
 function hashToken(token) {
@@ -253,6 +294,7 @@ async function announceStory(article) {
 module.exports = {
   status,
   send,
+  answerWithin,
   mintToken,
   hashToken,
   findByToken,

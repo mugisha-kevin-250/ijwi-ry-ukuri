@@ -68,7 +68,7 @@ export default function NewsAlertsCard() {
       // The server's own answer decides the words: a mail left this server, or
       // it could not, or the address was already on the list.
       if (!result.needsConfirmation) setEmailNote(t('home.newsletterAlready'))
-      else if (result.delivered) setEmailNote(t('home.newsletterMailed'))
+      else if (result.delivered || result.queued) setEmailNote(t('home.newsletterMailed'))
       else setEmailNote(t('home.newsletterNotMailing'))
     } catch (err: any) {
       setError(err?.response?.data?.message || t('home.newsletterFailed'))

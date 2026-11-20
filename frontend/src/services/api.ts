@@ -1152,6 +1152,12 @@ export const pushAPI = {  getStatus: () =>
 
 export interface NewsletterSubscribeResult {
   delivered: boolean
+  /**
+   * The address is stored and the mail is still on its way. The relay was too
+   * slow to answer inside the site's budget, and being told the truth a second
+   * later beats a button that looks dead.
+   */
+  queued: boolean
   needsConfirmation: boolean
   configured: boolean
   message: string
@@ -1171,9 +1177,10 @@ export const newsletterAPI = {
     source = 'home',
   ): Promise<NewsletterSubscribeResult> => {
     const response = await apiClient.post('/newsletter/subscribe', { email, source })
-    const payload = (response.data?.data || {}) as { delivered?: boolean; needsConfirmation?: boolean; configured?: boolean }
+    const payload = (response.data?.data || {}) as { delivered?: boolean; queued?: boolean; needsConfirmation?: boolean; configured?: boolean }
     return {
       delivered: payload.delivered === true,
+      queued: payload.queued === true,
       needsConfirmation: payload.needsConfirmation === true,
       configured: payload.configured === true,
       message: response.data?.message || '',

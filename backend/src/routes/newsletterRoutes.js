@@ -84,10 +84,21 @@ router.post('/subscribe', async (req, res, next) => {
       await subscriber.save();
     }
 
-    const result = await mailer.sendConfirmation(subscriber, token);
+    // The address is on the list the moment this write lands; the confirmation
+    // mail is what may take a while. The reader is answered inside a short
+    // budget and the mail finishes behind the response, so a relay that is slow
+    // today cannot look like a dead newsroom.
+    const result = await mailer.answerWithin(() => mailer.sendConfirmation(subscriber, token));
     return successResponse(res, 200,
-      result.delivered ? 'We mailed you a confirmation link' : 'Subscription recorded',
-      { delivered: result.delivered === true, needsConfirmation: true, configured: state.configured });
+      result.delivered ? 'We mailed you a confirmation link'
+        : result.queued ? 'We are mailing you a confirmation link'
+          : 'Subscription recorded',
+      {
+        delivered: result.delivered === true,
+        queued: result.queued === true,
+        needsConfirmation: true,
+        configured: state.configured,
+      });
   } catch (error) {
     next(error);
   }

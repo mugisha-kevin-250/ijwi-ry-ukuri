@@ -17,5 +17,9 @@ articleViewSchema.index({ articleId: 1, readerId: 1, viewedAt: -1 });
 articleViewSchema.index({ articleId: 1, anonymousSessionId: 1, viewedAt: -1 });
 articleViewSchema.index({ hashedIp: 1, articleId: 1, viewedAt: -1 });
 articleViewSchema.index({ articleId: 1, isValid: 1 });
+// The trending calculation walks a window of recent reads across every story,
+// so it needs the time first. Without this the whole history would be scanned
+// once a minute to answer a shelf of ten.
+articleViewSchema.index({ viewedAt: -1, articleId: 1 });
 
 module.exports = mongoose.model('ArticleView', articleViewSchema);

@@ -69,6 +69,13 @@ const articleSchema = new mongoose.Schema({
   views: { type: Number, default: 0 },
   validViews: { type: Number, default: 0 },
   uniqueViews: { type: Number, default: 0 },
+  // The attention still on this story, recalculated from the last month's reads
+  // and likes by trendingService and written back here so a filtered, paged
+  // list can be sorted on an index. Deliberately separate from validViews:
+  // that is a career total and belongs to the writer's earnings, while this is
+  // what the Trending shelf means.
+  trendingScore: { type: Number, default: 0 },
+  trendingComputedAt: { type: Date },
   likes: { type: Number, default: 0 },
   commentsCount: { type: Number, default: 0 },
   readingTime: { type: Number, default: 1 },
@@ -155,6 +162,8 @@ articleSchema.index(
 );
 articleSchema.index({ author: 1, createdAt: -1 });
 articleSchema.index({ validViews: -1 });
+// The order Trending is read in, on every list that offers it.
+articleSchema.index({ trendingScore: -1, publishedAt: -1 });
 
 // Every write path saves through the document, so deriving the estimate here
 // keeps it truthful when a writer edits the story instead of only at creation.

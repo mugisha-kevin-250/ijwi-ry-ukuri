@@ -9,6 +9,7 @@ const { optionalAuth } = require('../middleware/auth');
 const { withEngagement } = require('../services/engagementService');
 const adService = require('../services/adService');
 const translate = require('../services/translateService');
+const trending = require('../services/trendingService');
 const { categoryIdsFor, sectionTree, sectionDocFor, sectionPathFor } = require('../utils/categoryGroups');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { cleanText, plainText } = require('../utils/textFields');
@@ -48,7 +49,7 @@ router.get('/articles', optionalAuth, async (req, res, next) => {
       filter.category = { $in: categoryIds };
     }
     let sortOption = { publishedAt: -1 };
-    if (sort === 'trending') sortOption = { validViews: -1, likes: -1 };
+    if (sort === 'trending') sortOption = trending.sortOption();
     else if (sort === 'popular') sortOption = { views: -1 };
 
     const articles = await Article.find(filter)
@@ -94,10 +95,8 @@ router.get('/latest', async (req, res, next) => {
 
 router.get('/trending', async (req, res, next) => {
   try {
-    const articles = await Article.find({ status: 'published' })
-      .populate('category', 'name slug')
-      .sort({ validViews: -1, likes: -1 })
-      .limit(10);
+    // Attention now, not the biggest all-time count: see trendingService.
+    const articles = await trending.top(10);
     return successResponse(res, 200, 'Trending articles', { articles: await translate.forRequest(req, articles) });
   } catch (error) {
     next(error);
@@ -154,7 +153,7 @@ router.get('/sections/:section/:child?', optionalAuth, async (req, res, next) =>
     }
 
     let sortOption = { publishedAt: -1 };
-    if (sort === 'trending') sortOption = { validViews: -1, likes: -1 };
+    if (sort === 'trending') sortOption = trending.sortOption();
     else if (sort === 'popular') sortOption = { views: -1 };
 
     const sectionIds = await categoryIdsFor(child ? child.slug : section.slug);
@@ -196,7 +195,7 @@ router.get('/categories/:slug', optionalAuth, async (req, res, next) => {
     }
 
     let sortOption = { publishedAt: -1 };
-    if (sort === 'trending') sortOption = { validViews: -1, likes: -1 };
+    if (sort === 'trending') sortOption = trending.sortOption();
     else if (sort === 'popular') sortOption = { views: -1 };
 
     const inSection = { category: { $in: sectionIds.length ? sectionIds : [category._id] }, status: 'published' };

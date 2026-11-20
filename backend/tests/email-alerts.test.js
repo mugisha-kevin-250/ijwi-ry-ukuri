@@ -224,6 +224,7 @@ test('the recovery mail is a formatted document with the code set apart', async 
   assert.match(message.html, /Consolas,Menlo,monospace/, 'and the code itself sits in a box of its own');
   assert.ok(message.html.includes(`>${code}</div>`), 'the boxed number is the one the account is waiting for');
   assert.match(message.html, /expires in 10 minutes/);
+  assert.match(message.html, /href="[^"]+"[^>]*>RADAR<\/a>/, 'the newsroom name is a button that opens the site');
 
   // What leaves the server is a code; what stays is only its hash.
   const stored = JSON.stringify(await User.findOne({ email: 'recovery@example.com' }).select('+resetCodeHash +resetCodeExpires').lean());

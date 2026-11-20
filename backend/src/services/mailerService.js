@@ -116,7 +116,10 @@ function shell({ title, preview, body }) {
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eff2f6;">',
     '<tr><td align="center" style="padding:20px 10px;">',
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">',
-    `<tr><td style="padding:24px 28px 0;font-size:17px;font-weight:800;letter-spacing:2px;color:#1877F2;">${brand}</td></tr>`,
+    // The newsroom's name is the one thing in a mail a reader can safely press:
+    // it is a button, and it opens the site. A reader who got here from a
+    // forward, or who no longer remembers the address, should not have to type it.
+    `<tr><td style="padding:24px 28px 0;"><a href="${escapeHtml(site)}" style="display:inline-block;background:#1877F2;color:#ffffff;font-size:16px;font-weight:800;letter-spacing:3px;padding:12px 22px;border-radius:10px;text-decoration:none;">${brand}</a></td></tr>`,
     `<tr><td style="padding:16px 28px 0;font-size:19px;font-weight:700;line-height:1.35;color:#0d1b2a;">${escapeHtml(title)}</td></tr>`,
     `<tr><td style="padding:14px 28px 26px;font-size:15px;line-height:1.65;color:#2d3b4e;">${body}</td></tr>`,
     `<tr><td style="padding:16px 28px;background:#f6f8fb;font-size:12px;line-height:1.6;color:#6b7889;">`

@@ -323,7 +323,10 @@ them from the code:
   with the code repeated three ways - in the first line of the plain text
   alternative, in the hidden preview line an inbox prints under the subject, and in
   a large monospaced box of its own - plus the expiry and the "we never ask for
-  this code" warning. Every other mail the site sends goes through the same shell,
+  this code" warning. The newsroom name at the top of the mail is a button that
+  opens the hosted site, because a reader who arrived there from a forward should
+  have one thing to press rather than an address to type. Every other mail the
+  site sends goes through the same shell,
   so a confirmation or an alert reads as one newsroom rather than three formats.
   (Owner request, batch #164; verified live 2026-11-19 -
   neutral answer for an unknown address, 429 on the resend window, no leaked codes.)

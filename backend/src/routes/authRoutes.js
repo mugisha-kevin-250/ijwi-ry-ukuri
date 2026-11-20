@@ -35,7 +35,7 @@ const env = require('../config/env');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { protect } = require('../middleware/auth');
 const { plainText, safeMediaUrl } = require('../utils/textFields');
-const { mintCode, checkCode, newResetFields, clearedResetFields, wipedCodeFields, resendIsCoolingDown } = require('../utils/passwordReset');
+const { mintCode, checkCode, newResetFields, clearedResetFields, wipedCodeFields, resendIsCoolingDown, CODE_TTL_MS, MAX_ATTEMPTS } = require('../utils/passwordReset');
 
 const router = express.Router();
 
@@ -350,20 +350,13 @@ router.post('/forgot-password', async (req, res, next) => {
     const { code, codeHash } = mintCode();
     await User.updateOne({ _id: user._id }, { $set: newResetFields(codeHash) });
 
-    const sent = await mail.send({
+    const sent = await mail.sendSignInCode({
       to: email,
-      subject: 'Your RADAR sign-in code',
-      text: [
-        `Someone asked to reset the password on the RADAR account ${email}.`,
-        '',
-        `Your code is ${code}`,
-        '',
-        'It works once and stops working after ten minutes, or after five wrong tries.',
-        'Type it on the RADAR sign-in screen, then choose a new password.',
-        '',
-        'RADAR will never ask you for this code by phone, message or email. If you did',
-        'not ask for it, ignore this mail and change your password the next time you sign in.',
-      ].join('\n'),
+      code,
+      // Say the same thing the code actually does, so a reader who finds an old
+      // mail in their inbox knows why it no longer works.
+      ttlMinutes: Math.round(CODE_TTL_MS / 60000),
+      maxAttempts: MAX_ATTEMPTS,
     });
 
     if (!sent.delivered) {

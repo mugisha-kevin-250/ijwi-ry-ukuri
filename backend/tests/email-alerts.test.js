@@ -201,6 +201,49 @@ test('a story going live is what sends the alert mail', async () => {
   assert.ok(!JSON.stringify(dropped).includes('token='), 'the mailed token is stored only as a hash');
 });
 
+test('the recovery mail is a formatted document with the code set apart', async () => {
+  fakeConfigured();
+  await User.create({
+    fullName: 'Recovery Reader', username: 'recoveryreader', email: 'recovery@example.com', password: 'Password123!',
+  });
+
+  const response = await request(app).post('/api/auth/forgot-password').send({ email: 'recovery@example.com' });
+  assert.equal(response.status, 200);
+
+  const message = outbox[outbox.length - 1];
+  assert.equal(message.to, 'recovery@example.com');
+  assert.equal(message.subject, 'Your RADAR sign-in code');
+
+  // The plain text part leads with the number - it is the line an inbox prints
+  // before the mail is opened, and the whole message on a client that refuses HTML.
+  assert.match(message.text, /^Your RADAR sign-in code is \d{6}$/m);
+  const code = message.text.match(/code is (\d{6})/)[1];
+
+  assert.ok(message.html.startsWith('<!DOCTYPE html>'), 'a real document, not a loose fragment');
+  assert.match(message.html, /Your RADAR sign-in code is \d{6}<\/div>/, 'the preview line carries the code too');
+  assert.match(message.html, /Consolas,Menlo,monospace/, 'and the code itself sits in a box of its own');
+  assert.ok(message.html.includes(`>${code}</div>`), 'the boxed number is the one the account is waiting for');
+  assert.match(message.html, /expires in 10 minutes/);
+
+  // What leaves the server is a code; what stays is only its hash.
+  const stored = JSON.stringify(await User.findOne({ email: 'recovery@example.com' }).select('+resetCodeHash +resetCodeExpires').lean());
+  assert.ok(!stored.includes(code), 'the account document never holds the readable code');
+
+  // Round trip: the mailed number really does open the door once, and only once.
+  const reset = await request(app)
+    .post('/api/auth/reset-password')
+    .send({ email: 'recovery@example.com', code, password: 'BrandNewPassword1!' });
+  assert.equal(reset.status, 200);
+
+  const replay = await request(app)
+    .post('/api/auth/reset-password')
+    .send({ email: 'recovery@example.com', code, password: 'AnotherPassword1!' });
+  assert.equal(replay.status, 400, 'a used code is gone with the password it set');
+
+  const signedIn = await request(app).post('/api/auth/login').send({ email: 'recovery@example.com', password: 'BrandNewPassword1!' });
+  assert.equal(signedIn.status, 200);
+});
+
 test.afterEach(() => {
   // Back to the honest off state, so no later test can mail anything even by
   // accident, and the stubbed transport is never pointed at a real host.

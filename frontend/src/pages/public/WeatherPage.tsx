@@ -451,8 +451,12 @@ export default function WeatherPage() {
               pushed past the edge; and a field under 16px makes iOS zoom the
               whole page the moment it is tapped, which is the other half of
               "it does not fit".
+              The line is taken with flex-basis, not with width alone: an flex-1
+              item is given a basis of zero, which quietly lets it shrink back
+              onto the same row as the presses no matter what its width says. The
+              measured 335px page proved it - 75px of search box, still one line.
             */}
-            <div className="relative min-w-0 w-full flex-1 sm:w-64 sm:flex-none">
+            <div className="relative min-w-0 w-full basis-full sm:w-64 sm:flex-none">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" aria-hidden="true" />
               <input
                 id="weather-city"

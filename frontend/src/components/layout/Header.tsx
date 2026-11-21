@@ -68,6 +68,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     { href: '/mugishaimekevin/ai-writer', label: t('nav.admin.aiWriter') },
     { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts') },
     { href: '/mugishaimekevin/messages', label: t('nav.admin.messages') },
+    { href: '/mugishaimekevin/mail', label: t('nav.admin.mail') },
     // The section desk, not the reader's category index: an admin clicking here
     // is here to change the sections, not to browse them.
     { href: '/mugishaimekevin/categories', label: t('nav.admin.categories') },
@@ -332,20 +333,22 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                 )}
               </div>
             ) : (
-              /* On a phone these two are not on the masthead: the bottom bar ends
-                 in the same sign-in, the menu carries both, and the row has to
-                 leave room for the button that opens it. From 640px up there is
-                 space and they come back. */
-              <div className={`items-center gap-2 sm:gap-3 ${variant === 'public' ? 'hidden sm:flex' : 'hidden md:flex'}`}>
+              /* Signing in lives on the masthead at every width. It used to be
+                 hidden below 640px because the bottom bar ended in the same
+                 sign-in, and a reader looking for a way in was left to find the
+                 hamburger and open it. The bar is four destinations now, so the
+                 way in is back where the rest of the site's chrome is - and on a
+                 phone it takes the shorter words and the tighter padding. */
+              <div className={`items-center gap-1.5 sm:gap-3 ${variant === 'public' ? 'flex' : 'hidden md:flex'}`}>
                 <Link
                   to="/login"
-                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                  className="px-2 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors sm:px-4 sm:py-2 sm:text-sm sm:font-medium"
                 >
                   {t('nav.login')}
                 </Link>
                 <Link
                   to="/register"
-                  className="rounded-full bg-[#062b52] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#041f3a] dark:bg-blue-600 dark:hover:bg-blue-500"
+                  className="rounded-full bg-[#062b52] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#041f3a] dark:bg-blue-600 dark:hover:bg-blue-500 sm:px-4 sm:py-2"
                 >
                   {t('nav.register')}
                 </Link>

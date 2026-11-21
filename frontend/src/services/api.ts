@@ -850,6 +850,48 @@ export interface ContactInbox {
   openCount: number
 }
 
+/**
+ * One mail the server tried to send, as the mail log keeps it. The address is
+ * masked at the source, so this screen can show who was mailed without ever
+ * carrying a reader's full address.
+ */
+export interface MailAttemptRecord {
+  at: string
+  purpose: string
+  recipient: string
+  delivered: boolean
+  outcome: string
+  reason: string | null
+  messageId: string | null
+  ms: number | null
+}
+
+export interface MailDeskStatus {
+  configured: boolean
+  host: string
+  from: string
+  reason: string
+  warning: string
+  keys: {
+    SMTP_HOST: boolean
+    SMTP_PORT: boolean
+    SMTP_USER: boolean
+    SMTP_PASSWORD: boolean
+    MAIL_FROM_EMAIL: boolean
+  }
+  last24Hours: { delivered: number; refused: number }
+  last: MailAttemptRecord[]
+}
+
+export interface MailTestResult {
+  ok: boolean
+  delivered: boolean
+  configured: boolean
+  from: string
+  host: string
+  reason: string
+}
+
 export const adminAPI = {
   getDashboard: () =>
     apiClient.get<AdminDashboardStats>('/admin/dashboard'),
@@ -1136,6 +1178,64 @@ export const adminAPI = {
       liveRegions: Number(payload?.liveRegions ?? 0),
       cacheMinutes: Number(payload?.cacheMinutes ?? 15),
       checkedAt: payload?.checkedAt || '',
+    }
+  },
+
+  /**
+   * The mail desk's own reading of itself: which of the five relay settings are
+   * present, and what the relay did with the last mails.
+   */
+  getMailStatus: async (): Promise<MailDeskStatus> => {
+    const response = await apiClient.get('/admin/mail/status')
+    const payload = response.data.data as Partial<MailDeskStatus> | null
+    return {
+      configured: payload?.configured === true,
+      host: String(payload?.host || ''),
+      from: String(payload?.from || ''),
+      reason: String(payload?.reason || ''),
+      warning: String(payload?.warning || ''),
+      keys: {
+        SMTP_HOST: payload?.keys?.SMTP_HOST === true,
+        SMTP_PORT: payload?.keys?.SMTP_PORT === true,
+        SMTP_USER: payload?.keys?.SMTP_USER === true,
+        SMTP_PASSWORD: payload?.keys?.SMTP_PASSWORD === true,
+        MAIL_FROM_EMAIL: payload?.keys?.MAIL_FROM_EMAIL === true,
+      },
+      last24Hours: {
+        delivered: Number(payload?.last24Hours?.delivered ?? 0),
+        refused: Number(payload?.last24Hours?.refused ?? 0),
+      },
+      last: Array.isArray(payload?.last) ? payload.last : [],
+    }
+  },
+
+  /**
+   * One real mail, answered only when the relay has finished with it.
+   *
+   * A 502 here is the relay's considered answer, not a transport failure, and
+   * the sentence it refused with is the whole point of the press. So the refusal
+   * is read out of the error body and returned in the same shape as an
+   * acceptance, instead of being thrown at the screen as "Request failed".
+   */
+  testMail: async (email: string): Promise<MailTestResult> => {
+    const read = (payload?: { message?: string; data?: Record<string, unknown> }): MailTestResult => {
+      const data = payload?.data || {}
+      const reason = typeof data.reason === 'string' ? data.reason : ''
+      return {
+        ok: data.delivered === true,
+        delivered: data.delivered === true,
+        configured: data.configured === true,
+        from: typeof data.from === 'string' ? data.from : '',
+        host: typeof data.host === 'string' ? data.host : '',
+        reason: reason || String(payload?.message || ''),
+      }
+    }
+    try {
+      return read((await apiClient.post<Record<string, unknown>>('/admin/mail/test', { email })).data)
+    } catch (error: any) {
+      const body = error?.response?.data as { data?: Record<string, unknown>; message?: string } | undefined
+      if (body && (body.data || body.message)) return read(body)
+      throw error
     }
   },
 }

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, MessageSquare, FolderTree, Megaphone } from 'lucide-react'
+import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../common/Avatar'
@@ -42,6 +42,9 @@ const navigation = {
       { href: '/mugishaimekevin/ai-writer', label: t('nav.admin.aiWriter'), icon: Sparkles },
       { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts'), icon: DollarSign },
       { href: '/mugishaimekevin/messages', label: t('nav.admin.messages'), icon: Inbox },
+      // The relay that mails the codes and alerts, kept apart from the mail
+      // readers send us: one is a queue to answer, the other is a machine to check.
+      { href: '/mugishaimekevin/mail', label: t('nav.admin.mail'), icon: Mail },
       // Sections and advertising are desks of their own, and both used to be
       // missing or pointing at the reader's page instead of the admin's.
       { href: '/mugishaimekevin/categories', label: t('nav.admin.categories'), icon: FolderTree },

@@ -130,6 +130,10 @@ function useFitsInRow(rowRef: RefObject<HTMLDivElement | null>, listRef: RefObje
  * end, rests, and comes back — every name stays a real link the whole time, which
  * is why it bounces instead of looping a duplicated copy of itself. It stops for
  * a finger, for a keyboard, and for a device that has asked for less motion.
+ *
+ * It also stops when a name is opened: the sub-section chips a reader just asked
+ * for appear beside the name, and a strip that drifted away from them under their
+ * thumb would take the answer back.
  */
 function useSelfScroll(enabled: boolean) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -137,6 +141,10 @@ function useSelfScroll(enabled: boolean) {
     hovered: false,
     focused: false,
     holdUntil: 0,
+    // Held still on purpose, by the component, for as long as a dropdown row is
+    // open underneath a name. Distinct from `holdUntil`, which is a timeout: this
+    // one is released by whoever asked for it.
+    frozen: false,
     direction: 1,
     last: 0,
     resting: 0,
@@ -159,7 +167,7 @@ function useSelfScroll(enabled: boolean) {
       state.last = now
       const max = element.scrollWidth - element.clientWidth
       if (state.resting && now - state.resting > MARQUEE_REST_AT_END_MS) state.resting = 0
-      if (max > 1 && !state.hovered && !state.focused && now >= state.holdUntil && !state.resting) {
+      if (max > 1 && !state.frozen && !state.hovered && !state.focused && now >= state.holdUntil && !state.resting) {
         state.position += (MARQUEE_SPEED * delta * state.direction) / 1000
         if (state.position >= max) {
           state.position = max
@@ -183,6 +191,24 @@ function useSelfScroll(enabled: boolean) {
     steering.current.holdUntil = performance.now() + MARQUEE_RESUME_AFTER_TOUCH_MS
   }
 
+  /** Stop the drift for as long as a name's sub-sections are open, and only then. */
+  const freeze = (frozen: boolean) => {
+    steering.current.frozen = frozen
+  }
+
+  /**
+   * Bring what the reader just asked for into the strip's own view.
+   *
+   * The revealed chips sit beside the name that opened them, which is usually on
+   * screen already - but a name at the far end of the row can open its shelves
+   * past the edge, and a chip that is drawn off-screen is a chip that was not
+   * asked for. `nearest` keeps the page itself from scrolling to help.
+   */
+  const reveal = (node: HTMLElement | null) => {
+    if (!node) return
+    requestAnimationFrame(() => node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }))
+  }
+
   const handlers = {
     onPointerEnter: () => { steering.current.hovered = true },
     onPointerLeave: () => { steering.current.hovered = false },
@@ -201,7 +227,7 @@ function useSelfScroll(enabled: boolean) {
     },
   }
 
-  return { scrollRef, handlers }
+  return { scrollRef, handlers, freeze, reveal }
 }
 
 function sectionHref(section: SectionNode) {
@@ -260,9 +286,15 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
   const reducedMotion = useMediaQuery(REDUCED_MOTION_QUERY)
   const [openSlug, setOpenSlug] = useState<string | null>(null)
   const [openAccordion, setOpenAccordion] = useState<string | null>(null)
+  // The phone strip's own open name. Kept apart from the menu's accordion on
+  // purpose: both are mounted on a phone at the same time, and a reader who
+  // opened Sport in the strip should not find the menu opened when they swipe it.
+  const [openStrip, setOpenStrip] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  // One strip row is open at a time, so one ref is enough to point at it.
+  const stripSubRef = useRef<HTMLSpanElement>(null)
   const fitsInRow = useFitsInRow(rowRef, listRef, layout)
   const canOpenPanels = allowsDropdowns && fitsInRow
   // Only the phone strip drifts. The desktop bar is navigation, not a ticker: a
@@ -305,7 +337,20 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
   useEffect(() => {
     if (layout === 'bar') setOpenSlug(null)
     else setOpenAccordion(null)
+    if (layout === 'marquee') {
+      // A new page is a new question: the shelves that were open were asked for
+      // on the page before, and the strip starts drifting again.
+      setOpenStrip(null)
+      marquee.freeze(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, layout])
+
+  // The shelves a reader just asked for are brought into the strip's own view.
+  useEffect(() => {
+    if (layout === 'marquee' && openStrip) marquee.reveal(stripSubRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openStrip, layout])
 
   useEffect(() => {
     if (layout !== 'bar' || !openSlug) return
@@ -331,6 +376,22 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
           ? 'border-brand-600 bg-brand-600 text-white dark:border-blue-600 dark:bg-blue-600'
           : 'border-transparent text-gray-800 hover:border-gray-300 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800',
       )
+    // The shelves of an opened name, printed beside it: one size down, with a
+    // line on their left, so a reader can see which name they came from.
+    const subChip = ({ isActive }: { isActive: boolean }) =>
+      cn(
+        'whitespace-nowrap rounded-full border-l-2 px-2.5 py-1 text-[13px] font-semibold transition',
+        isActive
+          ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-blue-900/40 dark:text-blue-300'
+          : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800',
+      )
+
+    const openFromStrip = (slug: string) => {
+      const next = openStrip === slug ? null : slug
+      setOpenStrip(next)
+      // The strip holds still while its own dropdown is open, and only then.
+      marquee.freeze(next !== null)
+    }
 
     return (
       <div ref={rootRef} className={cn('relative h-full', className)}>
@@ -344,19 +405,76 @@ export default function SectionNav({ extraLinks = [], className, layout = 'bar',
           className="h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <ul role="list" aria-label={t('nav.sections')} className="flex h-full w-max items-center gap-1.5 px-2">
-            {sections.map((section) => (
-              <li key={section.slug} className="flex shrink-0 items-center gap-1.5">
-                <NavLink to={sectionHref(section)} onClick={onNavigate} className={chip}>
-                  {sectionLabel(section, t)}
-                </NavLink>
-                {/* On a phone there is no hover panel to put the scores desk in,
-                    so it rides next to the section it belongs to — the strip
-                    scrolls, and"under Sports" means beside it here. */}
-                {featuresFor(section.slug).map((feature) => (
-                  <FeatureLink key={feature.href} feature={feature} className={chip({ isActive: false })} />
-                ))}
-              </li>
-            ))}
+            {sections.map((section) => {
+              const expanded = openStrip === section.slug
+              return (
+                <li key={section.slug} className="flex shrink-0 items-center gap-1.5">
+                  <NavLink to={sectionHref(section)} onClick={onNavigate} className={chip}>
+                    {sectionLabel(section, t)}
+                  </NavLink>
+                  {/* The desktop bar's sub-sections, on a phone.
+                      A hover panel cannot open inside this row - a scroller clips
+                      it, which is the reason the arrows left the strip in the
+                      first place - so an arrow here does not open a panel over
+                      the page, it lays the shelves out beside the name in the
+                      same row, and the row scrolls to them. The section itself
+                      stays the link it always was; the arrow only answers the
+                      question the panel used to answer. */}
+                  {section.children.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => openFromStrip(section.slug)}
+                      aria-expanded={expanded}
+                      aria-controls={`strip-sub-${section.slug}`}
+                      aria-label={`${sectionLabel(section, t)} — ${expanded ? 'hide' : 'show'} sub-sections`}
+                      className={cn(
+                        '-ml-1 rounded-full p-1 text-gray-500 transition dark:text-gray-400',
+                        expanded ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-100 dark:hover:bg-gray-800',
+                      )}
+                    >
+                      <ChevronDown
+                        className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  )}
+                  {expanded && (
+                    <span
+                      id={`strip-sub-${section.slug}`}
+                      ref={stripSubRef}
+                      className="flex shrink-0 items-center gap-1"
+                    >
+                      {/* On the phone strip there is no hover panel to put the scores desk in,
+                          so it rides next to the section it belongs to — the strip
+                          scrolls, and "under Sports" means beside it here. */}
+                      {featuresFor(section.slug).map((feature) => (
+                        <FeatureLink
+                          key={feature.href}
+                          feature={feature}
+                          className={subChip({
+                            isActive: location.pathname === feature.href
+                              || location.pathname.startsWith(`${feature.href}/`),
+                          })}
+                        />
+                      ))}
+                      {section.children.map((child) => (
+                        <NavLink
+                          key={child.slug}
+                          to={childHref(section, child)}
+                          onClick={onNavigate}
+                          className={subChip}
+                        >
+                          {sectionLabel(child, t)}
+                        </NavLink>
+                      ))}
+                    </span>
+                  )}
+                  {!expanded && featuresFor(section.slug).map((feature) => (
+                    <FeatureLink key={feature.href} feature={feature} className={chip({ isActive: false })} />
+                  ))}
+                </li>
+              )
+            })}
             {BAR_FEATURES.map((feature) => (
               <li key={feature.slug} className="shrink-0">
                 {/* On the phone strip the desks ride at the end of the sections,

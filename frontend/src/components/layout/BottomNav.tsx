@@ -1,11 +1,18 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, LayoutGrid, Search, User, List } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { Home, LayoutGrid, Search, List } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
 
+/**
+ * The four things a reader on a phone actually reaches for.
+ *
+ * This bar used to end in a person icon that was "Login" to a visitor and "Profile"
+ * to a member. Both halves of that were in the way: a visitor is not looking for a
+ * login box at the bottom of the screen, and the account is already in the header
+ * the moment anybody signs in. So the bar is Home, News, Search and Categories, and
+ * signing in happens at the top, where the rest of the site's chrome lives.
+ */
 export default function BottomNav() {
   const location = useLocation()
-  const { user } = useAuth()
   const { t } = useI18n()
   const isActive = (path: string) => location.pathname === path
 
@@ -33,10 +40,6 @@ export default function BottomNav() {
         <Link to="/categories" className={`flex flex-col items-center gap-1 text-xs ${isActive('/categories') ? 'text-blue-700' : 'text-slate-600'}`}>
           <LayoutGrid className="h-5 w-5" />
           <span>{t('nav.categories')}</span>
-        </Link>
-        <Link to={user ? `/user/${user._id}` : '/login'} className={`flex flex-col items-center gap-1 text-xs ${location.pathname.startsWith('/user/') ? 'text-blue-700' : 'text-slate-600'}`}>
-          <User className="h-5 w-5" />
-          <span>{user ? t('nav.profile') : t('nav.login')}</span>
         </Link>
       </div>
     </nav>

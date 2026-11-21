@@ -236,10 +236,19 @@ app.get('/api/health', (req, res) => {
   res.json({
     success: true,
     message: 'StudentNews API is running',
+    // The commit this process was built from. Render gives every service its
+    // git sha in the environment, so an operator can tell from outside whether
+    // the fix that was just pushed is the code that is answering - the
+    // difference between waiting for a redeploy and finding a real bug.
+    commit: String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').slice(0, 40) || null,
     wired: {
       email: mailState.configured,
       // The variable to set, when email is false: SMTP_HOST or MAIL_FROM_EMAIL.
       emailReason: mailState.reason || null,
+      // A relay can be addressed and still have no credentials, which is legal
+      // for a server that only mails its own domain. Named, never valued, for
+      // exactly the reason the two lines above are.
+      emailWarning: mailState.warning || null,
       push: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
       ai: Boolean(env.GEMINI_API_KEY),
       weather: Boolean(env.WEATHERAPI_KEY),

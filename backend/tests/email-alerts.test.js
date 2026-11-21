@@ -17,6 +17,7 @@ const mongoose = require('mongoose');
 const env = require('../src/config/env');
 const nodemailer = require('nodemailer');
 const NewsletterSubscriber = require('../src/models/NewsletterSubscriber');
+const MailAttempt = require('../src/models/MailAttempt');
 const User = require('../src/models/User');
 const Category = require('../src/models/Category');
 const Article = require('../src/models/Article');
@@ -27,10 +28,14 @@ const outbox = [];
 // A relay that takes ten seconds to answer is the case this file exists to
 // catch, so the stub can be made to stall. It is 0 for every other test.
 let mailDelayMs = 0;
+// And it can be made to refuse, with the relay's own sentence, because that is
+// the failure the mail log exists to surface for the admin.
+let sendFailure = null;
 // Nothing in this file may reach a network, so the transport is a collector
 // and "configured" is faked by mutating the env object the mailer re-reads.
 test.mock.method(nodemailer, 'createTransport', () => ({
   sendMail: async (message) => {
+    if (sendFailure) throw sendFailure;
     if (mailDelayMs) await new Promise((resolve) => setTimeout(resolve, mailDelayMs));
     outbox.push(message);
     return { messageId: 'stubbed' };
@@ -271,6 +276,66 @@ test('a relay that is slow to answer still gets the reader an answer at once', a
   assert.equal(outbox.length, before + 1, 'the confirmation mail went out behind the answer');
 });
 
+test('a relay that refuses the mail leaves its own sentence in the mail log', async () => {
+  fakeConfigured();
+  sendFailure = Object.assign(new Error('550 5.7.1 Sender address rejected: not owned by user'), {
+    response: '550 5.7.1 Sender address rejected: not owned by user',
+    code: 'EMAILFORMAT',
+  });
+
+  const result = await mailer.send({
+    to: 'reader@example.com', subject: 'Confirm your news alerts', text: 'y', purpose: 'newsletter-confirm',
+  });
+
+  assert.equal(result.delivered, false);
+  assert.match(result.reason, /Sender address rejected/, 'the caller can read what the relay said');
+
+  const [logged] = await MailAttempt.find({ purpose: 'newsletter-confirm' }).sort({ createdAt: -1 }).limit(1).lean();
+  assert.ok(logged, 'and the admin can read it later too');
+  assert.equal(logged.delivered, false);
+  assert.equal(logged.outcome, 'rejected');
+  assert.match(logged.reason, /not owned by user/);
+  assert.equal(logged.recipient, 'r•••••@example.com', 'the address is stored reduced to its first letter');
+  assert.ok(!JSON.stringify(logged).includes('reader@example.com'), 'the full address never reaches the database');
+  assert.ok(!logged.reason.includes('not-an-smtp-secret-at-all'), 'the reason is the relay\'s words, not the config');
+
+  const diagnostics = await mailer.diagnostics();
+  assert.equal(diagnostics.configured, true);
+  assert.equal(diagnostics.last[0].outcome, 'rejected');
+  assert.match(diagnostics.last[0].reason, /Sender address rejected/);
+  assert.ok(diagnostics.last24Hours.refused >= 1, 'the refusals are counted for the admin screen');
+
+  sendFailure = null;
+});
+
+test('a press answered before the relay spoke leaves both lines of its story', async () => {
+  fakeConfigured();
+  env.MAIL_ANSWER_BUDGET_MS = 100;
+  mailDelayMs = 500;
+
+  await request(app).post('/api/newsletter/subscribe').send({ email: 'twolines@example.com' });
+  await new Promise((resolve) => setTimeout(resolve, 900));
+
+  const rows = await MailAttempt.find({ recipient: 't••••••@example.com' }).sort({ createdAt: 1 }).lean();
+  assert.deepEqual(rows.map((row) => row.outcome), ['queued', 'sent'],
+    'the reader was answered early, and the mail that eventually left is on the record as well');
+  assert.equal(rows[1].delivered, true);
+
+  env.MAIL_ANSWER_BUDGET_MS = 3000;
+  mailDelayMs = 0;
+});
+
+test('the mail desk answers without the SMTP config instead of pretending', async () => {
+  const diagnostics = await mailer.diagnostics();
+  assert.equal(diagnostics.configured, false);
+  assert.equal(diagnostics.keys.SMTP_HOST, false);
+  assert.match(diagnostics.reason, /not configured/);
+
+  const attempt = await mailer.sendTestMail({ to: 'admin@example.com' });
+  assert.equal(attempt.delivered, false);
+  assert.match(attempt.reason, /not configured/, 'a test press on an unconfigured server says so, and mails nothing');
+});
+
 test.afterEach(() => {
   // Back to the honest off state, so no later test can mail anything even by
   // accident, and the stubbed transport is never pointed at a real host.
@@ -278,5 +343,6 @@ test.afterEach(() => {
   env.SMTP_PORT = 587;
   env.MAIL_FROM_EMAIL = '';
   mailDelayMs = 0;
+  sendFailure = null;
   env.MAIL_ANSWER_BUDGET_MS = 3000;
 });

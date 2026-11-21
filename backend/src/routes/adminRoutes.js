@@ -20,6 +20,7 @@ const radioService = require('../services/radioService');
 const storyVideo = require('../services/storyVideo');
 const storyMedia = require('../services/storyMedia');
 const trendService = require('../services/trendService');
+const mailer = require('../services/mailerService');
 const generateSlug = require('../utils/generateSlug');
 const lifecycle = require('../utils/articleLifecycle');
 const workflow = require('../services/articleWorkflow');
@@ -1027,6 +1028,55 @@ router.delete('/ads/:id', authorize('ADMIN'), async (req, res, next) => {
     return successResponse(res, 200, 'Advertisement removed', await adService.remove(req.params.id));
   } catch (error) {
     refuse(res, next, error);
+  }
+});
+
+/**
+ * The mail desk.
+ *
+ * "Email is not coming" used to be unanswerable from inside the site: the
+ * subscription press is replied to in three seconds and the SMTP conversation
+ * carries on afterwards, so a relay that refuses every mail leaves the reader
+ * holding a "check your inbox" and the admin holding nothing. These two calls put
+ * the relay's own sentences on the screen - what is configured, what was tried in
+ * the last day, and what came back.
+ *
+ * Nothing here prints a secret. The four SMTP names are reported as set or not
+ * set, and a recipient is stored as its first letter plus its domain.
+ */
+router.get('/mail/status', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    return successResponse(res, 200, 'Mail diagnostics', await mailer.diagnostics());
+  } catch (error) {
+    next(error);
+  }
+});
+
+// A test press costs the newsroom one mail out of a free daily allowance, so one
+// per half minute per admin is plenty for a person checking whether a fix landed.
+const TEST_MAIL_COOLDOWN_MS = 30 * 1000;
+const lastTestMailAt = new Map();
+
+router.post('/mail/test', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const since = lastTestMailAt.get(String(req.user._id)) || 0;
+    if (Date.now() - since < TEST_MAIL_COOLDOWN_MS) {
+      const wait = Math.ceil((TEST_MAIL_COOLDOWN_MS - (Date.now() - since)) / 1000);
+      return errorResponse(res, 429, `One test mail every 30 seconds - try again in ${wait}s.`);
+    }
+    const to = plainText(req.body?.email, { maxLength: 160 }).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to)) {
+      return errorResponse(res, 400, 'Type the address the test mail should go to.');
+    }
+    lastTestMailAt.set(String(req.user._id), Date.now());
+    // No answer budget here: this press exists to wait for the relay and report
+    // exactly what it said.
+    const result = await mailer.sendTestMail({ to });
+    return successResponse(res, result.delivered ? 200 : 502,
+      result.delivered ? 'The test mail was accepted by the relay' : 'The relay refused the test mail',
+      result);
+  } catch (error) {
+    next(error);
   }
 });
 

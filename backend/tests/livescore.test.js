@@ -307,7 +307,10 @@ test('one day is fetched once per competition and grouped with the feed’s own 
   const stub = dayEverywhere();
   try {
     const page = await scoreboard({ now });
-    assert.equal(stub.calls.length, 2, 'two leagues, two calls');
+    // Two followed competitions, and the one board that says what everybody else
+    // is playing. The page asks for three documents a minute at most, not one per
+    // competition in the world.
+    assert.equal(stub.calls.length, 3, 'two leagues, plus the day’s world board');
     assert.equal(page.ok, true);
     assert.equal(page.provider, 'espn');
     assert.equal(page.dateKey, TODAY);
@@ -347,7 +350,9 @@ test('one day is fetched once per competition and grouped with the feed’s own 
     // A page with a match in play asks again on the cron's own clock.
     assert.equal(page.pollSeconds, 60);
     assert.equal(page.refreshing, false);
-    assert.equal(await SportScoreboard.countDocuments({ dateKey: TODAY }), 2);
+    // Two league days, and the world board's - which in this fixture names no
+    // competition, so its rows are dropped and only the document is kept.
+    assert.equal(await SportScoreboard.countDocuments({ dateKey: TODAY }), 3);
   } finally {
     stub.restore();
   }
@@ -358,17 +363,17 @@ test('the next sixty readers of that day are answered from the database', async 
   const stub = dayEverywhere();
   try {
     const first = await scoreboard({ now });
-    assert.equal(stub.calls.length, 2, 'a cold page costs one call per competition');
+    assert.equal(stub.calls.length, 3, 'a cold page costs one call per competition, plus the world board');
     assert.equal(first.leagues.length, 2);
 
     await scoreboard({ now: minutes(0.5) });
-    assert.equal(stub.calls.length, 2, 'nothing was asked of the feed a second time');
+    assert.equal(stub.calls.length, 3, 'nothing was asked of the feed a second time');
 
-    // Twenty tabs of the same cold leagues, all at once: the same two calls,
+    // Twenty tabs of the same cold leagues, all at once: the same three calls,
     // because one fetch is shared by everybody waiting on it.
     await SportScoreboard.deleteMany({});
     const pages = await Promise.all(Array.from({ length: 20 }, () => scoreboard({ now })));
-    assert.equal(stub.calls.length, 4, 'twenty readers, two fetches, twice over');
+    assert.equal(stub.calls.length, 6, 'twenty readers, three documents, twice over');
     assert.equal(pages.at(-1).leagues.length, 2);
     assert.equal(pages.at(-1).leagues[0].matches.length, 2);
   } finally {
@@ -846,6 +851,101 @@ test('the page names every competition it follows, not only the ones with matche
     assert.equal(page.followed[1].name, 'Spanish LALIGA');
     assert.equal(page.followed[1].logo, 'https://a.espncdn.com/i/leaguelogos/soccer/500/15.png');
     assert.equal(JSON.stringify(page.followed).includes('site.api.espn.com'), false);
+  } finally {
+    stub.restore();
+  }
+});
+
+/** One row of the all-competitions board, in the shape `matchRowOf` returns. */
+const worldRow = (id, name, { state = 'pre', start = at(60) } = {}) => ({
+  id: `m${id}${start}`,
+  name: 'Club A at Club B',
+  start,
+  state,
+  competition: { id: String(id), name },
+  home: {},
+  away: {},
+});
+
+test('the world board’s cap keeps every competition on the day, not one of them', () => {
+  const { capWorldRows, MAX_WORLD_ROWS } = liveScoreService;
+  // A Saturday: one cup staging a whole afternoon of fixtures, and thirty other
+  // competitions with an evening game each. Sorting the day and cutting it at the
+  // cap used to hand the page to the cup and print the other thirty nowhere.
+  const rows = [
+    ...Array.from({ length: 120 }, (unused, index) => worldRow(1000, 'Copa del Rey', { start: at(index - 60) })),
+    ...Array.from({ length: 30 }, (unused, index) => worldRow(2000 + index, `Liga ${index}`, { start: at(index) })),
+  ];
+  const picked = capWorldRows(rows, now.getTime());
+
+  assert.equal(picked.length, MAX_WORLD_ROWS, 'the cap is still the cap - the page does not grow on a busy Saturday');
+  const seen = new Set(picked.map((row) => row.competition.id));
+  assert.equal(seen.size, 31, 'every competition with something on the board is on the page');
+  assert.ok(seen.has('1000'), 'including the one with the most fixtures');
+});
+
+test('a live match is never the thing the cap drops', () => {
+  const { capWorldRows, MAX_WORLD_ROWS } = liveScoreService;
+  const rows = [
+    ...Array.from({ length: 40 }, (unused, index) => worldRow(2000 + index, `Quiet League ${index}`)),
+    worldRow(9000, 'The Cup Being Played', { state: 'in', start: at(-30) }),
+    ...Array.from({ length: 200 }, (unused, index) => worldRow(3000, 'A Very Busy League', { start: at(index) })),
+  ];
+  const picked = capWorldRows(rows, now.getTime());
+
+  assert.ok(picked.some((row) => row.state === 'in'), 'the match in play survives the cap');
+  assert.equal(picked[0].state, 'in', 'and it is at the front of the day, where the Live tab looks');
+});
+
+test('a day the world board does not name is not asked about again for hours', async () => {
+  await SportScoreboard.deleteMany({});
+  // Both followed competitions came back empty, and the board of the whole day
+  // names a competition nobody on the watch list follows.
+  const stub = stubFetch((url) => {
+    if (url.includes('/soccer/all/scoreboard')) {
+      return jsonResponse({
+        leagues: [],
+        events: [{
+          id: '401916980',
+          uid: 's:600~l:19483~e:401916980',
+          name: 'Club A at Club B',
+          competitions: [{
+            startDate: at(120),
+            altGameNote: 'UEFA Women’s Champions League, League Phase',
+            status: { type: { state: 'pre', detail: 'Scheduled', shortDetail: 'Scheduled', description: 'Scheduled' } },
+            competitors: [SPURS('0'), LEEDS('0')],
+          }],
+        }],
+      });
+    }
+    return jsonResponse({
+      leagues: [{ id: url.includes('esp.1') ? '3921' : '700', name: 'Nothing On Today', logos: [] }],
+      events: [],
+    });
+  });
+  try {
+    await scoreboard({ now });
+    const cold = stub.calls.length;
+    assert.equal(cold, 3, 'two empty league days, and the board that says what is on');
+
+    const board = await SportScoreboard.findOne({ code: 'all' }).lean();
+    assert.deepEqual(board.coveredIds, ['19483'], 'the board records the competitions it named');
+    assert.equal(board.truncated, false, 'and that nothing was cut off');
+    assert.equal((await SportScoreboard.findOne({ code: 'eng.1' }).lean()).competitionId, '700',
+      'a league day keeps the id the board uses');
+
+    // Six minutes later, past the five minutes an unexamined empty day is trusted
+    // for. The board itself is due again; the two leagues it proved empty are not.
+    await scoreboard({ now: minutes(6) });
+    assert.equal(stub.count('eng.1'), 1, 'the empty Premier League day is not asked about again');
+    assert.equal(stub.count('esp.1'), 1, 'nor the empty Spanish one');
+    assert.equal(stub.calls.length, cold + 1, 'the only new call is the board itself');
+
+    // A board that came back cut off proves nothing, so the empty days are due
+    // again and the pass goes back to asking them.
+    await SportScoreboard.updateOne({ code: 'all' }, { $set: { truncated: true } });
+    await scoreboard({ now: minutes(6.5) });
+    assert.equal(stub.count('eng.1'), 2, 'a truncated board is not evidence of anything');
   } finally {
     stub.restore();
   }

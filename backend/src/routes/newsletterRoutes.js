@@ -88,7 +88,11 @@ router.post('/subscribe', async (req, res, next) => {
     // mail is what may take a while. The reader is answered inside a short
     // budget and the mail finishes behind the response, so a relay that is slow
     // today cannot look like a dead newsroom.
-    const result = await mailer.answerWithin(() => mailer.sendConfirmation(subscriber, token));
+    const result = await mailer.answerWithin(
+      () => mailer.sendConfirmation(subscriber, token),
+      undefined,
+      { purpose: 'newsletter-confirm', to: email, subject: 'Confirm your news alerts' },
+    );
     return successResponse(res, 200,
       result.delivered ? 'We mailed you a confirmation link'
         : result.queued ? 'We are mailing you a confirmation link'

@@ -57,6 +57,16 @@ const LIVE_TTL = Math.max(REFRESH_MS, CRON_PERIOD_MS);
 // "no matches" either way. Five minutes is the compromise, and the moment a day
 // has a fixture on it this number stops applying to it.
 const QUIET_DAY_TTL = 5 * MINUTE_MS;
+// ...and a day the world board has just proved empty is not "a day nobody has
+// read properly" any more. The all-competitions board names every competition
+// with a fixture on that day; a followed league whose feed id is not among
+// those names has nothing on, and saying so is worth two hours of not asking.
+// This is the number that keeps a sixty-league watch list affordable: without it
+// fifty-odd confirmed-empty days each come back due every five minutes, the
+// whole minute is spent on days that answer "no matches" either way, and the
+// leagues that do have fixtures that week never get their turn - which is what
+// "it only fetched one champion" turns out to have been.
+const PROVEN_EMPTY_TTL = 2 * HOUR_MS;
 // The whole football world's day, in one request.
 //
 // The newsroom follows sixty-odd competitions, and a match played anywhere else -
@@ -73,6 +83,11 @@ const WORLD_QUIET_TTL = 5 * MINUTE_MS;
 // keeping are a couple of dozen; the cap is there for the day the feed decides to
 // be creative about "about to be".
 const MAX_WORLD_ROWS = 80;
+// How many events the all-competitions board is asked for. Its whole value as
+// evidence depends on this being more than the largest day the feed prints - a
+// Saturday was measured at 154 events - because a board that came back cut short
+// cannot tell anybody that their league is not on it.
+const WORLD_FETCH_LIMIT = 400;
 // How soon an un-followed competition's kick-off has to be to earn a place on the
 // page. Without this the day view becomes three hundred rows of third-tier
 // football, and the Premier League scoreboard a reader came for is forty screens
@@ -149,7 +164,7 @@ const scoreboardUrl = (code, dateKey) =>
 // nobody in Rwanda is asking about. Anything the page wanted and the cap dropped
 // is a missing match, so the cap sits above the largest day the feed has printed.
 const worldUrl = (dateKey) =>
-  `${BASE}/site/v2/sports/soccer/${WORLD_CODE}/scoreboard?dates=${dateKey}&limit=400`;
+  `${BASE}/site/v2/sports/soccer/${WORLD_CODE}/scoreboard?dates=${dateKey}&limit=${WORLD_FETCH_LIMIT}`;
 const summaryUrl = (code, id) =>
   `${BASE}/site/v2/sports/soccer/${encodeURIComponent(code)}/summary?event=${encodeURIComponent(id)}`;
 const standingsUrl = (code) => `${BASE}/v2/sports/soccer/${encodeURIComponent(code)}/standings`;
@@ -411,6 +426,97 @@ function worldRowIsWanted(row, now = Date.now()) {
   if (row.state !== 'pre') return false;
   const started = dateOf(row.start);
   return Boolean(started && started.getTime() - now <= WORLD_SOON_MS);
+}
+
+const liveFirst = (a, b) => (a.state === 'in' ? 0 : 1) - (b.state === 'in' ? 0 : 1);
+const byKickOff = (a, b) => new Date(a.start || 0) - new Date(b.start || 0);
+
+/**
+ * The rows the world board is allowed to keep, chosen so that they cover as
+ * many competitions as possible.
+ *
+ * Sorting the whole day and cutting it at the cap is what made the page read as
+ * "one champion": one cup with sixteen fixtures on a Saturday took sixteen of
+ * the places before any other competition had said a word, and the seventy
+ * competitions that also had something on that day were simply not on the page.
+ * So the rows are bucketed per competition and dealt out in turn - one from
+ * each, then a second from each - which keeps every named competition on the
+ * board represented. A match being played still beats a fixture everywhere it
+ * matters: inside a bucket the live rows come first, the buckets are ordered by
+ * how much live football they hold, and the cap can therefore only ever cut
+ * fixtures.
+ */
+function capWorldRows(rows, now = Date.now(), cap = MAX_WORLD_ROWS) {
+  const wanted = rows.filter((row) => row.competition && row.competition.name && worldRowIsWanted(row, now));
+  const buckets = new Map();
+  for (const row of wanted) {
+    const key = row.competition.id || row.competition.name;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(row);
+  }
+  const liveCount = (bucket) => bucket.filter((row) => row.state === 'in').length;
+  const ordered = [...buckets.values()]
+    .map((bucket) => bucket.slice().sort((a, b) => liveFirst(a, b) || byKickOff(a, b)))
+    // A competition with live football is dealt from before one without, and a
+    // competition with more of it before one with less; the earliest kick-off
+    // settles the rest. This is the order the cap eats from, so it is the order
+    // the page is covered in.
+    .sort((a, b) => liveCount(b) - liveCount(a)
+      || b.length - a.length
+      || byKickOff(a[0], b[0]));
+
+  const picked = [];
+  for (let rank = 0; picked.length < cap && ordered.some((bucket) => bucket[rank]); rank += 1) {
+    for (const bucket of ordered) {
+      if (bucket[rank]) {
+        picked.push(bucket[rank]);
+        if (picked.length >= cap) break;
+      }
+    }
+  }
+  return picked.sort((a, b) => liveFirst(a, b) || byKickOff(a, b));
+}
+
+/**
+ * What one day's world board proves about the leagues nobody is reading.
+ *
+ * The board names every competition with a fixture on the day. A followed
+ * league whose own feed id is not among those names has nothing on - and the
+ * only reason to keep asking it every five minutes was the fear that its
+ * fixtures had simply not been published yet, which the board answers directly.
+ *
+ * Two things make the proof admissible: the board has to be complete (a
+ * response cut off at its own limit cannot say what is missing from it) and it
+ * has to have been read after the empty day was, so a stale board never
+ * overrules a fresher look at the league itself. A league whose day has any row
+ * on it is never in question and never gets this treatment.
+ */
+function coverageProof(worldDocs, now = Date.now()) {
+  const usable = (worldDocs || [])
+    .filter((doc) => doc && doc.code === WORLD_CODE && Array.isArray(doc.coveredIds) && doc.coveredIds.length)
+    .filter((doc) => !doc.truncated)
+    .map((doc) => ({ doc, at: dateOf(doc.fetchedAt) }))
+    .filter((entry) => entry.at);
+  if (!usable.length) return null;
+  const ids = new Set();
+  let at = 0;
+  for (const { doc, at: stamp } of usable) {
+    for (const id of doc.coveredIds) ids.add(String(id));
+    if (stamp.getTime() > at) at = stamp.getTime();
+  }
+  // A board from the far side of the day is not evidence about this minute.
+  if (now - at > Math.max(PROVEN_EMPTY_TTL, WORLD_QUIET_TTL) * 4) return null;
+  return { ids, at, size: ids.size };
+}
+
+/** The extra time a provably-empty day may be left alone for, or 0. */
+function provenEmptyMs(doc, proof, now = Date.now()) {
+  if (!proof || !doc || !proof.ids.size) return 0;
+  const id = String(doc.competitionId || '');
+  if (!id || proof.ids.has(id)) return 0;
+  const at = dateOf(doc.fetchedAt || doc.updatedAt || doc.createdAt);
+  if (!at || at.getTime() > proof.at) return 0;
+  return PROVEN_EMPTY_TTL;
 }
 
 function matchRowOf(event) {
@@ -679,7 +785,7 @@ function recentlyRefused(key) {
  * for six hours would let a Thursday fetched at two in the morning print "no
  * matches today" all afternoon while the fixtures sit one request away.
  */
-function ttlFor(doc, now = Date.now()) {
+function ttlFor(doc, now = Date.now(), proof = null) {
   const matches = (doc && doc.matches) || [];
   // The world board is the biggest thing the newsroom asks the feed for and the
   // least important thing on the page, so it keeps its own clock: two minutes
@@ -711,19 +817,24 @@ function ttlFor(doc, now = Date.now()) {
     // went to the back of the queue. A fixture list published at midday is on the
     // page by ten past; a match that has kicked off is on a day that is no longer
     // empty, and is still read every minute.
-    return doc && doc.dateKey >= dayKey(0, new Date(now)) ? QUIET_DAY_TTL : 6 * HOUR_MS;
+    const defaultTtl = doc && doc.dateKey >= dayKey(0, new Date(now)) ? QUIET_DAY_TTL : 6 * HOUR_MS;
+    // ...and the world board can shorten the five minutes to two hours, because
+    // then the empty day is no longer an unexamined answer - it is a day that a
+    // single request has just named every competition with a fixture on, and this
+    // competition was not one of them.
+    return Math.max(defaultTtl, provenEmptyMs(doc, proof, now));
   }
   return 6 * HOUR_MS;
 }
 
-function isFresh(doc, now = Date.now()) {
+function isFresh(doc, now = Date.now(), proof = null) {
   if (!doc) return false;
   // A row with no stamp on it at all is not evidence of a stale fetch, it is
   // evidence of a half-written one, and treating it as expired would make every
   // single request pay for the feed again.
   const at = dateOf(doc.fetchedAt || doc.updatedAt || doc.createdAt);
   if (!at) return true;
-  return now - at.getTime() < ttlFor(doc, now);
+  return now - at.getTime() < ttlFor(doc, now, proof);
 }
 
 async function loadScoreboard(code, dateKey, { urgent = false, now = new Date() } = {}) {
@@ -763,15 +874,16 @@ async function loadScoreboard(code, dateKey, { urgent = false, now = new Date() 
     // few of its rows: what is being played and what is about to be. A match the
     // feed never named is dropped rather than grouped under its code, because a
     // scores page whose heading is "19483" is a page that showed the reader a
-    // number instead of a competition. What is left is sorted so the live ones
-    // are at the front, and the cap can only ever cut fixtures.
-    const matches = code === WORLD_CODE
-      ? rows
-          .filter((row) => row.competition && row.competition.name && worldRowIsWanted(row, now.getTime()))
-          .sort((a, b) => (a.state === 'in' ? 0 : 1) - (b.state === 'in' ? 0 : 1)
-            || new Date(a.start || 0) - new Date(b.start || 0))
-          .slice(0, MAX_WORLD_ROWS)
-      : rows.slice(0, MAX_MATCHES_PER_DAY);
+    // number instead of a competition.
+    const matches = code === WORLD_CODE ? capWorldRows(rows, now.getTime()) : rows.slice(0, MAX_MATCHES_PER_DAY);
+    // Everything the board named, printed or not. This is what a followed
+    // league's empty day is measured against, so it is taken from the raw
+    // response and not from the rows the page kept.
+    const coveredIds = code === WORLD_CODE
+      ? [...new Set((upstream.body.events || [])
+        .map((event) => (String(event.uid || '').match(/~l:(\d+)/) || [])[1])
+        .filter(Boolean))]
+      : [];
     // Stamped with the clock the caller is working to, so one minute of this
     // page has one answer to "how old is this" wherever it is asked.
     const fetchedAt = new Date(now.getTime());
@@ -784,7 +896,17 @@ async function loadScoreboard(code, dateKey, { urgent = false, now = new Date() 
         name: league.name || '',
         logo: preferredLogo(league.logos),
       },
+      // A league's own scoreboard names itself with the same number the world
+      // board files its matches under, and that is the whole use of the field.
+      // The world board is not one competition, so it carries no id of its own.
+      competitionId: code === WORLD_CODE ? '' : (league.id != null && String(league.id) ? String(league.id) : ''),
       matches,
+      ...(code === WORLD_CODE ? {
+        coveredIds,
+        // Asking for four hundred and being given four hundred is a board that
+        // was cut off, and a cut-off board proves nothing about what is missing.
+        truncated: (upstream.body.events || []).length >= WORLD_FETCH_LIMIT,
+      } : {}),
       fetchedAt,
       watchedAt: fetchedAt,
     });
@@ -1028,7 +1150,7 @@ async function scoreboard({ date, league, live = false, now = new Date() } = {})
   const readCodes = wanted ? codes : [...codes, WORLD_CODE];
   const stored = await SportScoreboard
     .find({ code: { $in: readCodes }, dateKey: { $in: carries ? [dateKey, carries] : [dateKey] } })
-    .select('code dateKey league matches fetchedAt')
+    .select('code dateKey league competitionId coveredIds truncated matches fetchedAt')
     .lean();
   const byCode = new Map();
   const carriedByCode = new Map();
@@ -1040,7 +1162,13 @@ async function scoreboard({ date, league, live = false, now = new Date() } = {})
   const worldCarry = wanted ? null : carriedByCode.get(WORLD_CODE) || null;
   byCode.delete(WORLD_CODE);
   carriedByCode.delete(WORLD_CODE);
-  const missing = codes.filter((code) => !isFresh(byCode.get(code), now.getTime()));
+  // What today's world board says is on today. A followed league it does not
+  // name is a day that is provably empty rather than unread, and the difference
+  // is forty upstream calls a minute that the page does not need to make - which
+  // is why a press used to come back with one competition filled in and the rest
+  // of the watch list still pending.
+  const proof = wanted ? null : coverageProof([worldDoc], now.getTime());
+  const missing = codes.filter((code) => !isFresh(byCode.get(code), now.getTime(), proof));
   // Yesterday's fixtures are only worth going out for while they can still be
   // about to be played or still being played - the small hours here, which is
   // where another continent's evening lands. The rest of the day they are
@@ -1512,8 +1640,21 @@ async function refreshWatched({ now = new Date() } = {}) {
   const warm = await SportScoreboard.find({ watchedAt: { $gte: since }, dateKey: { $in: days } })
     .sort({ fetchedAt: 1 })
     .limit(MAX_REFRESH_PER_RUN * 4)
-    .select('code dateKey fetchedAt matches')
+    .select('code dateKey competitionId matches fetchedAt')
     .lean();
+  // The board is read here in its own small query rather than hoped to appear in
+  // the window above: it is the evidence the pass runs on, and a day nobody has
+  // opened should still not be re-fetched fifty times an hour.
+  const boards = await SportScoreboard
+    .find({ code: WORLD_CODE, dateKey: { $in: days } })
+    .select('code dateKey coveredIds truncated fetchedAt')
+    .lean()
+    .catch(() => []);
+  const proofs = new Map();
+  for (const day of days) {
+    const proof = coverageProof(boards.filter((doc) => doc.dateKey === day), now.getTime());
+    if (proof) proofs.set(day, proof);
+  }
   // The number the log prints is the number of competitions somebody is actually
   // keeping open, not the number this pass was willing to look at - the query
   // above is deliberately read wider than the pass can spend, and reporting that
@@ -1525,7 +1666,17 @@ async function refreshWatched({ now = new Date() } = {}) {
   // competition whose day is already finished is legitimately weeks old in the
   // queue and would hold the minute up if the first twelve rows were the twelve
   // the database happened to return.
-  const needs = warm.filter((doc) => !isFresh(doc, now.getTime())).slice(0, MAX_REFRESH_PER_RUN);
+  //
+  // A day the board has proved empty is not due at all for two hours, and the
+  // rows that are left are ordered so a day with fixtures in it goes first.
+  // Both of those are the same saving: the minute is spent on competitions that
+  // have something to report, which is the difference between the whole watch
+  // list turning and one champion being read over and over.
+  const needs = warm
+    .filter((doc) => !isFresh(doc, now.getTime(), proofs.get(doc.dateKey) || null))
+    .sort((a, b) => ((b.matches || []).length > 0 ? 1 : 0) - ((a.matches || []).length > 0 ? 1 : 0)
+      || new Date(a.fetchedAt || 0) - new Date(b.fetchedAt || 0))
+    .slice(0, MAX_REFRESH_PER_RUN);
   // One pass, one budget. A feed that stops answering one league is not allowed
   // to hold the whole minute, because the minute is what every reader on the
   // page is counting on.
@@ -1772,6 +1923,11 @@ module.exports = {
   WORLD_CODE,
   competitionOf,
   worldRowIsWanted,
+  capWorldRows,
+  coverageProof,
+  provenEmptyMs,
+  MAX_WORLD_ROWS,
+  PROVEN_EMPTY_TTL,
   worldGroups,
   dayWindow,
   dayKeyBefore,

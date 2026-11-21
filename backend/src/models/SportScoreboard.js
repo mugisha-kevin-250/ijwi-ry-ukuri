@@ -64,6 +64,18 @@ const scoreboardSchema = new mongoose.Schema({
     logo: String,
   },
   matches: [matchSchema],
+  // The feed's own numeric id for the competition this document belongs to
+  // ("700" is the English Premier League). It is the only thing the day's own
+  // scoreboard and the all-competitions board agree on, and it is what lets one
+  // say anything about the other.
+  competitionId: String,
+  // Set on the world board's day only: every competition id that board named,
+  // whether or not the page had a use for the fixture. Absence from this list is
+  // the evidence that a followed league has nothing on today, so it is recorded
+  // from the whole response rather than from the rows that survived the filter -
+  // and `truncated` says whether the response was complete enough to trust.
+  coveredIds: [String],
+  truncated: Boolean,
   fetchedAt: Date,
   // When a reader last asked for this document. The cron only re-asks the
   // upstream for the days and competitions somebody is actually looking at,

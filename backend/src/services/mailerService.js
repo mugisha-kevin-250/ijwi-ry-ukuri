@@ -2,6 +2,61 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const env = require('../config/env');
 const NewsletterSubscriber = require('../models/NewsletterSubscriber');
+const MailAttempt = require('../models/MailAttempt');
+
+// A diagnostic, not an archive: a month is longer than any mail problem takes to
+// be noticed, and the free cluster does not need 2019's bounces.
+const KEEP_DAYS = 30;
+const REASON_MAX_CHARS = 320;
+
+/**
+ * What the relay itself said, in one line worth reading.
+ *
+ * Nodemailer puts the server's reply in `response` and its own classification in
+ * `code`. Both matter: "535 5.7.1 Invalid credentials" and "ESMTP" together tell
+ * an operator whether to fix the password or fix the sender address, and a
+ * connection failure that never reached SMTP has no response at all.
+ */
+function providerReason(error) {
+  if (!error) return '';
+  const code = error.response || error.message || error.code || '';
+  // An unwrappable multi-line protocol dump would only waste the screen, and a
+  // stray password has no business being in anything we store.
+  return String(code)
+    .replace(/\s+/g, ' ')
+    .replace(/[^\x20-\x7E]/g, '')
+    .trim()
+    .slice(0, REASON_MAX_CHARS);
+}
+
+/** k••••@gmail.com — enough to group a failure by provider, never a reader's address. */
+function maskAddress(address) {
+  const [local = '', domain = ''] = String(address || '').split('@');
+  if (!domain) return '';
+  return `${local.slice(0, 1)}${'•'.repeat(Math.max(1, Math.min(6, local.length - 1)))}@${domain.toLowerCase()}`;
+}
+
+/**
+ * Write one outcome down. Never throws: a database that is having a bad day must
+ * not turn into "the newsroom cannot send email".
+ */
+async function record({ purpose, to, subject, delivered, outcome, reason, messageId, ms }) {
+  try {
+    await MailAttempt.create({
+      purpose: String(purpose || 'mail').toLowerCase(),
+      recipient: maskAddress(to),
+      subject: String(subject || '').slice(0, 120),
+      delivered: delivered === true,
+      outcome,
+      reason: reason || undefined,
+      messageId: messageId || undefined,
+      ms: Number.isFinite(ms) ? Math.round(ms) : undefined,
+    });
+    await MailAttempt.deleteMany({ createdAt: { $lt: new Date(Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000) } });
+  } catch (error) {
+    console.warn('could not store the mail outcome:', error.message);
+  }
+}
 
 // Email is opt-in the way push is: with no SMTP credentials every route still
 // answers, it just reports honestly that nothing will be delivered instead of
@@ -13,9 +68,19 @@ function status() {
   if (!env.MAIL_FROM_EMAIL) {
     return { configured: false, reason: 'email alerts are not configured on this server (MAIL_FROM_EMAIL is not set)' };
   }
+  // A missing login is reported, not treated as "not configured": a relay that
+  // needs no credentials is a real setup, and turning one off because this file
+  // expects a password would break mail that works. It is worth naming though,
+  // because a half-pasted set of Render variables looks exactly like a relay
+  // that has stopped answering.
+  const warning = (!env.SMTP_USER || !env.SMTP_PASSWORD)
+    ? 'SMTP_USER or the password (SMTP_PASSWORD / SMTP_PASS) is not set - a relay that requires a login will refuse every mail'
+    : null;
   return {
     configured: true,
+    host: `${env.SMTP_HOST}:${env.SMTP_PORT}${env.SMTP_SECURE ? ' (implicit TLS)' : ' (STARTTLS)'}`,
     from: env.MAIL_FROM_NAME ? `${env.MAIL_FROM_NAME} <${env.MAIL_FROM_EMAIL}>` : env.MAIL_FROM_EMAIL,
+    ...(warning ? { warning } : {}),
   };
 }
 
@@ -47,17 +112,37 @@ function getTransport() {
 
 // Messages are plain text with a minimal HTML alternative: no images, no
 // tracking pixels, nothing that phones home when a reader opens the mail.
-async function send({ to, subject, text, html }) {
+async function send({ to, subject, text, html, purpose = 'mail' }) {
   const state = status();
-  if (!state.configured) return { delivered: false, skipped: 'NOT_CONFIGURED' };
+  if (!state.configured) {
+    await record({ purpose, to, subject, outcome: 'not-configured', reason: state.reason });
+    return { delivered: false, skipped: 'NOT_CONFIGURED', reason: state.reason };
+  }
+  const startedAt = Date.now();
   try {
-    await getTransport().sendMail({ from: state.from, to, subject, text, html });
-    return { delivered: true };
+    const info = await getTransport().sendMail({ from: state.from, to, subject, text, html });
+    const messageId = info && info.messageId ? String(info.messageId).slice(0, 120) : '';
+    await record({
+      purpose, to, subject, delivered: true, outcome: 'sent',
+      messageId, ms: Date.now() - startedAt,
+      // The relay accepted the message. Whether it reached the inbox is the
+      // provider's business, and this is the point where we can honestly stop.
+      reason: info && info.response ? providerReason({ response: info.response }) : '',
+    });
+    return { delivered: true, messageId };
   } catch (error) {
     // One redacted line: the provider's own failure text, never an address,
     // never the password.
     console.warn('newsletter email send failed:', error.message);
-    return { delivered: false, error: 'SEND_FAILED' };
+    const reason = providerReason(error) || 'the mail relay could not be reached';
+    await record({
+      purpose, to, subject, delivered: false, outcome: 'rejected', reason,
+      ms: Date.now() - startedAt,
+    });
+    // `reason` travels back to the caller as well. It is never shown to a
+    // reader - it is what the admin's mail screen prints so that "email is not
+    // coming" has an answer that is not a guess.
+    return { delivered: false, error: 'SEND_FAILED', reason };
   }
 }
 
@@ -73,7 +158,7 @@ async function send({ to, subject, text, html }) {
  * running, its result is logged, and the answer says a mail is on its way
  * rather than claiming one has landed.
  */
-async function answerWithin(work, budgetMs) {
+async function answerWithin(work, budgetMs, meta = {}) {
   const budget = Number(budgetMs || env.MAIL_ANSWER_BUDGET_MS || 3000);
   const sending = Promise.resolve().then(work);
   let timer = 0;
@@ -85,6 +170,18 @@ async function answerWithin(work, budgetMs) {
   ]);
   clearTimeout(timer);
   if (outcome) return outcome;
+  // The reader has been told a mail is on its way, so the fact that the relay
+  // had not answered yet is written down too. When the send finishes behind the
+  // response it records its own row, and a reader who never got the mail leaves
+  // both lines in the admin's log instead of leaving nothing.
+  await record({
+    purpose: meta.purpose || 'mail',
+    to: meta.to,
+    subject: meta.subject,
+    outcome: 'queued',
+    reason: `the relay had not answered within ${budget}ms; the send continued in the background`,
+    ms: budget,
+  });
   sending
     .then((result) => {
       if (!result || !result.delivered) {
@@ -213,6 +310,7 @@ function sendSignInCode({ to, code, subject = 'Your RADAR sign-in code', ttlMinu
     to,
     subject,
     text,
+    purpose: 'signin-code',
     html: shell({ title: 'Your sign-in code', preview: `Your RADAR sign-in code is ${digits}`, body }),
   });
 }
@@ -235,6 +333,7 @@ function sendConfirmation(subscriber, token) {
     to: subscriber.email,
     subject: 'Confirm your news alerts',
     text,
+    purpose: 'newsletter-confirm',
     html: shell({ title: 'Confirm your news alerts', preview: 'One click and your RADAR alerts are on.', body }),
   });
 }
@@ -254,7 +353,9 @@ async function announceByEmail(subject, body) {
   let sent = 0;
   let failed = 0;
   // Sequential on purpose: a free SMTP relay throttles hard, and a burst of
-  // refusals is the fastest way to get the whole newsroom marked as spam.
+  // refusals is the fastest way to get the whole newsroom marked as spam. Each
+  // mail also writes its own outcome row, which is what makes "half the list
+  // never got it" a question with an answer.
   for (const subscriber of await NewsletterSubscriber.find({ status: 'confirmed' }).lean()) {
     // A fresh token per mail keeps the unsubscribe link of the newest message
     // live, which is the one a reader actually clicks.
@@ -265,6 +366,7 @@ async function announceByEmail(subject, body) {
       to: subscriber.email,
       subject,
       text: `${text}\n\n--\nStop these alerts: ${off}`,
+      purpose: 'story-alert',
       html: shell({
         title: subject,
         preview: text.slice(0, 140),
@@ -291,10 +393,88 @@ async function announceStory(article) {
   return { ...result, link };
 }
 
+/**
+ * Everything the admin needs to answer "the emails are not coming".
+ *
+ * The config is read from the live environment rather than from a document,
+ * because that is the only version of the truth that exists - Render's own
+ * dashboard is the place where these values are set, and a copy kept in the
+ * database would be a second answer to the same question. No value is returned,
+ * only whether it is present: these are secrets.
+ */
+async function diagnostics(limit = 20) {
+  const state = status();
+  const attempts = await MailAttempt.find().sort({ createdAt: -1 }).limit(Math.max(1, Number(limit) || 20)).lean();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [delivered, refused] = await Promise.all([
+    MailAttempt.countDocuments({ delivered: true, createdAt: { $gte: since } }),
+    MailAttempt.countDocuments({ delivered: false, createdAt: { $gte: since } }),
+  ]);
+  return {
+    configured: state.configured,
+    // The four names an operator has to get right, each reduced to set/not set.
+    keys: {
+      SMTP_HOST: Boolean(env.SMTP_HOST),
+      SMTP_PORT: Boolean(process.env.SMTP_PORT),
+      SMTP_USER: Boolean(env.SMTP_USER),
+      SMTP_PASSWORD: Boolean(env.SMTP_PASSWORD),
+      MAIL_FROM_EMAIL: Boolean(env.MAIL_FROM_EMAIL),
+    },
+    host: state.host || null,
+    from: state.from || null,
+    reason: state.reason || null,
+    warning: state.warning || null,
+    last24Hours: { delivered, refused },
+    last: attempts.map((doc) => ({
+      at: doc.createdAt,
+      purpose: doc.purpose,
+      recipient: doc.recipient,
+      outcome: doc.outcome,
+      delivered: doc.delivered,
+      reason: doc.reason || null,
+      messageId: doc.messageId || null,
+      ms: doc.ms ?? null,
+    })),
+  };
+}
+
+/**
+ * One mail, sent with the server's own settings, waited for in full.
+ *
+ * A reader's press is answered in three seconds and cannot tell the operator
+ * anything about the twenty-fifth second. This is the opposite: no budget, no
+ * background race, and whatever the relay says comes straight back - which is
+ * the difference between "email is not coming" and "the relay rejected
+ * 550 Sender address rejected: not owned by user".
+ */
+async function sendTestMail({ to }) {
+  const state = status();
+  if (!state.configured) {
+    return { delivered: false, reason: state.reason, configured: false };
+  }
+  const subject = 'RADAR mail test';
+  const text = [
+    'This is the test mail from the RADAR admin mail screen.',
+    '',
+    `It was sent by ${state.from} through ${state.host}.`,
+    'If it arrived, the newsroom can mail its readers.',
+  ].join('\n');
+  const html = shell({
+    title: 'Mail test',
+    preview: 'If you can read this, the newsroom can send email.',
+    body: `<p style="margin:0 0 14px;">This mail was sent by the admin mail test, and it waited for the relay's full answer before reporting.</p>`
+      + `<p style="margin:0;color:#6b7889;font-size:14px;">Sent by ${escapeHtml(state.from)} through ${escapeHtml(state.host)}.</p>`,
+  });
+  const result = await send({ to, subject, text, html, purpose: 'test' });
+  return { ...result, configured: true, from: state.from, host: state.host };
+}
+
 module.exports = {
   status,
   send,
   answerWithin,
+  diagnostics,
+  sendTestMail,
   mintToken,
   hashToken,
   findByToken,

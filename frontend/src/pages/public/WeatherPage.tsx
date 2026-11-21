@@ -442,9 +442,17 @@ export default function WeatherPage() {
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">{t('weather.desk')}</p>
             <h1 className="text-2xl font-extrabold leading-tight">{t('weather.title')}</h1>
           </div>
-          <form onSubmit={submit} className="flex w-full items-center gap-2 sm:w-auto">
+          <form onSubmit={submit} className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <label className="sr-only" htmlFor="weather-city">{t('weather.search')}</label>
-            <div className="relative flex-1 sm:w-64">
+            {/*
+              On a phone the field takes a line to itself and the presses go under
+              it. Four controls in one 320px row left a search box too narrow to
+              read what had been typed in it, with the Go press the first thing
+              pushed past the edge; and a field under 16px makes iOS zoom the
+              whole page the moment it is tapped, which is the other half of
+              "it does not fit".
+            */}
+            <div className="relative min-w-0 w-full flex-1 sm:w-64 sm:flex-none">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" aria-hidden="true" />
               <input
                 id="weather-city"
@@ -452,10 +460,10 @@ export default function WeatherPage() {
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder={t('weather.searchPlaceholder')}
-                className="w-full rounded-lg border border-white/25 bg-white/10 py-2 pl-9 pr-3 text-sm font-medium text-white placeholder:text-white/60 focus:border-white/60 focus:bg-white/15 focus:outline-none"
+                className="w-full rounded-lg border border-white/25 bg-white/10 py-2 pl-9 pr-3 text-base font-medium text-white placeholder:text-white/60 focus:border-white/60 focus:bg-white/15 focus:outline-none sm:text-sm"
               />
             </div>
-            <button type="submit" className="rounded-lg bg-white/95 px-3 py-2 text-sm font-bold text-blue-700 transition hover:bg-white">
+            <button type="submit" className="shrink-0 rounded-lg bg-white/95 px-4 py-2 text-sm font-bold text-blue-700 transition hover:bg-white">
               {t('weather.go')}
             </button>
             {/* One icon on a phone, a word on a screen wide enough for it: the

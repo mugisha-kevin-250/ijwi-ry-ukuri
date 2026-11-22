@@ -202,16 +202,24 @@ body {
   overflow-wrap: anywhere;
 }
 
+/*
+  A story's own headings are scaled to the column they sit in, not to the page.
+  On a phone the copy is one heading short of a wall of text, and a 36px h1
+  inside a 320px column is two lines of display type for every four of reading
+  type - which is what "hard to read on a small device" turns out to be. The
+  newsroom's sizes are kept from the small breakpoint up, where there is room
+  for them.
+*/
 .prose-content h1 {
-  @apply text-4xl font-bold mt-8 mb-4 text-[var(--color-text)];
+  @apply text-[1.625rem] leading-tight font-bold mt-7 mb-3 text-[var(--color-text)] sm:text-4xl sm:leading-normal sm:mt-8 sm:mb-4;
 }
 
 .prose-content h2 {
-  @apply text-3xl font-bold mt-8 mb-3 text-[var(--color-text)];
+  @apply text-[1.375rem] leading-tight font-bold mt-6 mb-2 text-[var(--color-text)] sm:text-3xl sm:leading-normal sm:mt-8 sm:mb-3;
 }
 
 .prose-content h3 {
-  @apply text-2xl font-bold mt-6 mb-2 text-[var(--color-text)];
+  @apply text-[1.1875rem] leading-tight font-bold mt-5 mb-2 text-[var(--color-text)] sm:text-2xl sm:mt-6;
 }
 
 .prose-content p {
@@ -273,8 +281,12 @@ body {
   @apply w-full my-4 border-collapse;
 }
 
+/* A league table is the widest thing a story carries, and sixteen pixels of
+   cell padding on each side of every column is what puts the last one off the
+   screen on a phone. The copy is smaller there too, because a table of numbers
+   is read for the figure and not for the prose. */
 .prose-content th, .prose-content td {
-  @apply border border-[var(--color-border)] px-4 py-2 text-left;
+  @apply border border-[var(--color-border)] px-2 py-1.5 text-left text-[0.8125rem] sm:px-4 sm:py-2 sm:text-base;
 }
 
 .prose-content th {

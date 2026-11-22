@@ -339,7 +339,11 @@ export default function ArticleDetailPage() {
             is told - but a label over the headline made every AI-assisted story
             look like a different class of reporting before anyone had read a
             line of it. */}
-        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+        {/* The byline facts wrap on a phone, and a four-unit gap between them
+            put the date, the reading time and the view count on three separate
+            lines under the headline. Rows still need air; words in one row do
+            not need quite so much of it. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500 dark:text-gray-400 sm:gap-4">
           {author && (
             <Link
               to={`/user/${author._id}`}

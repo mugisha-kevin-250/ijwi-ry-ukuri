@@ -5,7 +5,7 @@
     <link>https://ijwi-ry--ukuri.web.app</link>
     <description>News written by approved writers: world, politics, business, technology, sports, entertainment and health.</description>
     <language>en</language>
-    <lastBuildDate>Sat, 21 Nov 2026 14:51:51 GMT</lastBuildDate>
+    <lastBuildDate>Sun, 22 Nov 2026 12:09:47 GMT</lastBuildDate>
     <docs>https://www.rss.org/rss.xml</docs>
     <generator>RADAR build scripts</generator>
     <atom:link href="https://ijwi-ry--ukuri.web.app/feed.xml" rel="self" type="application/rss+xml" />
@@ -14,6 +14,32 @@
       <title>RADAR</title>
       <link>https://ijwi-ry--ukuri.web.app</link>
     </image>
+    <item>
+      <title>APR and Rayon Sports Draw 1-1 in Rwanda Premier League</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/apr-and-rayon-sports-draw-1-1-in-rwanda-premier-league-1795284609460</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/apr-and-rayon-sports-draw-1-1-in-rwanda-premier-league-1795284609460</guid>
+      <description>APR and Rayon Sports shared the points in a 1-1 draw during their recent Rwanda Premier League encounter, reflecting the close competition between the two clubs.</description>
+      <pubDate>Sat, 21 Nov 2026 18:10:11 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Trending</category>
+      <category>apr</category>
+      <category>rayon sports</category>
+      <category>rwanda premier league</category>
+      <category>football</category>
+      <category>rwanda</category>
+      <media:content url="https://studentnews-backend.onrender.com/uploads/1795284549539-796425972.png" medium="image" />
+    </item>
+    <item>
+      <title>Kageyo TSS Prepares to Host Major Academic Event: &quot;Rise of Knowledge (ROK)&quot;</title>
+      <link>https://ijwi-ry--ukuri.web.app/article/kageyo-tss-prepares-to-host-major-academic-event-rise-of-knowledge-rok-1795280122856</link>
+      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/kageyo-tss-prepares-to-host-major-academic-event-rise-of-knowledge-rok-1795280122856</guid>
+      <description>Excitement is building at Kageyo Technical Secondary School (TSS) as students and staff prepare for an upcoming educational event titled Rise of Knowledge (ROK). The gathering aims to celebrate learning, spark innovation, and bring the school community together.</description>
+      <pubDate>Sat, 21 Nov 2026 16:35:31 GMT</pubDate>
+      <dc:creator>aime kevin</dc:creator>
+      <category>Entertainment</category>
+      <category>rok</category>
+      <media:content url="https://studentnews-backend.onrender.com/uploads/1795278901578-789760829.png" medium="image" />
+    </item>
     <item>
       <title>Chriss Eazy Triumphs in Bujumbura with High-Energy Show and Announces Major Career Move Sisi Wenyewe Concert</title>
       <link>https://ijwi-ry--ukuri.web.app/article/chriss-eazy-triumphs-in-bujumbura-with-high-energy-show-and-announces-major-career-move-sisi-wenyewe-concert-1795024570333</link>
@@ -406,36 +432,6 @@
       <category>iterambere</category>
       <category>ubukungu</category>
       <media:content url="https://studentnews-backend.onrender.com/uploads/1794679495911-200474412.jpg" medium="image" />
-    </item>
-    <item>
-      <title>Brighton and Liverpool Meet in Women&apos;s Super League Clash</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/brighton-and-liverpool-meet-in-womens-super-league-clash-1794678683155</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/brighton-and-liverpool-meet-in-womens-super-league-clash-1794678683155</guid>
-      <description>Brighton and Liverpool prepare for a competitive Women&apos;s Super League fixture, with broadcast details and confirmed team sheets announced for fans.</description>
-      <pubDate>Sat, 14 Nov 2026 17:51:23 GMT</pubDate>
-      <dc:creator>aime kevin</dc:creator>
-      <category>Trending</category>
-      <category>brighton</category>
-      <category>liverpool</category>
-      <category>wsl</category>
-      <category>football</category>
-      <category>soccer</category>
-      <media:content url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTxFHNkXJNd5eRuNNnZb5s-sRhUl4Da9V-U1mZU4Pdw-LuzITKvhgWkYOdob_s" medium="image" />
-    </item>
-    <item>
-      <title>Rwanda Faces Pressure to Withdraw Mushikiwabo from OIF Race</title>
-      <link>https://ijwi-ry--ukuri.web.app/article/rwanda-faces-pressure-to-withdraw-mushikiwabo-from-oif-race-1794674090270</link>
-      <guid isPermaLink="true">https://ijwi-ry--ukuri.web.app/article/rwanda-faces-pressure-to-withdraw-mushikiwabo-from-oif-race-1794674090270</guid>
-      <description>Rwanda faces growing international pressure regarding Louise Mushikiwabo&apos;s candidacy for the leadership of the Organisation Internationale de la Francophonie.</description>
-      <pubDate>Sat, 14 Nov 2026 16:34:52 GMT</pubDate>
-      <dc:creator>aime kevin</dc:creator>
-      <category>Rwanda</category>
-      <category>rwanda</category>
-      <category>oif</category>
-      <category>mushikiwabo</category>
-      <category>francophonie</category>
-      <category>diplomacy</category>
-      <media:content url="https://studentnews-backend.onrender.com/uploads/1794674059612-835269915.jpeg" medium="image" />
     </item>
   </channel>
 </rss>

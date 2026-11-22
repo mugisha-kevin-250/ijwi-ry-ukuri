@@ -52,7 +52,7 @@ export default function AdminLoginPage() {
                   autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="kevin"
+                  placeholder="Your admin username"
                   className="w-full rounded-lg border border-white/10 bg-slate-900/60 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                 />
               </div>
@@ -90,9 +90,15 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          <p className="mt-5 text-center text-xs text-slate-500">
-            Seed administrator username is <span className="font-semibold text-slate-300">kevin</span>.
-          </p>
+          {/*
+            There used to be a line here naming the seed administrator's username,
+            for the same reason the placeholder used to hold it: this build was
+            being checked by hand. It was the wrong trade. A gate that says who
+            the administrator is has told the half of the credential that never
+            changes, and "authorised administrators only" is a weaker claim when
+            the page itself lists one by name. The owner signs in with the account
+            they set, and nothing on this screen says what it is.
+          */}
         </div>
 
         <div className="mt-6 text-center">

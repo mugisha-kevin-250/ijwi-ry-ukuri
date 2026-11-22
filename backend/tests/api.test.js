@@ -11,6 +11,7 @@ const mongoose = require('mongoose');
 const Category = require('../src/models/Category');
 const User = require('../src/models/User');
 const Article = require('../src/models/Article');
+const breakingNews = require('../src/utils/breakingNews');
 const WriterProfile = require('../src/models/WriterProfile');
 const { connectDatabase, disconnectDatabase } = require('../src/config/database');
 
@@ -890,4 +891,118 @@ test('the desk writes the lines under a gallery picture, not the picture', async
     .set('Authorization', `Bearer ${token}`)
     .send({ media: [{ index: 0, credit: 'Written by the author' }] });
   assert.equal(notStaff.status, 403);
+});
+
+/**
+ * Breaking news, proved as the desk's spend rather than the author's.
+ *
+ * The four things that make the word mean something are all here: only staff
+ * can say it, only a story that is actually out can be called breaking, only a
+ * handful can hold it at one instant, and it stops on its own. The fifth is the
+ * reader's: the label travels to the public page and the staffer who pressed
+ * the button does not.
+ */
+test('the desk spends the breaking label and the clock takes it back', async () => {
+  const categoryResponse = await request(app).get('/api/categories');
+  const categoryId = categoryResponse.body.data.categories[0]._id;
+
+  const file = async (title) => {
+    const created = await request(app)
+      .post('/api/writers/articles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title, summary: 'A summary the desk can read.', content: 'Body text for the review desk.', category: categoryId });
+    assert.equal(created.status, 201);
+    return created.body.data.article._id;
+  };
+  // Out on the site, without walking the whole review queue again for a flag
+  // that is about the clock and not about the workflow.
+  const putOut = async (id) => {
+    await Article.findByIdAndUpdate(id, { status: 'published', publishedAt: new Date() });
+    return Article.findById(id);
+  };
+  const call = async (id, on, as = editorToken) =>
+    request(app).put(`/api/editor/articles/${id}/breaking`).set('Authorization', `Bearer ${as}`).send({ on });
+
+  // Yesterday's news, or tomorrow's: a draft has not happened yet.
+  const waiting = await file('A draft that wants to be breaking');
+  const tooEarly = await call(waiting, true);
+  assert.equal(tooEarly.status, 400);
+  assert.match(tooEarly.body.message, /draft/, 'the refusal names the stage in the way');
+  assert.equal((await Article.findById(waiting)).isBreaking, false);
+
+  const first = await file('The first thing worth stopping for');
+  await putOut(first);
+  const flagged = await call(first, true);
+  assert.equal(flagged.status, 200);
+  assert.equal(flagged.body.data.article.isBreaking, true);
+  assert.ok(flagged.body.data.article.breakingAt, 'the flag is on a clock, so it has to be stamped');
+  assert.equal(flagged.body.data.breaking, 1);
+
+  // Fill the rail to the cap, checking the count the desk is shown each time.
+  const onTheRail = [];
+  for (let n = 2; n <= 5; n += 1) {
+    const id = await file(`Story number ${n} on the breaking rail`);
+    await putOut(id);
+    const added = await call(id, true);
+    assert.equal(added.status, 200);
+    assert.equal(added.body.data.breaking, n);
+    onTheRail.push(id);
+  }
+
+  const sixth = await file('A sixth emergency, one too many');
+  await putOut(sixth);
+  const crowded = await call(sixth, true);
+  assert.equal(crowded.status, 400, 'a sixth red flag is refused, not queued');
+  assert.match(crowded.body.message, /already breaking/, 'and the desk is told what the cap is');
+  assert.equal((await Article.findById(sixth)).isBreaking, false, 'a refused call changes nothing');
+
+  // The way through the cap is the desk's own: take one back off.
+  const freed = await call(onTheRail[0], false);
+  assert.equal(freed.status, 200);
+  assert.equal(freed.body.data.article.isBreaking, false);
+  assert.equal(freed.body.data.breaking, 4);
+  const admitted = await call(sixth, true);
+  assert.equal(admitted.status, 200);
+
+  // Nobody else, and nobody at all without a token.
+  assert.equal((await call(sixth, true, token)).status, 403);
+  assert.equal((await call(sixth, true, '')).status, 401);
+
+  // The author's own save cannot put the word on their own story: it is not a
+  // field they are handed, so it is not in the body the route reads at all.
+  const smuggled = await request(app)
+    .put(`/api/writers/articles/${waiting}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ isBreaking: true, breakingAt: new Date().toISOString() });
+  assert.equal(smuggled.status, 200);
+  assert.equal((await Article.findById(waiting)).isBreaking, false, 'breaking is not an author edit');
+
+  // What a reader gets: the flag and its minute, never the colleague who spent it.
+  const publicRead = await request(app).get(`/api/articles/${admitted.body.data.article.slug}`);
+  assert.equal(publicRead.status, 200);
+  assert.equal(publicRead.body.data.article.isBreaking, true);
+  assert.ok(publicRead.body.data.article.breakingAt);
+  assert.equal(publicRead.body.data.article.breakingBy, undefined, 'who pressed it is the newsroom’s own record');
+
+  // The clock, and the three places it is kept. A flag older than the window
+  // does not shout at a reader - that is the test the badge and the desk button
+  // both run - it does not spend a place on the rail, and the scheduled sweep
+  // takes it out of the database so the story stops claiming to be urgent.
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  await Article.findByIdAndUpdate(first, { $set: { breakingAt: twoDaysAgo } });
+  assert.equal(breakingNews.readsAsBreaking(await Article.findById(first)), false, 'a stale flag is not shown to a reader');
+  assert.equal(breakingNews.readsAsBreaking({ isBreaking: true }), false, 'a flag nobody stamped is not breaking');
+
+  const aged = await file('Breaking since yesterday');
+  await putOut(aged);
+  const lateCall = await call(aged, true);
+  assert.equal(lateCall.status, 200, 'the story that aged out is not holding a place on the rail');
+  assert.equal(lateCall.body.data.breaking, 5);
+
+  await Article.findByIdAndUpdate(aged, { $set: { breakingAt: twoDaysAgo } });
+  const swept = await breakingNews.expireStale({ Article });
+  assert.ok(swept >= 1, 'the sweep reports what it took off');
+  const after = await Article.findById(aged);
+  assert.equal(after.isBreaking, false);
+  assert.equal(String(after.breakingAt), String(twoDaysAgo), 'when the desk shouted is history, not clutter to delete');
 });

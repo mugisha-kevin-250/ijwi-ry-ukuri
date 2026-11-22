@@ -485,6 +485,13 @@ const translations: Record<string, Translations> = {
     'editor.review.takeDown': 'Take down',
     'editor.review.putBack': 'Put back up',
     'editor.review.nothingLeft': 'This story has no next step from here.',
+    // Breaking is the desk's judgement about now, not a fact about the
+    // reporting, so it sits with the verdicts and not with the disclosures. The
+    // hint states the two rules that make the word mean anything: a staff
+    // member spends it and it runs out on its own.
+    'editor.review.breakingOn': 'Flag as breaking',
+    'editor.review.breakingOff': 'Take the breaking label off',
+    'editor.review.breakingHint': 'A desk decision, not the author’s. It shows on the story and its card, and comes off by itself a day after it is set.',
     'editor.review.history': 'Review history',
     'editor.review.noHistory': 'Nobody has decided anything on this story yet.',
     // The desk signatures: the photo lines, the paid-content label, and the
@@ -858,6 +865,9 @@ const translations: Record<string, Translations> = {
     'articles.readStory': 'Read Story',
     'articles.imageCredit': 'Image',
     // What the story is, when an advertiser paid for it, and what we got wrong.
+    // The breaking word is the desk's, spoken as a pill on the story and its
+    // card - the strip across the top of every page was taken down on purpose.
+    'articles.breaking': 'Breaking',
     'articles.sponsored': 'Sponsored',
     'articles.sponsoredPaidBy': 'Paid for by',
     'articles.correction': 'Correction',

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Clock, Megaphone, RefreshCw, Send, Undo2, X } from 'lucide-react'
+import { ArrowLeft, Check, Clock, Megaphone, RefreshCw, Send, Undo2, X, Zap } from 'lucide-react'
 import { editorAPI, type StoryState } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../../components/common/Avatar'
@@ -10,6 +10,9 @@ import type { StoryMedia } from '../../types'
 import { useAuth } from '../../context/AuthContext'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
 import { looksLikeHtml, splitParagraphs } from '../../utils/storyBody'
+// The same test the reader's page uses, so the button can never claim a story is
+// breaking while the badge on the story has already gone quiet.
+import { readsAsBreaking } from '../../utils/breakingStory'
 import { cn } from '../../utils/cn'
 
 interface ReviewEvent {
@@ -61,6 +64,10 @@ export default function EditorReviewPage() {
   const [sourceError, setSourceError] = useState('')
   const [revisions, setRevisions] = useState<any[]>([])
 
+  // Breaking is its own call, not a disclosure field: it moves no text and the
+  // server answers with how many stories are carrying the label right now.
+  const [breakingBusy, setBreakingBusy] = useState(false)
+
   const rule = async (sourceId: string, verdict: 'pending' | 'verified' | 'rejected') => {
     setSourceBusy(`${sourceId}:${verdict}`)
     setSourceError('')
@@ -78,6 +85,26 @@ export default function EditorReviewPage() {
   // Whatever the disclosure box can send is described by the client itself, so
   // a new signature the desk is allowed to write needs one edit and not two.
   type DisclosurePatch = NonNullable<Parameters<typeof editorAPI.updateDisclosure>[1]>
+
+  /**
+   * Spend, or take back, the breaking label.
+   *
+   * The refusal is the server's sentence and it is worth showing as it is
+   * written: "five stories are already breaking, take one off" is the one
+   * answer that makes the cap make sense to the person standing at the desk.
+   */
+  const setBreaking = async (on: boolean) => {
+    setBreakingBusy(true)
+    setActionError('')
+    try {
+      await editorAPI.setBreaking(id, on)
+      await load()
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || 'The breaking label was not saved. Try again.')
+    } finally {
+      setBreakingBusy(false)
+    }
+  }
 
   const saveDisclosure = async (patch: DisclosurePatch, label: string) => {
     setDisclosureBusy(label)
@@ -324,6 +351,26 @@ export default function EditorReviewPage() {
             {nextStates.length === 0 && (
               <p className="text-sm text-slate-500">{t('editor.review.nothingLeft')}</p>
             )}
+          </div>
+
+          {/* Breaking belongs with these verdicts and not with the disclosures
+              below: it says what the desk thinks of the story right now, it is
+              the desk's to spend, and it is not a fact about the reporting.
+              There is no author's checkbox for it anywhere, which is the only
+              way the word keeps meaning something. */}
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={() => void setBreaking(!readsAsBreaking(article))}
+              disabled={breakingBusy}
+              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+            >
+              <Zap className="h-4 w-4" aria-hidden="true" />
+              {readsAsBreaking(article)
+                ? t('editor.review.breakingOff')
+                : t('editor.review.breakingOn')}
+            </button>
+            <p className="text-xs text-slate-500">{t('editor.review.breakingHint')}</p>
           </div>
         </div>
       )}

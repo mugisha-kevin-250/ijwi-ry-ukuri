@@ -4,6 +4,7 @@ const workflow = require('../services/articleWorkflow');
 const rewardService = require('../services/rewardService');
 const radioService = require('../services/radioService');
 const liveScoreService = require('../services/liveScoreService');
+const breakingNews = require('../utils/breakingNews');
 const env = require('../config/env');
 
 // Work the lifecycle has to finish on its own, because no person is standing
@@ -58,6 +59,15 @@ function startScheduler() {
       if (published) console.log(`Published ${published} story/stories that were due.`);
     } catch (error) {
       console.error('Scheduled publishing run failed:', error?.message || error);
+    }
+    // A breaking story is an emergency that has to be able to end. Nothing else
+    // ever takes the label back off, so without this the site fills with red
+    // flags from last month and the desk has no honest count to work from.
+    try {
+      const expired = await breakingNews.expireStale({ Article, now: new Date() });
+      if (expired) console.log(`Took the breaking label off ${expired} stor${expired === 1 ? 'y' : 'ies'} that aged out.`);
+    } catch (error) {
+      console.error('Breaking news expiry run failed:', error?.message || error);
     }
   }, options);
 

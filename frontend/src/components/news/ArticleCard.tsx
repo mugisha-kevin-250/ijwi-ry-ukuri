@@ -9,6 +9,7 @@ import { shareArticle } from '../../utils/shareArticle'
 import { categoryHref, categoryLabel } from '../../data/categoryVisuals'
 import Avatar from '../common/Avatar'
 import MediaImage from '../common/MediaImage'
+import BreakingBadge from './BreakingBadge'
 
 interface ArticleCardProps {
   article: Article
@@ -71,6 +72,7 @@ export default function ArticleCard({
           />
         )}
         <div className="flex-1 min-w-0">
+          <BreakingBadge article={article} className="mb-1" />
           <h3 className="font-medium text-gray-900 dark:text-white line-clamp-2">{article.title}</h3>
           {showAuthor && author && (
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">
@@ -108,15 +110,18 @@ export default function ArticleCard({
           </Link>
         )}
         <div className="p-6">
-          {showCategory && category && (
-            <Link
-              to={categoryHref(category)}
-              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300 mb-3"
-            >
-              <Tag className="h-3 w-3" aria-hidden="true" />
-              {categoryLabel(category, t)}
-            </Link>
-          )}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <BreakingBadge article={article} />
+            {showCategory && category && (
+              <Link
+                to={categoryHref(category)}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300"
+              >
+                <Tag className="h-3 w-3" aria-hidden="true" />
+                {categoryLabel(category, t)}
+              </Link>
+            )}
+          </div>
           <Link to={`/article/${article.slug}`}>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
               {article.title}
@@ -174,6 +179,7 @@ export default function ArticleCard({
       )}
       <div className="flex-1 flex flex-col p-4">
         <div className="flex flex-wrap items-center gap-2 mb-2">
+          <BreakingBadge article={article} />
           {showCategory && category && (
             <Link
               to={categoryHref(category)}

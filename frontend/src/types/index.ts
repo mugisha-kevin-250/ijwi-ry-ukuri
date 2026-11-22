@@ -136,6 +136,13 @@ export interface Article {
   translation?: { lang: string; translated: boolean }
   /** Only the admin portal produces these, and readers must see the label. */
   aiGenerated?: boolean
+  /**
+   * The desk's judgement that this story is worth a reader's attention now.
+   * Never set by the author, capped at a few at a time, and only meaningful
+   * next to `breakingAt` - see utils/breakingStory for the clock.
+   */
+  isBreaking?: boolean
+  breakingAt?: string
   country?: string
   publishedAt?: string
   createdAt: string

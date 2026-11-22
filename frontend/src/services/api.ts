@@ -617,6 +617,14 @@ export const editorAPI = {
   }) => apiClient.put(`/editor/articles/${id}/disclosure`, input),
 
   /**
+   * The breaking flag, spent by the desk rather than claimed by the author.
+   * The server refuses a sixth one and takes the old ones off on a clock, so
+   * the button is allowed to be honest about what it is for.
+   */
+  setBreaking: (id: string, on: boolean) =>
+    apiClient.put<{ article: Article; breaking: number }>(`/editor/articles/${id}/breaking`, { on }),
+
+  /**
    * The desk's ruling on one source, with the reason kept internal: a reader
    * gets the status, never the note or the name of whoever ruled.
    */

@@ -83,6 +83,20 @@ const articleSchema = new mongoose.Schema({
   // Readers have to be able to see which stories a machine wrote, and only the
   // admin portal can produce them.
   aiGenerated: { type: Boolean, default: false },
+  // "Breaking" is not a thing a story says about itself. It is the desk's
+  // judgement that this one is worth a reader's attention right now, and it is
+  // a spend: the label only means something on a page where it is rare. So it
+  // is written by staff only (see utils/breakingNews), it names who pressed it,
+  // and it goes stale on its own rather than staying red forever because
+  // nobody thought to take it back off.
+  //
+  // The reader sees the flag and the minute it was spent, because "we said this
+  // is breaking" is a claim on the page. Who pressed the button is not: that is
+  // the newsroom's own accountability, and `select: false` keeps a staffer's id
+  // out of every public read the way it does for a source ruling.
+  isBreaking: { type: Boolean, default: false },
+  breakingAt: Date,
+  breakingBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', select: false },
   country: String,
   // The review trail an editor leaves behind. approvedBy and reviewNote answer
   // "who signed this off and what did they say", and reviewEvents is the full

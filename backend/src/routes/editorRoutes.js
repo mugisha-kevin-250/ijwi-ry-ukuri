@@ -6,6 +6,7 @@ const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
 const workflow = require('../services/articleWorkflow');
 const lifecycle = require('../utils/articleLifecycle');
+const breakingNews = require('../utils/breakingNews');
 const storyMedia = require('../services/storyMedia');
 const commentState = require('../utils/commentState');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
@@ -20,6 +21,7 @@ router.use(protect, authorize('EDITOR', 'ADMIN'));
 
 const LIST_FIELDS = 'title slug summary author category status tags featuredImage language '
   + 'aiGenerated views validViews likes commentsCount readingTime publishedAt scheduledAt '
+  + 'isBreaking breakingAt '
   + 'createdAt updatedAt reviewNote reviewedAt approvedBy';
 
 function pageOf(query, fallbackLimit) {
@@ -238,6 +240,38 @@ router.put('/articles/:id/disclosure', async (req, res, next) => {
     await article.save();
 
     return successResponse(res, 200, note ? 'Correction published' : 'Story details updated', { article });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * The breaking flag, on and off.
+ *
+ * Staff only, and never the author: a story that can call itself breaking is a
+ * story where the label costs nothing, and the whole point of the word is that
+ * somebody with the desk's judgement spent it here rather than there. The rule
+ * and the clock live in utils/breakingNews so the scheduler and this route
+ * cannot drift apart on how long yesterday's emergency is allowed to last.
+ */
+router.put('/articles/:id/breaking', async (req, res, next) => {
+  try {
+    const article = await Article.findById(req.params.id);
+    if (!article) return errorResponse(res, 404, 'Article not found');
+
+    // No `on` means "toggle", which is what a desk button actually is.
+    const sent = req.body?.on;
+    const on = sent === undefined ? !article.isBreaking : sent === true || sent === 'true';
+    const result = await breakingNews.declare({ Article, article, on, by: req.user._id });
+    if (!result.ok) return errorResponse(res, 400, result.reason);
+
+    article.updatedAt = new Date();
+    await article.save();
+
+    return successResponse(res, 200, result.isBreaking ? 'Marked as breaking' : 'The breaking label is off', {
+      article,
+      breaking: await Article.countDocuments({ isBreaking: true, breakingAt: { $gte: new Date(Date.now() - breakingNews.BREAKING_WINDOW_MS) } })
+    });
   } catch (error) {
     next(error);
   }

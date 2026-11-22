@@ -11,6 +11,8 @@ import { SkeletonArticle, SkeletonCards } from '../../components/common/Skeleton
 import EmptyState from '../../components/common/EmptyState'
 import StoryVideo from '../../components/common/StoryVideo'
 import StoryGallery from '../../components/common/StoryGallery'
+import BreakingBadge from '../../components/news/BreakingBadge'
+import { readsAsBreaking } from '../../utils/breakingStory'
 import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
 import AdSlot from '../../components/ads/AdSlot'
@@ -318,17 +320,25 @@ export default function ArticleDetailPage() {
       </nav>
 
       <header className="space-y-4">
-        {/* Paid content says so before the headline does. A reader who finds out
-            after finishing the story has not been told anything. */}
-        {article.isSponsored && (
-          <p className="text-xs">
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-              {t('articles.sponsored')}
-            </span>
-            {article.sponsor && (
-              <span className="ml-2 text-gray-600 dark:text-gray-300">
-                {t('articles.sponsoredPaidBy')} {article.sponsor}
-              </span>
+        {/* One line of flags, in the order a reader weighs them: what is urgent,
+            then what somebody paid for. Both say something about the story that
+            its headline does not, and neither is allowed to become a wall of
+            decoration - breaking is capped and ages out, sponsored is set by
+            the desk and not the author. */}
+        {(readsAsBreaking(article) || article.isSponsored) && (
+          <p className="flex flex-wrap items-center gap-2 text-xs">
+            <BreakingBadge article={article} />
+            {article.isSponsored && (
+              <>
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                  {t('articles.sponsored')}
+                </span>
+                {article.sponsor && (
+                  <span className="text-gray-600 dark:text-gray-300">
+                    {t('articles.sponsoredPaidBy')} {article.sponsor}
+                  </span>
+                )}
+              </>
             )}
           </p>
         )}

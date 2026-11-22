@@ -237,10 +237,10 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
             )}
 
             {variant === 'public' && (
-              /* The radio and the TV are the two things on this row that a phone
-                 does not need twice: both also sit at the end of the section
-                 strip directly underneath, and again in the menu. Kept here from
-                 640px up, where there is room for them. */
+              /* The radio and the TV are the two things on this row that a small
+                 phone does not have room for twice. From 640px they sit here; below
+                 that they are in the menu, next to the sections they belong to, and
+                 the line under the name is given to the search box instead. */
               <div className="hidden items-center gap-1 sm:flex">
                 <RadioNewsButton />
                 <LiveButton />
@@ -394,19 +394,33 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
         )}
 
         {/*
-          On a phone the sections are not hidden behind the menu: they run past on
-          their own strip under the masthead, because nine names will never fit
-          across 360 pixels and a reader should not have to open anything to reach
-          Sport. It stops for a finger, and the menu still carries the same links
-          with their sub-sections.
+          On a phone this line is the search box, not a strip of section names.
+          Nine beats never fitted across 360 pixels, and a reader who has to
+          drag the line sideways to find the eighth one is doing the navigation
+          by hand; what they actually reach for on a small screen is a place to
+          type the thing they are looking for. The sections are not lost: the
+          menu behind the hamburger still carries every one of them with its
+          sub-sections open, and the radio and the TV sit there with them.
+          The line keeps the same h-11 the strip used, because the page under
+          this fixed header is offset by the height the bar measures, and
+          nothing below it is allowed to jump.
         */}
         {variant === 'public' && (
-          <div className="h-11 border-t border-gray-100 dark:border-gray-800 md:hidden">
-            <SectionNav
-              layout="marquee"
-              extraLinks={navLinks}
-              trailing={[<RadioNewsButton key="radio" />, <LiveButton key="live" />]}
-            />
+          <div className="flex h-11 items-center border-t border-gray-100 dark:border-gray-800 md:hidden">
+            <form onSubmit={handleSearch} className="relative flex w-full items-center" role="search">
+              <label htmlFor="phone-site-search" className="sr-only">{t('search.placeholder')}</label>
+              <Search className="pointer-events-none absolute left-3 h-4 w-4 text-gray-400" aria-hidden="true" />
+              <input
+                id="phone-site-search"
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                placeholder={t('search.placeholder')}
+                className="h-9 w-full rounded-full border border-gray-200 bg-gray-50 pl-9 pr-16 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              />
+              <button type="submit" aria-label={t('nav.search')} className="absolute right-1.5 rounded-full px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-40" disabled={!searchValue.trim()}>
+                {t('nav.search')}
+              </button>
+            </form>
           </div>
         )}
 
@@ -422,20 +436,25 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div id="mobile-menu" className="md:hidden py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="space-y-2">
-              {/* On a phone the search lives here instead of the slim top bar. */}
-              <form onSubmit={handleSearch} className="relative md:hidden" role="search">
-                <label htmlFor="mobile-site-search" className="sr-only">{t('search.placeholder')}</label>
-                <input
-                  id="mobile-site-search"
-                  value={searchValue}
-                  onChange={(event) => setSearchValue(event.target.value)}
-                  placeholder={t('search.placeholder')}
-                  className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                />
-                <button type="submit" aria-label={t('nav.search')} className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-gray-500 hover:text-blue-700">
-                  <Search className="h-4 w-4" />
-                </button>
-              </form>
+              {/* Only the staff desks need this one. On the public site the phone
+                  already has its search box in the line under the name, and two
+                  boxes bound to the same word is one too many; below md the desks
+                  have no such line, so the menu is where their search lives. */}
+              {variant !== 'public' && (
+                <form onSubmit={handleSearch} className="relative md:hidden" role="search">
+                  <label htmlFor="mobile-site-search" className="sr-only">{t('search.placeholder')}</label>
+                  <input
+                    id="mobile-site-search"
+                    value={searchValue}
+                    onChange={(event) => setSearchValue(event.target.value)}
+                    placeholder={t('search.placeholder')}
+                    className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  />
+                  <button type="submit" aria-label={t('nav.search')} className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-gray-500 hover:text-blue-700">
+                    <Search className="h-4 w-4" />
+                  </button>
+                </form>
+              )}
               <nav className="grid gap-1" aria-label="Site sections">
                 {variant === 'public' ? (
                   <>

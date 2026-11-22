@@ -2,7 +2,8 @@ const express = require('express');
 const env = require('../config/env');
 const PushSubscription = require('../models/PushSubscription');
 const pushService = require('../utils/pushService');
-const { protect, authorize, optionalAuth } = require('../middleware/auth');
+const { protect, requirePermission, optionalAuth } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 
 const router = express.Router();
@@ -86,7 +87,7 @@ router.post('/unsubscribe', async (req, res, next) => {
   }
 });
 
-router.get('/subscriptions', protect, authorize('ADMIN', 'EDITOR'), async (req, res, next) => {
+router.get('/subscriptions', protect, requirePermission([PERMISSIONS.sendPushAlerts]), async (req, res, next) => {
   try {
     const count = await PushSubscription.countDocuments();
     return successResponse(res, 200, 'Push subscribers', { count, enabled: pushService.configured });
@@ -95,7 +96,7 @@ router.get('/subscriptions', protect, authorize('ADMIN', 'EDITOR'), async (req, 
   }
 });
 
-router.post('/broadcast', protect, authorize('ADMIN', 'EDITOR'), async (req, res, next) => {
+router.post('/broadcast', protect, requirePermission([PERMISSIONS.sendPushAlerts]), async (req, res, next) => {
   try {
     const title = String(req.body?.title || '').trim();
     const body = String(req.body?.body || '').trim();

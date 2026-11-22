@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone, Timer } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
+import { can, roleLabel } from '../../utils/deskAccess'
 import Avatar from '../common/Avatar'
 
 interface SidebarProps {
@@ -14,45 +15,53 @@ export default function Sidebar({ variant, isCollapsed, onCollapsedChange }: Sid
   const { user } = useAuth()
   const { t } = useI18n()
 
+// Every link carries the job its screen asks the API for. The bar below shows
+// only the links this account holds, so a member of staff never has to discover
+// a desk by pressing the ones that refuse them - and the day a job moves between
+// roles on the server, the newsroom's own navigation follows without anyone
+// editing this file.
+//
+// This is presentation, not protection: the route gate and the API both answer
+// for themselves. Hiding a link has never been a permission.
 const navigation = {
     writer: [
-      { href: '/writer/dashboard', label: t('nav.writer.dashboard'), icon: LayoutDashboard },
-      { href: '/writer/articles', label: t('nav.writer.myArticles'), icon: PenTool },
-      { href: '/writer/earnings', label: t('nav.writer.earnings'), icon: DollarSign },
-      { href: '/writer/profile', label: t('nav.writer.profile'), icon: User },
+      { href: '/writer/dashboard', label: t('nav.writer.dashboard'), icon: LayoutDashboard, permission: 'writeStories' as const },
+      { href: '/writer/articles', label: t('nav.writer.myArticles'), icon: PenTool, permission: 'writeStories' as const },
+      { href: '/writer/earnings', label: t('nav.writer.earnings'), icon: DollarSign, permission: 'writeStories' as const },
+      { href: '/writer/profile', label: t('nav.writer.profile'), icon: User, permission: 'writeStories' as const },
     ],
     editor: [
-      { href: '/editor/dashboard', label: t('nav.editor.dashboard'), icon: LayoutDashboard },
-      { href: '/editor/pending', label: t('nav.editor.pending'), icon: List },
-      { href: '/editor/comments', label: t('nav.editor.comments'), icon: MessageSquare },
+      { href: '/editor/dashboard', label: t('nav.editor.dashboard'), icon: LayoutDashboard, permission: 'review' as const },
+      { href: '/editor/pending', label: t('nav.editor.pending'), icon: List, permission: 'review' as const },
+      { href: '/editor/comments', label: t('nav.editor.comments'), icon: MessageSquare, permission: 'moderateComments' as const },
       // Editors write stories too, and their own shelf is a different thing
       // from the queue of everyone else's.
-      { href: '/editor/articles', label: t('nav.writer.myArticles'), icon: PenTool },
-      { href: '/editor/earnings', label: t('nav.writer.earnings'), icon: DollarSign },
-      { href: '/editor/profile', label: t('nav.writer.profile'), icon: User },
+      { href: '/editor/articles', label: t('nav.writer.myArticles'), icon: PenTool, permission: 'writeStories' as const },
+      { href: '/editor/earnings', label: t('nav.writer.earnings'), icon: DollarSign, permission: 'writeStories' as const },
+      { href: '/editor/profile', label: t('nav.writer.profile'), icon: User, permission: 'writeStories' as const },
     ],
     admin: [
-      { href: '/mugishaimekevin/dashboard', label: t('nav.admin.dashboard'), icon: LayoutDashboard },
-      { href: '/mugishaimekevin/users', label: t('nav.admin.users'), icon: Users },
-      { href: '/mugishaimekevin/writers', label: t('nav.admin.writers'), icon: PenTool },
-      { href: '/mugishaimekevin/articles', label: t('nav.admin.news'), icon: List },
-      // The moderation desk is the same screen the editors use: one queue, two
-      // staff roles allowed to decide what readers see.
-      { href: '/editor/comments', label: t('nav.editor.comments'), icon: MessageSquare },
-      { href: '/mugishaimekevin/ai-writer', label: t('nav.admin.aiWriter'), icon: Sparkles },
-      { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts'), icon: DollarSign },
-      { href: '/mugishaimekevin/messages', label: t('nav.admin.messages'), icon: Inbox },
+      { href: '/mugishaimekevin/dashboard', label: t('nav.admin.dashboard'), icon: LayoutDashboard, permission: 'viewNewsroomDesk' as const },
+      { href: '/mugishaimekevin/users', label: t('nav.admin.users'), icon: Users, permission: 'viewNewsroomDesk' as const },
+      { href: '/mugishaimekevin/writers', label: t('nav.admin.writers'), icon: PenTool, permission: 'manageUsers' as const },
+      { href: '/mugishaimekevin/articles', label: t('nav.admin.news'), icon: List, permission: 'viewNewsroomDesk' as const },
+      // The moderation desk is the same screen the editors use: one queue, and
+      // every role that answers readers reaches it from here.
+      { href: '/editor/comments', label: t('nav.editor.comments'), icon: MessageSquare, permission: 'moderateComments' as const },
+      { href: '/mugishaimekevin/ai-writer', label: t('nav.admin.aiWriter'), icon: Sparkles, permission: 'runAiWriter' as const },
+      { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts'), icon: DollarSign, permission: 'managePayouts' as const },
+      { href: '/mugishaimekevin/messages', label: t('nav.admin.messages'), icon: Inbox, permission: 'moderateMessages' as const },
       // The relay that mails the codes and alerts, kept apart from the mail
       // readers send us: one is a queue to answer, the other is a machine to check.
-      { href: '/mugishaimekevin/mail', label: t('nav.admin.mail'), icon: Mail },
+      { href: '/mugishaimekevin/mail', label: t('nav.admin.mail'), icon: Mail, permission: 'managePlatform' as const },
       // Beside the mail desk, for the same reason: a machine that runs on a
       // clock needs a screen that says whether it ran.
-      { href: '/mugishaimekevin/scheduler', label: t('nav.admin.scheduler'), icon: Timer },
+      { href: '/mugishaimekevin/scheduler', label: t('nav.admin.scheduler'), icon: Timer, permission: 'managePlatform' as const },
       // Sections and advertising are desks of their own, and both used to be
       // missing or pointing at the reader's page instead of the admin's.
-      { href: '/mugishaimekevin/categories', label: t('nav.admin.categories'), icon: FolderTree },
-      { href: '/mugishaimekevin/advertising', label: t('nav.admin.advertising'), icon: Megaphone },
-      { href: '/mugishaimekevin/settings', label: t('nav.admin.settings'), icon: Settings },
+      { href: '/mugishaimekevin/categories', label: t('nav.admin.categories'), icon: FolderTree, permission: 'manageCategories' as const },
+      { href: '/mugishaimekevin/advertising', label: t('nav.admin.advertising'), icon: Megaphone, permission: 'manageAds' as const },
+      { href: '/mugishaimekevin/settings', label: t('nav.admin.settings'), icon: Settings, permission: 'manageSettings' as const },
     ],
   }
 
@@ -68,7 +77,7 @@ const navigation = {
     admin: Settings,
   }
 
-  const navItems = navigation[variant]
+  const navItems = navigation[variant].filter((item) => can(user, item.permission))
   const Icon = icons[variant]
 
   return (
@@ -130,7 +139,7 @@ const navigation = {
                   {user?.fullName || user?.username}
                 </p>
                 <p className="truncate text-xs capitalize text-slate-400">
-                  {user?.role?.toLowerCase()}
+                  {roleLabel(user?.role)}
                 </p>
               </div>
             </div>

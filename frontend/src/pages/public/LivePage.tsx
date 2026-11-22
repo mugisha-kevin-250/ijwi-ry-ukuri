@@ -6,6 +6,7 @@ import { Eye, MessageCircle, Radio, Send, Share2, Square, Users, Video, VideoOff
 import type { Live, LiveComment } from '../../types'
 import { liveAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import { can } from '../../utils/deskAccess'
 import { useI18n } from '../../context/I18nContext'
 import { connectLiveSocket, relayConfigured } from '../../utils/liveSocket'
 import { openCamera, startBroadcaster, startFrameRelay, startViewer, stopTracks } from '../../utils/liveMedia'
@@ -65,12 +66,15 @@ export default function LivePage() {
   const stopPeersRef = useRef<(() => void) | null>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
 
-  const isAdmin = user?.role === 'ADMIN'
+  // Going on air is the broadcast job, not the administrator title: a managing
+  // editor hosts the same page, and the API asks for the same permission when the
+  // studio opens or closes.
+  const canBroadcast = can(user, 'manageBroadcast')
   const isLive = live?.status === 'active'
   const liveId = isLive && live ? live._id : null
   // Primitive dependencies only: the socket must not be torn down and rebuilt
   // because an object in React state got a new identity.
-  const hostingAs = isAdmin && !!liveId && !!user && hostIdOf(live) === user._id
+  const hostingAs = canBroadcast && !!liveId && !!user && hostIdOf(live) === user._id
   const isHostBroadcaster = hostingAs
 
   // A broadcast built from a link somebody pasted is carried by somebody else's
@@ -515,7 +519,7 @@ export default function LivePage() {
           </div>
         )}
 
-        {isAdmin && !isLive && (
+        {canBroadcast && !isLive && (
           <form onSubmit={handleStart} className="space-y-3 rounded-xl border border-red-200 bg-red-50/60 p-4">
             <h2 className="inline-flex items-center gap-2 text-sm font-bold text-red-700">
               <Video className="h-4 w-4" aria-hidden="true" />

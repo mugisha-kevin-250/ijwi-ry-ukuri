@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react'
 import { authAPI, writerAPI } from '../services/api'
 import { syncPushSubscription } from '../pwa/pushNotifications'
+import { permissionsKnown } from '../utils/deskAccess'
 import type { User, AuthResponse } from '../types'
 
 interface AuthContextType {
@@ -169,6 +170,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     return null
   }
+
+  // A session stored in this browser before the API began sending `permissions`
+  // holds the account's role and nothing else. Reading that as "this person has
+  // no jobs" would hide a desk somebody is standing in front of of, and reading
+  // it as "trust the role name" would put the permission matrix in two places -
+  // so the account is simply asked about again, once per page load, while the
+  // answer is missing. Nothing is signed out over it: a failed or offline refresh
+  // leaves the stored session exactly as it was, and the API has been deciding
+  // for itself on every one of these requests all along.
+  const askedAboutStaleSession = useRef(false)
+  useEffect(() => {
+    if (askedAboutStaleSession.current) return
+    if (!token || !user || permissionsKnown(user)) return
+    askedAboutStaleSession.current = true
+    void refreshUser()
+  }, [token, user])
 
   // Registration creates a READER. Writing needs the WRITER role, which only an
   // ADMIN grants, so this files the application and never touches the role.

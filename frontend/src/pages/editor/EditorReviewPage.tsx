@@ -8,6 +8,10 @@ import MediaImage from '../../components/common/MediaImage'
 import StoryVideo from '../../components/common/StoryVideo'
 import type { StoryMedia } from '../../types'
 import { useAuth } from '../../context/AuthContext'
+// Aliased because this screen already uses a local `can(state)` for the review
+// transitions, and two different questions in one name would only confuse the
+// reader of the file.
+import { can as accountHolds } from '../../utils/deskAccess'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
 import { looksLikeHtml, splitParagraphs } from '../../utils/storyBody'
 // The same test the reader's page uses, so the button can never claim a story is
@@ -197,7 +201,9 @@ export default function EditorReviewPage() {
   }
 
   const status = article.status as StoryState
-  const isStaff = user?.role === 'EDITOR' || user?.role === 'ADMIN'
+  // The review desk is a job, not a job title: the same permission the API asks
+  // for on /api/editor/* decides whether this screen edits or only reads.
+  const isStaff = accountHolds(user, 'review')
   const can = (state: string) => nextStates.includes(state)
 
   return (

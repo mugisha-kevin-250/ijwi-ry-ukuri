@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Menu, X, User, Bookmark, LogOut, LayoutDashboard, Settings, Search } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { can, deskHomeFor, isStaff, roleLabel } from '../../utils/deskAccess'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../common/Avatar'
 import RadarLogo from '../common/RadarLogo'
@@ -93,7 +94,13 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
   }
 
   const currentNavLinks = getCurrentNavLinks()
-  const canWrite = user?.role === 'WRITER' || user?.role === 'ADMIN'
+  // Two of the links below depend on what this account is allowed to open, and
+  // the answer comes from the permission list the server sent with it - not from
+  // its job title. The bar offers the "become a writer" invitation only to a
+  // reader, because a member of staff whose job does not include writing would
+  // be invited to apply for a desk they already sit in, and the dashboard link
+  // lands each account on the desk that is actually its own.
+  const canWrite = can(user, 'writeStories')
 
   const navLinkItems = currentNavLinks.map((link) => (
     <NavLink
@@ -271,13 +278,17 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.fullName}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 mt-1">
-                          {user?.role}
+                          {roleLabel(user?.role)}
                         </span>
                       </div>
                       <div className="py-1">
-                        {(variant !== 'public' || canWrite) && (
+                        {/* Offered to anybody who has a desk to go to. The way to
+                            know that is the permission list: an account with no
+                            job at all lands on the public site, so its home would
+                            be the home page it is already standing on. */}
+                        {(variant !== 'public' || deskHomeFor(user) !== '/') && (
                           <Link
-                            to={user?.role === 'ADMIN' ? '/mugishaimekevin/dashboard' : '/writer/dashboard'}
+                            to={deskHomeFor(user)}
                             onClick={() => setIsProfileOpen(false)}
                             className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                           >
@@ -305,7 +316,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                             {t('nav.library')}
                           </Link>
                         )}
-                        {!canWrite && variant === 'public' && (
+                        {!canWrite && !isStaff(user) && variant === 'public' && (
                           <Link
                             to="/writer/dashboard"
                             onClick={() => setIsProfileOpen(false)}

@@ -36,6 +36,7 @@ const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { protect } = require('../middleware/auth');
 const { plainText, safeMediaUrl } = require('../utils/textFields');
 const { mintCode, checkCode, newResetFields, clearedResetFields, wipedCodeFields, resendIsCoolingDown, CODE_TTL_MS, MAX_ATTEMPTS } = require('../utils/passwordReset');
+const { isStaffRole } = require('../config/permissions');
 
 const router = express.Router();
 
@@ -233,7 +234,7 @@ router.post('/admin-login', async (req, res, next) => {  try {
     }
 
     const user = await User.findOne({ username: String(username).trim().toLowerCase() }).select('+password');
-    if (!user || !['ADMIN', 'EDITOR'].includes(user.role)) {
+    if (!user || !isStaffRole(user.role)) {
       return errorResponse(res, 401, 'Invalid admin credentials');
     }
 
@@ -306,7 +307,11 @@ router.post('/logout', protect, (req, res) => {
 });
 
 router.get('/me', protect, async (req, res) => {
-  const user = await User.findById(req.user._id).lean();
+  // Read as a document rather than a plain row, because the permissions the
+  // account holds ride on it: they are the matrix's answer for the role, and
+  // the SPA uses them to hide the desks this account cannot open. The API still
+  // decides for itself on every request.
+  const user = await User.findById(req.user._id);
   return successResponse(res, 200, 'Profile fetched', { user });
 });
 

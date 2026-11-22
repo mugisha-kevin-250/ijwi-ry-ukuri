@@ -5,7 +5,8 @@ const Report = require('../models/Report');
 const Like = require('../models/Like');
 const Bookmark = require('../models/Bookmark');
 const ArticleView = require('../models/ArticleView');
-const { protect, optionalAuth, authorize } = require('../middleware/auth');
+const { protect, optionalAuth, can } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { calculateValidView } = require('../services/validViewService');
 const clientIp = require('../utils/clientIp');
@@ -52,7 +53,7 @@ router.put('/comments/:id', protect, async (req, res, next) => {
   try {
     const comment = await Comment.findById(req.params.id);
     if (!comment) return errorResponse(res, 404, 'Comment not found');
-    if (comment.user.toString() !== req.user._id.toString() && req.user.role !== 'ADMIN' && req.user.role !== 'EDITOR') {
+    if (comment.user.toString() !== req.user._id.toString() && !can(req.user, PERMISSIONS.moderateComments)) {
       return errorResponse(res, 403, 'Unauthorized');
     }
     if (req.body.content !== undefined) {
@@ -100,11 +101,11 @@ router.delete('/comments/:id', protect, async (req, res, next) => {
   try {
     const comment = await Comment.findById(req.params.id);
     if (!comment) return errorResponse(res, 404, 'Comment not found');
-    if (comment.user.toString() !== req.user._id.toString() && req.user.role !== 'ADMIN' && req.user.role !== 'EDITOR') {
+    if (comment.user.toString() !== req.user._id.toString() && !can(req.user, PERMISSIONS.moderateComments)) {
       return errorResponse(res, 403, 'Unauthorized');
     }
     comment.status = 'deleted';
-    if (req.user.role === 'ADMIN' || req.user.role === 'EDITOR') {
+    if (can(req.user, PERMISSIONS.moderateComments)) {
       comment.moderatedBy = req.user._id;
       comment.moderatedAt = new Date();
     }

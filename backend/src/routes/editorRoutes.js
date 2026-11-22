@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const Article = require('../models/Article');
 const Comment = require('../models/Comment');
 const User = require('../models/User');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const workflow = require('../services/articleWorkflow');
 const lifecycle = require('../utils/articleLifecycle');
 const breakingNews = require('../utils/breakingNews');
@@ -14,10 +15,13 @@ const { plainText, cleanText, safeMediaUrl } = require('../utils/textFields');
 
 const router = express.Router();
 
-// Staff only. A reader or an unapproved writer must not be able to reach a
-// queue of other people's stories, and this gate is the only thing between the
-// public internet and "publish this".
-router.use(protect, authorize('EDITOR', 'ADMIN'));
+// The review desk is staff-only, and "staff" here is the matrix's answer rather
+// than a name: any role that decides what readers see, edits a live story, or
+// answers a reader's comment can reach the desk; the routes on it then ask for
+// the one they actually need. A reader or an unapproved writer holds none of
+// them and so cannot reach a queue of other people's stories - this gate is what
+// stands between the public internet and "publish this".
+router.use(protect, requirePermission([PERMISSIONS.review, PERMISSIONS.correct, PERMISSIONS.publish, PERMISSIONS.moderateComments]));
 
 const LIST_FIELDS = 'title slug summary author category status tags featuredImage language '
   + 'aiGenerated views validViews likes commentsCount readingTime publishedAt scheduledAt '
@@ -43,7 +47,7 @@ function queueSort(sort) {
 
 // The queue an editor actually works from: paginated, searchable, and readable
 // without a second request per story.
-router.get('/articles', async (req, res, next) => {
+router.get('/articles', requirePermission([PERMISSIONS.review]), async (req, res, next) => {
   try {
     const { page, limit, skip } = pageOf(req.query, 20);
     const status = lifecycle.STORY_STATES.includes(req.query.status)
@@ -74,7 +78,7 @@ router.get('/articles', async (req, res, next) => {
   }
 });
 
-router.get('/articles/pending', async (req, res, next) => {
+router.get('/articles/pending', requirePermission([PERMISSIONS.review]), async (req, res, next) => {
   try {
     const articles = await Article.find({ status: 'pending_review' })
       .select(LIST_FIELDS).populate('author', 'fullName username profileImage')
@@ -92,7 +96,7 @@ router.get('/articles/pending', async (req, res, next) => {
 // copy, who recorded each source ruling and the note they left. Those paths are
 // `select: false` on the model, so asking for them by name is the only way to
 // read them.
-router.get('/articles/:id', async (req, res, next) => {
+router.get('/articles/:id', requirePermission([PERMISSIONS.review]), async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id)
       .select('+revisions +sources.reviewedBy +sources.reviewNote')
@@ -165,7 +169,7 @@ Object.entries(DECISIONS).forEach(([verb, state]) => {
  * would not be a disclosure. The story text is untouched, so a published page
  * keeps its address, its comments and its view count.
  */
-router.put('/articles/:id/disclosure', async (req, res, next) => {
+router.put('/articles/:id/disclosure', requirePermission([PERMISSIONS.correct]), async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
@@ -254,7 +258,7 @@ router.put('/articles/:id/disclosure', async (req, res, next) => {
  * and the clock live in utils/breakingNews so the scheduler and this route
  * cannot drift apart on how long yesterday's emergency is allowed to last.
  */
-router.put('/articles/:id/breaking', async (req, res, next) => {
+router.put('/articles/:id/breaking', requirePermission([PERMISSIONS.correct, PERMISSIONS.publish]), async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
@@ -290,7 +294,7 @@ router.put('/articles/:id/breaking', async (req, res, next) => {
  */
 const SOURCE_VERDICTS = ['pending', 'verified', 'rejected'];
 
-router.put('/articles/:id/sources/:sourceId', async (req, res, next) => {
+router.put('/articles/:id/sources/:sourceId', requirePermission([PERMISSIONS.correct]), async (req, res, next) => {
   try {
     const status = String(req.body?.verificationStatus || '').toLowerCase();
     if (!SOURCE_VERDICTS.includes(status)) {
@@ -329,7 +333,7 @@ router.put('/articles/:id/sources/:sourceId', async (req, res, next) => {
 // until nobody touches it again, so the field has to be settable here or the
 // scheduler has nothing to read. Only an approved or draft story can be timed;
 // a live story is already past its moment.
-router.put('/articles/:id/schedule', async (req, res, next) => {
+router.put('/articles/:id/schedule', requirePermission([PERMISSIONS.publish]), async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
@@ -366,7 +370,7 @@ router.put('/articles/:id/schedule', async (req, res, next) => {
 
 // Where a story has been, in the editor's own words. Answers "who approved this
 // and when" long after the fact, and "what did the page say before it changed".
-router.get('/articles/:id/history', async (req, res, next) => {
+router.get('/articles/:id/history', requirePermission([PERMISSIONS.review]), async (req, res, next) => {
   try {
     const article = await Article.findById(req.params.id)
       .select('title status reviewEvents revisions')
@@ -411,7 +415,7 @@ function queueRow(comment) {
 // The moderation queue. Staff read the same words a reader read, who wrote them
 // and how many readers asked for a look. Which readers asked is never returned:
 // a flagger must not become a target.
-router.get('/comments', async (req, res, next) => {
+router.get('/comments', requirePermission([PERMISSIONS.review, PERMISSIONS.moderateComments]), async (req, res, next) => {
   try {
     const { page, limit, skip } = pageOf(req.query, 25);
     const status = COMMENT_STATES.includes(req.query.status) ? req.query.status : 'reported';
@@ -458,7 +462,7 @@ router.get('/comments', async (req, res, next) => {
 // named human, and the note they leave is the reason a newsroom can give later.
 const MODERATION = { hide: 'hidden', restore: 'active', delete: 'deleted' };
 
-router.put('/comments/:id/moderate', async (req, res, next) => {
+router.put('/comments/:id/moderate', requirePermission([PERMISSIONS.moderateComments]), async (req, res, next) => {
   try {
     const action = String(req.body?.action || '').toLowerCase();
     const to = MODERATION[action];
@@ -495,7 +499,7 @@ router.put('/comments/:id/moderate', async (req, res, next) => {
 });
 
 // Counts for the review badge, so the number shown is the number of stories.
-router.get('/stats', async (req, res, next) => {
+router.get('/stats', requirePermission([PERMISSIONS.review]), async (req, res, next) => {
   try {
     const [pending, approved, rejected, published, reportedComments] = await Promise.all([
       Article.countDocuments({ status: 'pending_review' }),

@@ -2,6 +2,8 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight, LockKeyhole, Mail, UserRound } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { deskHomeFor } from '../../utils/deskAccess'
+import type { User } from '../../types'
 import GoogleButton from '../../components/auth/GoogleButton'
 
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
@@ -18,8 +20,11 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const isRegister = mode === 'register'
 
   const goToHome = useCallback(() => {
-    const currentUser = JSON.parse(localStorage.getItem('user') || 'null') as { role?: string } | null
-    const roleHome = currentUser?.role === 'ADMIN' ? '/mugishaimekevin/dashboard' : currentUser?.role === 'WRITER' ? '/writer/dashboard' : '/'
+    const stored = JSON.parse(localStorage.getItem('user') || 'null') as User | null
+    // Which desk a signed-in account belongs on is the server's answer, carried
+    // in the permission list that came with this sign-in: the first desk the
+    // account holds, or the news for a reader who holds none.
+    const roleHome = deskHomeFor(stored)
     // A visitor sent here by the sign-in prompt goes back to the story they were reading.
     const publicFrom = from && !/^\/(login|register|mugishaimekevin|writer)/.test(from)
     navigate(publicFrom ? from : roleHome, { replace: true })

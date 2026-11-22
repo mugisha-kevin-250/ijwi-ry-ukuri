@@ -8,7 +8,8 @@ const ContactMessage = require('../models/ContactMessage');
 const WriterProfile = require('../models/WriterProfile');
 const PlatformSetting = require('../models/PlatformSetting');
 const AiResearchChat = require('../models/AiResearchChat');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS, ROLE_PERMISSIONS } = require('../config/permissions');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
@@ -31,12 +32,29 @@ const { plainText, cleanText, cleanTags, safeMediaUrl } = require('../utils/text
 
 const router = express.Router();
 
-const USER_ROLES = ['READER', 'WRITER', 'EDITOR', 'ADMIN'];
+const USER_ROLES = Object.keys(ROLE_PERMISSIONS);
 const WRITER_STATES = ['pending', 'approved', 'rejected', 'suspended'];
 
-router.use(protect, authorize('ADMIN', 'EDITOR'));
+// Every permission this router hands out. The mount turns away anybody who holds
+// none of them - the same people the old `authorize('ADMIN', 'EDITOR')` line
+// turned away, plus the staff desks that hold one of them - and each route then
+// asks for the one it actually needs. A route that forgot to ask would still be
+// staff-only rather than open to a writer or a reader.
+const DESK_PERMISSIONS = [
+  PERMISSIONS.viewNewsroomDesk,
+  PERMISSIONS.manageUsers,
+  PERMISSIONS.managePayouts,
+  PERMISSIONS.manageSettings,
+  PERMISSIONS.manageCategories,
+  PERMISSIONS.manageAds,
+  PERMISSIONS.manageSeo,
+  PERMISSIONS.runAiWriter,
+  PERMISSIONS.managePlatform,
+];
 
-router.get('/dashboard', async (req, res, next) => {
+router.use(protect, requirePermission(DESK_PERMISSIONS));
+
+router.get('/dashboard', requirePermission([PERMISSIONS.viewNewsroomDesk]), async (req, res, next) => {
   try {
     const totalUsers = await User.countDocuments();
     const totalReaders = await User.countDocuments({ role: 'READER' });
@@ -104,7 +122,7 @@ router.get('/dashboard', async (req, res, next) => {
   }
 });
 
-router.get('/users', async (req, res, next) => {
+router.get('/users', requirePermission([PERMISSIONS.viewNewsroomDesk]), async (req, res, next) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
@@ -146,7 +164,7 @@ router.get('/users', async (req, res, next) => {
   }
 });
 
-router.get('/users/:id', async (req, res, next) => {
+router.get('/users/:id', requirePermission([PERMISSIONS.viewNewsroomDesk, PERMISSIONS.manageUsers]), async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id).lean();
     if (!user) return errorResponse(res, 404, 'User not found');
@@ -174,7 +192,7 @@ router.get('/users/:id', async (req, res, next) => {
   }
 });
 
-router.put('/users/:id', protect, authorize('ADMIN'), async (req, res, next) => {
+router.put('/users/:id', requirePermission([PERMISSIONS.manageUsers]), async (req, res, next) => {
   try {
     if (String(req.params.id) === String(req.user._id) && req.body.role && req.body.role !== 'ADMIN') {
       return errorResponse(res, 400, 'You cannot remove your own admin role');
@@ -207,7 +225,7 @@ router.put('/users/:id', protect, authorize('ADMIN'), async (req, res, next) => 
 
 // Applications sit in WriterProfile with status 'pending'; the account itself is
 // still a READER until an ADMIN approves it here.
-router.get('/writer-requests', async (req, res, next) => {
+router.get('/writer-requests', requirePermission([PERMISSIONS.viewNewsroomDesk, PERMISSIONS.manageUsers]), async (req, res, next) => {
   try {
     const status = req.query.status === 'all'
       ? null
@@ -228,7 +246,7 @@ router.get('/writer-requests', async (req, res, next) => {
   }
 });
 
-router.post('/writer-requests/:id/approve', authorize('ADMIN'), async (req, res, next) => {
+router.post('/writer-requests/:id/approve', requirePermission([PERMISSIONS.manageUsers]), async (req, res, next) => {
   try {
     const profile = await WriterProfile.findById(req.params.id);
     if (!profile) return errorResponse(res, 404, 'Application not found');
@@ -250,7 +268,7 @@ router.post('/writer-requests/:id/approve', authorize('ADMIN'), async (req, res,
   }
 });
 
-router.post('/writer-requests/:id/reject', authorize('ADMIN'), async (req, res, next) => {
+router.post('/writer-requests/:id/reject', requirePermission([PERMISSIONS.manageUsers]), async (req, res, next) => {
   try {
     const profile = await WriterProfile.findById(req.params.id);
     if (!profile) return errorResponse(res, 404, 'Application not found');
@@ -271,7 +289,7 @@ router.post('/writer-requests/:id/reject', authorize('ADMIN'), async (req, res, 
   }
 });
 
-router.get('/articles', async (req, res, next) => {
+router.get('/articles', requirePermission([PERMISSIONS.viewNewsroomDesk]), async (req, res, next) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
@@ -313,7 +331,7 @@ router.get('/articles', async (req, res, next) => {
 // An admin can put a story anywhere in the lifecycle, but only by moving it
 // along a legal step. This route used to write any state directly, which is how
 // a draft could become "live" with no review and no publishedAt to explain it.
-router.put('/articles/:id/status', async (req, res, next) => {
+router.put('/articles/:id/status', requirePermission([PERMISSIONS.review]), async (req, res, next) => {
   try {
     const { status } = req.body;
     if (!lifecycle.STORY_STATES.includes(status)) {
@@ -339,7 +357,7 @@ router.put('/articles/:id/status', async (req, res, next) => {
   }
 });
 
-router.delete('/articles/:id', protect, authorize('ADMIN'), async (req, res, next) => {
+router.delete('/articles/:id', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
   try {
     const article = await Article.findByIdAndDelete(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
@@ -349,7 +367,7 @@ router.delete('/articles/:id', protect, authorize('ADMIN'), async (req, res, nex
   }
 });
 
-router.get('/earnings', async (req, res, next) => {
+router.get('/earnings', requirePermission([PERMISSIONS.viewNewsroomDesk, PERMISSIONS.managePayouts]), async (req, res, next) => {
   try {
     const earnings = await WriterEarning.find({}).populate('writerId', 'fullName username');
     return successResponse(res, 200, 'Earnings', { earnings });
@@ -358,7 +376,7 @@ router.get('/earnings', async (req, res, next) => {
   }
 });
 
-router.get('/payouts', async (req, res, next) => {
+router.get('/payouts', requirePermission([PERMISSIONS.viewNewsroomDesk, PERMISSIONS.managePayouts]), async (req, res, next) => {
   try {
     const payouts = await Payout.find({}).populate('writerId', 'fullName username');
     return successResponse(res, 200, 'Payouts', { payouts });
@@ -367,7 +385,7 @@ router.get('/payouts', async (req, res, next) => {
   }
 });
 
-router.put('/payouts/:id/approve', async (req, res, next) => {
+router.put('/payouts/:id/approve', requirePermission([PERMISSIONS.managePayouts]), async (req, res, next) => {
   try {
     const payout = await Payout.findById(req.params.id);
     if (!payout) return errorResponse(res, 404, 'Payout not found');
@@ -380,7 +398,7 @@ router.put('/payouts/:id/approve', async (req, res, next) => {
   }
 });
 
-router.put('/payouts/:id/reject', async (req, res, next) => {
+router.put('/payouts/:id/reject', requirePermission([PERMISSIONS.managePayouts]), async (req, res, next) => {
   try {
     const payout = await Payout.findById(req.params.id);
     if (!payout) return errorResponse(res, 404, 'Payout not found');
@@ -393,7 +411,7 @@ router.put('/payouts/:id/reject', async (req, res, next) => {
   }
 });
 
-router.put('/payouts/:id/mark-paid', async (req, res, next) => {
+router.put('/payouts/:id/mark-paid', requirePermission([PERMISSIONS.managePayouts]), async (req, res, next) => {
   try {
     const payout = await Payout.findById(req.params.id);
     if (!payout) return errorResponse(res, 404, 'Payout not found');
@@ -406,7 +424,7 @@ router.put('/payouts/:id/mark-paid', async (req, res, next) => {
   }
 });
 
-router.get('/settings', async (req, res, next) => {
+router.get('/settings', requirePermission([PERMISSIONS.manageSettings, PERMISSIONS.viewNewsroomDesk]), async (req, res, next) => {
   try {
     const settings = await PlatformSetting.find({});
     return successResponse(res, 200, 'Platform settings', { settings });
@@ -415,7 +433,7 @@ router.get('/settings', async (req, res, next) => {
   }
 });
 
-router.post('/settings', async (req, res, next) => {
+router.post('/settings', requirePermission([PERMISSIONS.manageSettings]), async (req, res, next) => {
   try {
     const { key, value } = req.body;
     const setting = await PlatformSetting.findOneAndUpdate(
@@ -436,7 +454,7 @@ async function isAutoPublishOn() {
 
 // Gemini only ever answers the admin portal, and nothing it writes reaches a
 // reader without either this switch or the admin's own click.
-router.get('/ai/status', authorize('ADMIN'), async (req, res, next) => {
+router.get('/ai/status', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     return successResponse(res, 200, 'AI writer status', {
       configured: geminiService.isConfigured(),
@@ -448,7 +466,7 @@ router.get('/ai/status', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.put('/ai/auto-publish', authorize('ADMIN'), async (req, res, next) => {
+router.put('/ai/auto-publish', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const enabled = req.body?.enabled === true || req.body?.enabled === 'true';
     await PlatformSetting.findOneAndUpdate(
@@ -464,7 +482,7 @@ router.put('/ai/auto-publish', authorize('ADMIN'), async (req, res, next) => {
 
 // Produces a story and hands it back for the admin to read. Nothing is stored
 // or published here - that only happens through POST /ai/articles below.
-router.post('/ai/generate', authorize('ADMIN'), async (req, res, next) => {
+router.post('/ai/generate', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const { topic, angle, audience } = req.body || {};
     if (!topic || String(topic).trim().length < 6) {
@@ -485,7 +503,7 @@ router.post('/ai/generate', authorize('ADMIN'), async (req, res, next) => {
 
 // The trends analyzer: a topic only exists here if Google's feed really named
 // it, so the evidence in the prompt is fetched data rather than typed guesswork.
-router.post('/ai/trends', authorize('ADMIN'), async (req, res, next) => {
+router.post('/ai/trends', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const { geo, topic, angle, audience } = req.body || {};
     if (!geo || !topic) return errorResponse(res, 400, 'Choose a trending topic from the list first');
@@ -530,7 +548,7 @@ router.post('/ai/trends', authorize('ADMIN'), async (req, res, next) => {
  */
 const CHAT_TURNS_KEPT = 40;
 
-router.get('/ai/chat', authorize('ADMIN'), async (req, res, next) => {
+router.get('/ai/chat', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const thread = await AiResearchChat.findOne({ owner: req.user._id });
     return successResponse(res, 200, 'Research thread', {
@@ -543,7 +561,7 @@ router.get('/ai/chat', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.post('/ai/chat', authorize('ADMIN'), async (req, res, next) => {
+router.post('/ai/chat', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const question = plainText(req.body?.message, { maxLength: 4000 });
     if (question.trim().length < 3) return errorResponse(res, 400, 'Ask the research desk a question first');
@@ -571,7 +589,7 @@ router.post('/ai/chat', authorize('ADMIN'), async (req, res, next) => {
 // Clears the thread. It stays a document with no turns rather than being
 // deleted, because "start again" and "this never existed" are different things
 // to know when the same admin comes back tomorrow.
-router.delete('/ai/chat', authorize('ADMIN'), async (req, res, next) => {
+router.delete('/ai/chat', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     await AiResearchChat.findOneAndUpdate({ owner: req.user._id }, { $set: { turns: [] } }, { upsert: true, new: true });
     return successResponse(res, 200, 'Research thread cleared', { turns: [] });
@@ -592,7 +610,7 @@ router.delete('/ai/chat', authorize('ADMIN'), async (req, res, next) => {
  * actually holds. Either source failing is a reported gap rather than an empty
  * panel; the newsroom still gets pictures from the other.
  */
-router.post('/ai/photos', authorize('ADMIN'), async (req, res, next) => {
+router.post('/ai/photos', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const topic = plainText(req.body?.topic, { maxLength: 400 });
     if (topic.trim().length < 6) return errorResponse(res, 400, 'Say what the picture should show');
@@ -637,7 +655,7 @@ router.post('/ai/photos', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
+router.post('/ai/articles', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const {
       title,
@@ -719,7 +737,7 @@ router.post('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.get('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
+router.get('/ai/articles', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const articles = await Article.find({ aiGenerated: true })
       .sort({ createdAt: -1 })
@@ -738,7 +756,7 @@ router.get('/ai/articles', authorize('ADMIN'), async (req, res, next) => {
  * newsroom watches. Server-side only, and every topic carries the feed it came
  * from so an admin can check it before a story is built on it.
  */
-router.get('/trends', authorize('ADMIN'), async (req, res, next) => {
+router.get('/trends', requirePermission([PERMISSIONS.manageSeo]), async (req, res, next) => {
   try {
     const force = req.query.refresh === '1' || req.query.refresh === 'true';
     return successResponse(res, 200, 'Trending searches', await trendService.radar({ force }));
@@ -756,7 +774,7 @@ router.get('/trends', authorize('ADMIN'), async (req, res, next) => {
  * observations, and it reports a topic nobody has seen as nothing rather than as
  * a flat line.
  */
-router.get('/trends/history', authorize('ADMIN'), async (req, res, next) => {
+router.get('/trends/history', requirePermission([PERMISSIONS.manageSeo]), async (req, res, next) => {
   try {
     const { geo, topic, days } = req.query || {};
     if (!topic || !String(topic).trim()) {
@@ -778,7 +796,7 @@ router.get('/trends/history', authorize('ADMIN'), async (req, res, next) => {
 
 // The contact form on /contact lands here. Editors see it too: a correction
 // belongs to whoever reads it first, not only to the owner.
-router.get('/contact-messages', async (req, res, next) => {
+router.get('/contact-messages', requirePermission([PERMISSIONS.viewNewsroomDesk, PERMISSIONS.moderateMessages]), async (req, res, next) => {
   try {
     const { status, page = 1, limit = 50 } = req.query;
     const filter = status && ['open', 'answered', 'closed'].includes(status) ? { status } : {};
@@ -795,7 +813,7 @@ router.get('/contact-messages', async (req, res, next) => {
   }
 });
 
-router.put('/contact-messages/:id/status', async (req, res, next) => {
+router.put('/contact-messages/:id/status', requirePermission([PERMISSIONS.moderateMessages]), async (req, res, next) => {
   try {
     const status = plainText(req.body.status, { maxLength: 20 });
     if (!['open', 'answered', 'closed'].includes(status)) return errorResponse(res, 400, 'That is not a state a message can be in.');
@@ -816,7 +834,7 @@ router.put('/contact-messages/:id/status', async (req, res, next) => {
 // A reader can ask for what they wrote to us to be removed, and the request form
 // itself holds a personal address, so deletion has to exist rather than be a
 // promise on the privacy page.
-router.delete('/contact-messages/:id', authorize('ADMIN'), async (req, res, next) => {
+router.delete('/contact-messages/:id', requirePermission([PERMISSIONS.managePlatform, PERMISSIONS.moderateMessages]), async (req, res, next) => {
   try {
     const message = await ContactMessage.findByIdAndDelete(req.params.id);
     if (!message) return errorResponse(res, 404, 'Message not found');
@@ -837,7 +855,7 @@ router.delete('/contact-messages/:id', authorize('ADMIN'), async (req, res, next
  * Saving a timetable does not delete the editions already broadcast: they stay as
  * a record of what was said under the old one.
  */
-router.get('/radio/schedule', authorize('ADMIN'), async (req, res, next) => {
+router.get('/radio/schedule', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
   try {
     const schedule = await radioService.getSchedule();
     return successResponse(res, 200, 'Radio timetable', {
@@ -855,7 +873,7 @@ router.get('/radio/schedule', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.put('/radio/schedule', authorize('ADMIN'), async (req, res, next) => {
+router.put('/radio/schedule', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
   try {
     const result = await radioService.saveSchedule({
       slots: req.body.slots,
@@ -882,7 +900,7 @@ router.put('/radio/schedule', authorize('ADMIN'), async (req, res, next) => {
  * would keep naming it. So the refresh exists as a button an admin presses rather
  * than as something that happens whenever a page is opened.
  */
-router.post('/radio/bulletin/refresh', authorize('ADMIN'), async (req, res, next) => {
+router.post('/radio/bulletin/refresh', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
   try {
     const { resolved } = await radioService.resolveNow(new Date());
     if (!resolved.current) return errorResponse(res, 400, 'Nothing is scheduled to be on air at this minute');
@@ -925,7 +943,7 @@ function refuse(res, next, error) {
   return next(error);
 }
 
-router.get('/categories', async (req, res, next) => {
+router.get('/categories', requirePermission([PERMISSIONS.viewNewsroomDesk, PERMISSIONS.manageCategories]), async (req, res, next) => {
   try {
     return successResponse(res, 200, 'Sections', { categories: await categoryService.list() });
   } catch (error) {
@@ -933,7 +951,7 @@ router.get('/categories', async (req, res, next) => {
   }
 });
 
-router.post('/categories', authorize('ADMIN'), async (req, res, next) => {
+router.post('/categories', requirePermission([PERMISSIONS.manageCategories]), async (req, res, next) => {
   try {
     const category = await categoryService.create(req.body || {}, req.user._id);
     return successResponse(res, 201, 'Section created', { category });
@@ -942,7 +960,7 @@ router.post('/categories', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.put('/categories/:id', authorize('ADMIN'), async (req, res, next) => {
+router.put('/categories/:id', requirePermission([PERMISSIONS.manageCategories]), async (req, res, next) => {
   try {
     const category = await categoryService.update(req.params.id, req.body || {}, req.user._id);
     return successResponse(res, 200, 'Section saved', { category });
@@ -959,7 +977,7 @@ router.put('/categories/:id', authorize('ADMIN'), async (req, res, next) => {
  * published story, which is the one thing a taxonomy tool has to be trusted not
  * to do.
  */
-router.delete('/categories/:id', authorize('ADMIN'), async (req, res, next) => {
+router.delete('/categories/:id', requirePermission([PERMISSIONS.manageCategories]), async (req, res, next) => {
   try {
     const result = await categoryService.remove(req.params.id, { moveTo: req.query.moveTo });
     return successResponse(res, 200, result.moved ? 'Section removed and stories moved' : 'Section removed', result);
@@ -984,7 +1002,7 @@ function refuseAi(res, next, error) {
   return refuse(res, next, error);
 }
 
-router.get('/ads', async (req, res, next) => {
+router.get('/ads', requirePermission([PERMISSIONS.viewNewsroomDesk, PERMISSIONS.manageAds]), async (req, res, next) => {
   try {
     return successResponse(res, 200, 'Advertisements', { ads: await adService.list() });
   } catch (error) {
@@ -999,7 +1017,7 @@ router.get('/ads', async (req, res, next) => {
  * the campaign only exists once someone saves it. That is deliberate - a model
  * asked for three versions of an ad should not leave three records behind.
  */
-router.post('/ads/generate', authorize('ADMIN'), async (req, res, next) => {
+router.post('/ads/generate', requirePermission([PERMISSIONS.manageAds]), async (req, res, next) => {
   const body = req.body || {};
   const advertiser = plainText(body.advertiser, { maxLength: 80 });
   const offer = cleanText(body.offer, { maxLength: 1200 });
@@ -1030,7 +1048,7 @@ router.post('/ads/generate', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.post('/ads', authorize('ADMIN'), async (req, res, next) => {
+router.post('/ads', requirePermission([PERMISSIONS.manageAds]), async (req, res, next) => {
   try {
     const ad = await adService.create(req.body || {}, req.user._id);
     return successResponse(res, 201, 'Advertisement saved', { ad });
@@ -1039,7 +1057,7 @@ router.post('/ads', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.put('/ads/:id', authorize('ADMIN'), async (req, res, next) => {
+router.put('/ads/:id', requirePermission([PERMISSIONS.manageAds]), async (req, res, next) => {
   try {
     const ad = await adService.update(req.params.id, req.body || {}, req.user._id);
     return successResponse(res, 200, ad.status === 'live' ? 'Advertisement published' : 'Advertisement saved', { ad });
@@ -1054,7 +1072,7 @@ router.put('/ads/:id', authorize('ADMIN'), async (req, res, next) => {
  * Pausing is offered first everywhere in the interface; this is the harder button,
  * and it refuses while the ad is still running.
  */
-router.delete('/ads/:id', authorize('ADMIN'), async (req, res, next) => {
+router.delete('/ads/:id', requirePermission([PERMISSIONS.manageAds]), async (req, res, next) => {
   try {
     return successResponse(res, 200, 'Advertisement removed', await adService.remove(req.params.id));
   } catch (error) {
@@ -1075,7 +1093,7 @@ router.delete('/ads/:id', authorize('ADMIN'), async (req, res, next) => {
  * Nothing here prints a secret. The four SMTP names are reported as set or not
  * set, and a recipient is stored as its first letter plus its domain.
  */
-router.get('/mail/status', authorize('ADMIN'), async (req, res, next) => {
+router.get('/mail/status', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
   try {
     return successResponse(res, 200, 'Mail diagnostics', await mailer.diagnostics());
   } catch (error) {
@@ -1088,7 +1106,7 @@ router.get('/mail/status', authorize('ADMIN'), async (req, res, next) => {
 const TEST_MAIL_COOLDOWN_MS = 30 * 1000;
 const lastTestMailAt = new Map();
 
-router.post('/mail/test', authorize('ADMIN'), async (req, res, next) => {
+router.post('/mail/test', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
   try {
     const since = lastTestMailAt.get(String(req.user._id)) || 0;
     if (Date.now() - since < TEST_MAIL_COOLDOWN_MS) {
@@ -1129,7 +1147,7 @@ router.post('/mail/test', authorize('ADMIN'), async (req, res, next) => {
 const RUN_COOLDOWN_MS = 15 * 1000;
 const lastRunAt = new Map();
 
-router.get('/scheduler/runs', authorize('ADMIN'), async (req, res, next) => {
+router.get('/scheduler/runs', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
   try {
     const desk = await schedulerLog.desk(req.query.limit);
     // The desk is only as honest as the job list it was built from: which
@@ -1153,7 +1171,7 @@ router.get('/scheduler/runs', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.post('/scheduler/run/:job', authorize('ADMIN'), async (req, res, next) => {
+router.post('/scheduler/run/:job', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
   try {
     const name = String(req.params.job || '').toLowerCase();
     const job = scheduler.JOBS[name];

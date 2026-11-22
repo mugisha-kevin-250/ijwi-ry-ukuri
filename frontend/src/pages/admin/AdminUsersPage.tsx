@@ -3,20 +3,25 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw, Search, Users as UsersIcon } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { AdminUserRecord, PagedResult } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
+import { can, ROLE_OPTIONS, roleBadge, roleLabel } from '../../utils/deskAccess'
+import type { Role } from '../../types'
 
-const ROLES = ['ALL', 'READER', 'WRITER', 'EDITOR', 'ADMIN'] as const
+// The filter chips and the role pickers both read the same list the server
+// publishes, so a desk added to the matrix can be filtered and granted here
+// without anybody remembering to edit this screen.
+type RoleFilter = Role | 'ALL'
+const ROLE_FILTERS: RoleFilter[] = ['ALL', ...ROLE_OPTIONS.map((option) => option.value)]
 const LIMIT = 20
 
-function roleBadge(role: AdminUserRecord['role']): string {
-  switch (role) {
-    case 'ADMIN': return 'bg-red-50 text-red-700'
-    case 'EDITOR': return 'bg-violet-50 text-violet-700'
-    case 'WRITER': return 'bg-blue-50 text-blue-700'
-    default: return 'bg-slate-100 text-slate-600'
-  }
-}
-
 export default function AdminUsersPage() {
+  const { user } = useAuth()
+  // Reading the people list is the newsroom's permission; changing what one of
+  // them may do is the scarcest job on the matrix, held by the owner alone. The
+  // pickers below are therefore switched off for anybody else - and the API
+  // refuses the same change whatever this screen shows, so an offline bundle
+  // cannot talk its way into a role.
+  const mayChangePeople = can(user, 'manageUsers')
   const [data, setData] = useState<PagedResult<AdminUserRecord> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -24,7 +29,7 @@ export default function AdminUsersPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const [page, setPage] = useState(1)
-  const [role, setRole] = useState<(typeof ROLES)[number]>('ALL')
+  const [role, setRole] = useState<RoleFilter>('ALL')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
 
@@ -107,14 +112,14 @@ export default function AdminUsersPage() {
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {ROLES.map((option) => (
+            {ROLE_FILTERS.map((option) => (
               <button
                 key={option}
                 type="button"
                 onClick={() => setRole(option)}
                 className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${role === option ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
               >
-                {option === 'ALL' ? 'All' : option.charAt(0) + option.slice(1).toLowerCase()}
+                {option === 'ALL' ? 'All' : roleLabel(option)}
               </button>
             ))}
           </div>
@@ -166,7 +171,7 @@ export default function AdminUsersPage() {
                       <div className="mt-0.5 text-xs text-slate-400">{u.email}</div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${roleBadge(u.role)}`}>{u.role}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${roleBadge(u.role)}`}>{roleLabel(u.role)}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${u.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -180,26 +185,34 @@ export default function AdminUsersPage() {
                         <Link to={`/mugishaimekevin/users/${u._id}`} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-50">
                           View stories <ExternalLink className="h-3 w-3" />
                         </Link>
+                        {/* The API answers these two with a refusal unless the account
+                            holds `manageUsers`, so they are shown disabled rather than
+                            quietly removed: the desk stays legible, the reason is stated
+                            once below the row instead of being discovered by pressing a
+                            button, and nothing here is a fake enabled control. */}
                         <select
                           value={u.role}
-                          disabled={busyId === u._id}
-                          onChange={(e) => void applyChange(u._id, { role: e.target.value }, e.target.value === u.role ? undefined : `Change ${u.fullName}'s role to ${e.target.value}?`)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400"
+                          disabled={busyId === u._id || !mayChangePeople}
+                          onChange={(e) => void applyChange(u._id, { role: e.target.value }, e.target.value === u.role ? undefined : `Change ${u.fullName}'s role to ${roleLabel(e.target.value)}?`)}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                          title={mayChangePeople ? undefined : 'Changing roles is the owner\'s job'}
                         >
-                          <option value="READER">Reader</option>
-                          <option value="WRITER">Writer</option>
-                          <option value="EDITOR">Editor</option>
-                          <option value="ADMIN">Admin</option>
+                          {ROLE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                         <button
                           type="button"
-                          disabled={busyId === u._id}
+                          disabled={busyId === u._id || !mayChangePeople}
                           onClick={() => void applyChange(
                             u._id,
                             { isActive: !u.isActive },
                             u.isActive ? `Deactivate ${u.fullName}? They will lose access until reactivated.` : undefined,
                           )}
-                          className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition disabled:opacity-60 ${u.isActive ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                          title={mayChangePeople ? undefined : 'Activating and deactivating people is the owner\'s job'}
+                          className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${u.isActive ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
                         >
                           {u.isActive ? 'Deactivate' : 'Activate'}
                         </button>
@@ -210,6 +223,12 @@ export default function AdminUsersPage() {
               </tbody>
             </table>
           </div>
+        )}
+        {!mayChangePeople && (
+          <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
+            This screen shows everyone, but changing a role or deactivating an account is the
+            owner's job, so those controls are turned off for you. Everything else here works.
+          </p>
         )}
       </div>
 

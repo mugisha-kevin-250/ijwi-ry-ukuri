@@ -35,6 +35,7 @@ const WriterEarning = require('../models/WriterEarning');
 const WriterProfile = require('../models/WriterProfile');
 const WriterWeeklyStat = require('../models/WriterWeeklyStat');
 const { syncCommentCount } = require('../utils/commentState');
+const { isStaffRole } = require('../config/permissions');
 
 const deleted = (result) => (result && result.deletedCount) || 0;
 
@@ -58,7 +59,7 @@ async function blockersFor(user) {
   // was approved - is not closed by a form, whatever else they have or have not
   // published. A reader who only ever applied to write is their own person, and
   // gets to leave.
-  const staff = ['EDITOR', 'ADMIN'].includes(user.role);
+  const staff = isStaffRole(user.role);
   const approvedWriter = user.role === 'WRITER' && user.writerStatus === 'approved';
   if (staff) {
     reasons.push('This account carries newsroom duties, so only the desk can close it.');

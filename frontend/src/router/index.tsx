@@ -1,6 +1,8 @@
 import { createBrowserRouter, Navigate, Outlet, ScrollRestoration, useLocation, useParams } from 'react-router-dom'
-import { type ReactNode, Suspense, lazy, useEffect } from 'react'
+import { type ReactNode, Suspense, lazy, useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { can, canAny, deskHomeFor, isStaff, permissionsKnown } from '../utils/deskAccess'
+import type { PermissionName } from '../types'
 import { sectionHrefFor } from '../data/sections'
 import { trackPageView } from '../utils/analytics'
 import RouteProgressBar from '../components/common/RouteProgressBar'
@@ -236,36 +238,85 @@ function SessionRestoring() {
   )
 }
 
-function RequireRole({ children }: { role?: 'WRITER'; children: ReactNode }) {
+/**
+ * The desk gates.
+ *
+ * Each one asks the question the API asks - does this account hold this job -
+ * and never a role name. The list it reads came from the server on sign-in, so
+ * the gate and the route agree by construction: the day a job moves between
+ * roles, this file does not have to know about it, and the screen a person is
+ * refused is refused for the same reason by both doors.
+ *
+ * Three answers, not one:
+ *   - nobody is signed in at all, so the door is the sign-in page - the admin
+ *     desks go to the staff sign-in, everything else to the reader's;
+ *   - the account is known not to hold the job, so it goes to the desk it does
+ *     hold (`deskHomeFor`), which is where a WRITER bounced from the admin
+ *     portal lands today: on their own shelf, not on a blank page;
+ *   - the account's jobs are not in this browser yet - a session stored before
+ *     the server began sending them. `AuthContext` asks the server once; the
+ *     gate waits for the answer rather than hiding work somebody is in the
+ *     middle of, but not forever: after a few seconds it lets the page through,
+ *     because the API still decides for itself and its own refusal is worth more
+ *     to a reader than a loader that never ends.
+ */
+const PERMISSION_WAIT_MS = 6000
+
+function useDeskPermissions(user: ReturnType<typeof useAuth>['user']) {
+  const known = permissionsKnown(user)
+  const [ranOutOfPatience, setRanOutOfPatience] = useState(false)
+
+  useEffect(() => {
+    if (known) return
+    const timer = window.setTimeout(() => setRanOutOfPatience(true), PERMISSION_WAIT_MS)
+    return () => window.clearTimeout(timer)
+  }, [known])
+
+  if (known) return 'known' as const
+  return ranOutOfPatience ? ('stale' as const) : ('asking' as const)
+}
+
+function RequireDesk({
+  permissions,
+  staffDoor = false,
+  children,
+}: {
+  permissions: PermissionName[]
+  // Which sign-in page an anonymous visitor is sent to. The admin portal has
+  // its own door so that a reader stumbling onto the address is not invited to
+  // guess staff credentials on the public form.
+  staffDoor?: boolean
+  children: ReactNode
+}) {
   const { user, loading } = useAuth()
   const location = useLocation()
+  const state = useDeskPermissions(user)
+
+  if (loading) return <SessionRestoring />
+  if (!user) {
+    return <Navigate to={staffDoor ? '/mugishaimekevin/login' : '/login'} replace state={{ from: location.pathname }} />
+  }
+  if (state === 'asking') return <SessionRestoring />
+  if (canAny(user, ...permissions)) return children
+  return <Navigate to={deskHomeFor(user)} replace />
+}
+
+// The writing desk: filing a story. A READER is not turned away here, because
+// the site has always answered "I would like to write" with the application
+// form, and an admin approves it. Only a member of staff whose own job does not
+// include writing is sent to the desk that is theirs, instead of being invited
+// to apply for a job they were already given.
+function RequireWrite({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+  const state = useDeskPermissions(user)
 
   if (loading) return <SessionRestoring />
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
-  // An ADMIN or EDITOR already writes; a READER has to be approved first.
-  if (user.role === 'WRITER' || user.role === 'EDITOR' || user.role === 'ADMIN') return children
+  if (state === 'asking') return <SessionRestoring />
+  if (can(user, 'writeStories')) return children
+  if (isStaff(user)) return <Navigate to={deskHomeFor(user)} replace />
   return <WriterAccessGate />
-}
-
-function RequireAdmin({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth()
-  if (loading) return <SessionRestoring />
-  if (!user) return <Navigate to="/mugishaimekevin/login" replace />
-  if (user.role !== 'ADMIN') return <Navigate to={user.role === 'WRITER' ? '/writer/dashboard' : '/'} replace />
-  return children
-}
-
-// The review desk is for the two roles that are allowed to decide what readers
-// see. A READER or an unapproved WRITER is sent to their own area instead of a
-// blank page, and the API refuses the same request independently of this gate.
-function RequireStaff({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth()
-  if (loading) return <SessionRestoring />
-  if (!user) return <Navigate to="/login" replace />
-  if (user.role !== 'EDITOR' && user.role !== 'ADMIN') {
-    return <Navigate to={user.role === 'WRITER' ? '/writer/dashboard' : '/'} replace />
-  }
-  return children
 }
 
 // Readers who click a story from the footer were left wherever they had scrolled
@@ -368,12 +419,12 @@ export const router = createBrowserRouter([
         element: <WriterLayout variant="writer" />,
         children: [
           { index: true, element: <Navigate to="dashboard" replace /> },
-          { path: 'dashboard', element: <RequireRole role="WRITER"><WriterDashboardPage /></RequireRole> },
-          { path: 'articles', element: <RequireRole role="WRITER"><WriterArticlesPage /></RequireRole> },
-          { path: 'articles/new', element: <RequireRole role="WRITER"><WriterArticleEditorPage /></RequireRole> },
-          { path: 'articles/:id/edit', element: <RequireRole role="WRITER"><WriterArticleEditorPage /></RequireRole> },
-          { path: 'earnings', element: <RequireRole role="WRITER"><WriterEarningsPage /></RequireRole> },
-          { path: 'profile', element: <RequireRole role="WRITER"><UserProfilePage /></RequireRole> },
+          { path: 'dashboard', element: <RequireWrite><WriterDashboardPage /></RequireWrite> },
+          { path: 'articles', element: <RequireWrite><WriterArticlesPage /></RequireWrite> },
+          { path: 'articles/new', element: <RequireWrite><WriterArticleEditorPage /></RequireWrite> },
+          { path: 'articles/:id/edit', element: <RequireWrite><WriterArticleEditorPage /></RequireWrite> },
+          { path: 'earnings', element: <RequireWrite><WriterEarningsPage /></RequireWrite> },
+          { path: 'profile', element: <RequireWrite><UserProfilePage /></RequireWrite> },
         ],
       },
       {
@@ -381,17 +432,23 @@ export const router = createBrowserRouter([
         element: <WriterLayout variant="editor" />,
         children: [
           { index: true, element: <Navigate to="dashboard" replace /> },
-          { path: 'dashboard', element: <RequireStaff><EditorDashboardPage /></RequireStaff> },
-          { path: 'pending', element: <RequireStaff><EditorQueuePage /></RequireStaff> },
-          { path: 'comments', element: <RequireStaff><EditorCommentsPage /></RequireStaff> },
-          { path: 'articles/:id', element: <RequireStaff><EditorReviewPage /></RequireStaff> },
+          // The review desk: deciding what readers see. `review` is the job the
+          // API asks for on /api/editor/*, so the queue opens for a news editor
+          // and an ad manager is sent to the desk that is theirs.
+          { path: 'dashboard', element: <RequireDesk permissions={['review']}><EditorDashboardPage /></RequireDesk> },
+          { path: 'pending', element: <RequireDesk permissions={['review']}><EditorQueuePage /></RequireDesk> },
+          // Comments are their own door: the person who answers readers is not
+          // always the person who approves stories, and the social desk holds
+          // only this one.
+          { path: 'comments', element: <RequireDesk permissions={['moderateComments']}><EditorCommentsPage /></RequireDesk> },
+          { path: 'articles/:id', element: <RequireDesk permissions={['review']}><EditorReviewPage /></RequireDesk> },
           // An editor writes too, and their own shelf is the same screen a
           // writer uses; only the review desk above is a separate address.
-          { path: 'articles', element: <RequireStaff><WriterArticlesPage /></RequireStaff> },
-          { path: 'articles/new', element: <RequireStaff><WriterArticleEditorPage /></RequireStaff> },
-          { path: 'articles/:id/edit', element: <RequireStaff><WriterArticleEditorPage /></RequireStaff> },
-          { path: 'earnings', element: <RequireStaff><WriterEarningsPage /></RequireStaff> },
-          { path: 'profile', element: <RequireStaff><UserProfilePage /></RequireStaff> },
+          { path: 'articles', element: <RequireDesk permissions={['writeStories']}><WriterArticlesPage /></RequireDesk> },
+          { path: 'articles/new', element: <RequireDesk permissions={['writeStories']}><WriterArticleEditorPage /></RequireDesk> },
+          { path: 'articles/:id/edit', element: <RequireDesk permissions={['writeStories']}><WriterArticleEditorPage /></RequireDesk> },
+          { path: 'earnings', element: <RequireDesk permissions={['writeStories']}><WriterEarningsPage /></RequireDesk> },
+          { path: 'profile', element: <RequireDesk permissions={['writeStories']}><UserProfilePage /></RequireDesk> },
         ],
       },
       {
@@ -399,27 +456,36 @@ export const router = createBrowserRouter([
         element: <AdminLayout />,
         children: [
           { index: true, element: <Navigate to="dashboard" replace /> },
-          { path: 'dashboard', element: <RequireAdmin><DashboardPage kind="admin" /></RequireAdmin> },
-          { path: 'users', element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
-          { path: 'writers', element: <RequireAdmin><AdminWritersPage /></RequireAdmin> },
-          { path: 'users/:id', element: <RequireAdmin><AdminUserDetailPage /></RequireAdmin> },
-          { path: 'articles', element: <RequireAdmin><AdminArticlesPage /></RequireAdmin> },
-          { path: 'ai-writer', element: <RequireAdmin><AdminAiWriterPage /></RequireAdmin> },
-          { path: 'payouts', element: <RequireAdmin><AdminPayoutsPage /></RequireAdmin> },
-          { path: 'messages', element: <RequireAdmin><AdminMessagesPage /></RequireAdmin> },
+          // One gate per desk, named for the job it does. The admin portal used
+          // to be a single door that only the ADMIN role could open; each screen
+          // now asks for the permission the API asks for on the same request,
+          // which is how a desk can be handed to one person without handing
+          // them the whole building. `staffDoor` keeps the anonymous visitor on
+          // the staff sign-in instead of the reader's form.
+          { path: 'dashboard', element: <RequireDesk staffDoor permissions={['viewNewsroomDesk']}><DashboardPage kind="admin" /></RequireDesk> },
+          // The people list is read with the newsroom's permission and changed
+          // only with the scarcest one on the matrix: reading who works here is
+          // not the same job as deciding what they may do.
+          { path: 'users', element: <RequireDesk staffDoor permissions={['viewNewsroomDesk']}><AdminUsersPage /></RequireDesk> },
+          { path: 'writers', element: <RequireDesk staffDoor permissions={['manageUsers']}><AdminWritersPage /></RequireDesk> },
+          { path: 'users/:id', element: <RequireDesk staffDoor permissions={['manageUsers']}><AdminUserDetailPage /></RequireDesk> },
+          { path: 'articles', element: <RequireDesk staffDoor permissions={['viewNewsroomDesk']}><AdminArticlesPage /></RequireDesk> },
+          { path: 'ai-writer', element: <RequireDesk staffDoor permissions={['runAiWriter']}><AdminAiWriterPage /></RequireDesk> },
+          { path: 'payouts', element: <RequireDesk staffDoor permissions={['managePayouts']}><AdminPayoutsPage /></RequireDesk> },
+          { path: 'messages', element: <RequireDesk staffDoor permissions={['moderateMessages']}><AdminMessagesPage /></RequireDesk> },
           // The relay that mails codes, confirmations and alerts is a separate
           // question from the messages readers send us, so it has its own desk.
-          { path: 'mail', element: <RequireAdmin><AdminMailPage /></RequireAdmin> },
+          { path: 'mail', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminMailPage /></RequireDesk> },
           // What the clock did on its own, and the way to finish a job a failed
           // minute left half-done. Owner-only, like the mail desk it sits beside.
-          { path: 'scheduler', element: <RequireAdmin><AdminSchedulerPage /></RequireAdmin> },
+          { path: 'scheduler', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminSchedulerPage /></RequireDesk> },
           // The desk that owns the sections. It used to point at the reader's
           // /categories page, which shows what exists but lets nobody change it.
-          { path: 'categories', element: <RequireAdmin><AdminCategoriesPage /></RequireAdmin> },
+          { path: 'categories', element: <RequireDesk staffDoor permissions={['manageCategories']}><AdminCategoriesPage /></RequireDesk> },
           // The desk that sells the advertising spaces. Separate from the reader's
           // /advertising page, which only explains what is for sale.
-          { path: 'advertising', element: <RequireAdmin><AdminAdsPage /></RequireAdmin> },
-          { path: 'settings', element: <RequireAdmin><AdminSettingsPage /></RequireAdmin> },
+          { path: 'advertising', element: <RequireDesk staffDoor permissions={['manageAds']}><AdminAdsPage /></RequireDesk> },
+          { path: 'settings', element: <RequireDesk staffDoor permissions={['manageSettings']}><AdminSettingsPage /></RequireDesk> },
         ],
       },
       // The admin sign-in sits outside every layout, so it is the one route that

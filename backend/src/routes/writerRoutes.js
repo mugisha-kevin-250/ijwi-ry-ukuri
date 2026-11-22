@@ -10,7 +10,8 @@ const Follow = require('../models/Follow');
 const WriterEarning = require('../models/WriterEarning');
 const WriterWeeklyStat = require('../models/WriterWeeklyStat');
 const Payout = require('../models/Payout');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, requirePermission, can } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
 const workflow = require('../services/articleWorkflow');
@@ -88,7 +89,7 @@ router.get('/me/status', protect, async (req, res, next) => {
   }
 });
 
-router.post('/articles', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
+router.post('/articles', protect, requirePermission([PERMISSIONS.writeStories]), async (req, res, next) => {
   try {
     const { title, summary, content, category, tags = [], featuredImage, imageCredit, imageCaption, imageSourceUrl, videoUrl, media } = req.body;
     if (!title || !summary || !content || !category) {
@@ -194,7 +195,7 @@ function cleanDraft(req) {
   };
 }
 
-router.post('/ai/generate', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
+router.post('/ai/generate', protect, requirePermission([PERMISSIONS.writeStories]), async (req, res, next) => {
   try {
     const { topic, angle, audience } = req.body || {};
     if (!topic || String(topic).trim().length < 6) {
@@ -220,7 +221,7 @@ router.post('/ai/generate', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), asy
   }
 });
 
-router.post('/ai/draft', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
+router.post('/ai/draft', protect, requirePermission([PERMISSIONS.writeStories]), async (req, res, next) => {
   try {
     const draft = cleanDraft(req);
     if (!draft.title || !draft.summary || !draft.content) {
@@ -332,7 +333,7 @@ router.put('/articles/:id', protect, async (req, res, next) => {
     // A story in an editor's hands cannot be rewritten underneath them: the
     // version they are judging has to be the version they sign off. Staff
     // accounts are their own editors, so the lock does not apply to them.
-    const staff = ['EDITOR', 'ADMIN'].includes(req.user.role);
+    const staff = can(req.user, PERMISSIONS.review);
     if (!staff && ['pending_review', 'approved'].includes(article.status)) {
       return errorResponse(res, 409, 'This story is in review and cannot be edited. Ask an editor to send it back first.');
     }
@@ -454,7 +455,7 @@ router.delete('/articles/:id/sources/:sourceId', protect, async (req, res, next)
 
     const source = article.sources.id(req.params.sourceId);
     if (!source) return errorResponse(res, 404, 'That source is not on this story');
-    if (source.verificationStatus !== 'pending' && !['EDITOR', 'ADMIN'].includes(req.user.role)) {
+    if (source.verificationStatus !== 'pending' && !can(req.user, PERMISSIONS.correct)) {
       return errorResponse(res, 409, 'The desk has already judged this source. Ask an editor to remove it.');
     }
     source.deleteOne();
@@ -490,7 +491,7 @@ router.post('/articles/:id/publish', protect, async (req, res, next) => {
   try {
     const article = await workflow.loadOwnStory(req.params.id, req.user._id);
     if (!article) return errorResponse(res, 404, 'Article not found');
-    const staff = ['EDITOR', 'ADMIN'].includes(req.user.role);
+    const staff = can(req.user, PERMISSIONS.review);
     if (!staff && article.status !== 'draft') {
       return errorResponse(res, 409, lifecycle.reason(article.status, 'published'));
     }
@@ -540,7 +541,7 @@ router.post('/articles/:id/unpublish', protect, async (req, res, next) => {
 // Writers, editors and admins all publish, so all of them have a pay ledger to
 // read. These were previously WRITER-only, which made the earnings page throw a
 // 403 for staff accounts and leave the UI showing fabricated zeroes.
-router.get('/me/earnings', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
+router.get('/me/earnings', protect, requirePermission([PERMISSIONS.writeStories]), async (req, res, next) => {
   try {
     const earnings = await WriterEarning.find({ writerId: req.user._id }).sort({ weekStart: -1 });
     return successResponse(res, 200, 'Writer earnings', { earnings });
@@ -549,7 +550,7 @@ router.get('/me/earnings', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), asyn
   }
 });
 
-router.get('/me/payouts', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
+router.get('/me/payouts', protect, requirePermission([PERMISSIONS.writeStories]), async (req, res, next) => {
   try {
     const payouts = await Payout.find({ writerId: req.user._id }).sort({ requestedAt: -1 });
     return successResponse(res, 200, 'Writer payouts', { payouts });
@@ -558,7 +559,7 @@ router.get('/me/payouts', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async
   }
 });
 
-router.get('/me/dashboard', protect, authorize('WRITER', 'EDITOR', 'ADMIN'), async (req, res, next) => {
+router.get('/me/dashboard', protect, requirePermission([PERMISSIONS.writeStories]), async (req, res, next) => {
   try {
     const totalArticles = await Article.countDocuments({ author: req.user._id });
     const publishedArticles = await Article.countDocuments({ author: req.user._id, status: 'published' });

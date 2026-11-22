@@ -1,9 +1,60 @@
+/**
+ * The roles the newsroom can hand out. The list mirrors `ROLE_PERMISSIONS` in
+ * `backend/src/config/permissions.js` - the four the site shipped with plus the
+ * staff desks carved out of the same permissions - and only the server decides
+ * what any of them means. Nothing here is a rule; it is a vocabulary.
+ */
+export type Role =
+  | 'READER'
+  | 'WRITER'
+  | 'EDITOR'
+  | 'ADMIN'
+  | 'MANAGING_EDITOR'
+  | 'NEWS_EDITOR'
+  | 'SEO_EDITOR'
+  | 'SOCIAL_MANAGER'
+  | 'AD_MANAGER'
+
+/**
+ * The named jobs a role can hold, exactly as the API spells them. A screen asks
+ * for one of these through `can(user, 'review')`; it never asks for a role.
+ */
+export type PermissionName =
+  | 'writeStories'
+  | 'publish'
+  | 'review'
+  | 'correct'
+  | 'moderateComments'
+  | 'moderateMessages'
+  | 'sendPushAlerts'
+  | 'viewNewsroomDesk'
+  | 'managePayouts'
+  | 'manageSettings'
+  | 'manageUsers'
+  | 'manageCategories'
+  | 'manageAds'
+  | 'manageSeo'
+  | 'manageBroadcast'
+  | 'runAiWriter'
+  | 'managePlatform'
+
 export interface User {
   _id: string
   fullName: string
   username: string
   email: string
-  role: 'READER' | 'WRITER' | 'EDITOR' | 'ADMIN'
+  role: Role
+  /**
+   * The permissions the server holds for this role, sent with every sign-in,
+   * with `/api/auth/me`, and on any payload that returns the account itself.
+   *
+   * Optional for one reason only: a session stored in this browser before the
+   * API started sending the list has no permissions in it. That is a stale
+   * reading of the account, not a permission of its own, so `AuthContext` asks
+   * the server once, quietly, when it meets one. Never treat `undefined` as
+   * "allowed", and never fill it in from a guess - see `utils/deskAccess`.
+   */
+  permissions?: PermissionName[]
   isActive: boolean
   avatar?: string
   country?: string
@@ -404,6 +455,6 @@ export interface NavItem {
   label: string
   href: string
   icon?: React.ComponentType<{ className?: string }>
-  roles?: ('READER' | 'WRITER' | 'EDITOR' | 'ADMIN')[]
+  roles?: Role[]
   children?: NavItem[]
 }

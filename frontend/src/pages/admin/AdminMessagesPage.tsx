@@ -3,6 +3,7 @@ import { Archive, CheckCircle2, Inbox, Mail, Phone, RefreshCw, RotateCcw, Trash2
 import { adminAPI } from '../../services/api'
 import type { ContactMessageRecord } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import { canAny } from '../../utils/deskAccess'
 
 const FILTERS: { value: string; label: string }[] = [
   { value: 'open', label: 'Open' },
@@ -208,7 +209,11 @@ export default function AdminMessagesPage() {
                       <RotateCcw className="h-3.5 w-3.5" />Reopen
                     </button>
                   )}
-                  {user?.role === 'ADMIN' && (
+                  {/* Deleting a reader's message is the same question the API
+                      asks: the desk that answers the inbox may clear it, and so
+                      may the owner. Anyone standing on this page holds one of
+                      the two, because the route gate asked first. */}
+                  {canAny(user, 'managePlatform', 'moderateMessages') && (
                     <button
                       type="button"
                       disabled={busyId === message._id}

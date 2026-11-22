@@ -1,6 +1,7 @@
 const Article = require('../models/Article');
 const notificationService = require('./notificationService');
 const lifecycle = require('../utils/articleLifecycle');
+const { isStaffRole } = require('../config/permissions');
 
 // Every state change in the product goes through here, so the rules in
 // utils/articleLifecycle cannot be skipped by a route that forgot to check them.
@@ -85,7 +86,7 @@ function authorActions(article, user) {
   if (!article) return [];
   const state = article.status;
   const role = String((user && user.role) || '').toUpperCase();
-  const staff = role === 'EDITOR' || role === 'ADMIN';
+  const staff = isStaffRole(role);
   const ready = !lifecycle.publishable(article);
   const actions = [];
 

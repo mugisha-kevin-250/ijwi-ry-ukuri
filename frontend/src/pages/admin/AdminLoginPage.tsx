@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Lock, ShieldCheck, User } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { isStaff } from '../../utils/deskAccess'
 
 export default function AdminLoginPage() {
   const { adminLogin, user, loading } = useAuth()
@@ -11,7 +12,12 @@ export default function AdminLoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  if (!loading && user?.role === 'ADMIN') {
+  // Somebody who is already holding a staff session does not need to sign in
+  // again - and the question is "are you staff", which is exactly what the API's
+  // staff door asks, not "are you the administrator". The desk they land on is
+  // decided by the gate on the other side of this redirect, the same one that
+  // decides it for anybody who types the address in.
+  if (!loading && isStaff(user)) {
     return <Navigate to="/mugishaimekevin/dashboard" replace />
   }
 

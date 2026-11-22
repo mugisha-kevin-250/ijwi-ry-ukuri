@@ -1,7 +1,8 @@
 const express = require('express');
 const Live = require('../models/Live');
 const LiveComment = require('../models/LiveComment');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { notifyLiveEnded } = require('../sockets/liveSocket');
 const { plainText, cleanText } = require('../utils/textFields');
@@ -62,7 +63,7 @@ router.get('/:id', async (req, res, next) => {
 //
 // The link is read before anything is touched. A wrong address must not be able
 // to end the programme that is actually running.
-router.post('/', protect, authorize('ADMIN'), async (req, res, next) => {
+router.post('/', protect, requirePermission([PERMISSIONS.manageBroadcast]), async (req, res, next) => {
   try {
     const title = String(req.body.title || '').trim();
     if (!title) return errorResponse(res, 400, 'A live needs a title');
@@ -113,7 +114,7 @@ router.post('/', protect, authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
-router.post('/:id/end', protect, authorize('ADMIN'), async (req, res, next) => {
+router.post('/:id/end', protect, requirePermission([PERMISSIONS.manageBroadcast]), async (req, res, next) => {
   try {
     const live = await Live.findOne({ _id: req.params.id, status: 'active' });
     if (!live) return errorResponse(res, 404, 'Nothing is live right now');

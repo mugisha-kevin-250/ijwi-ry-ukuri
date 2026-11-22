@@ -497,6 +497,11 @@ const translations: Record<string, Translations> = {
     'editor.disclosure.credit': 'Photo credit',
     'editor.disclosure.creditHint': 'Who took it, if not our own photographer',
     'editor.disclosure.savePhoto': 'Save photo lines',
+    // The pictures after the first one. The desk writes what they show and
+    // whose they are, and reads the rest as the reporter left it.
+    'editor.disclosure.gallery': 'The pictures and clips after the first',
+    'editor.disclosure.galleryHint': 'The author chose these and put them in this order. Only the two lines under each one are written from the desk.',
+    'editor.disclosure.saveGallery': 'Save these photo lines',
     'editor.disclosure.isSponsored': 'An advertiser paid for this story',
     'editor.disclosure.sponsorHint': 'Who paid for it, as readers should see it',
     'editor.disclosure.saveSponsored': 'Save the paid-content label',

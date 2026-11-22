@@ -601,13 +601,16 @@ export const editorAPI = {
   scheduleArticle: (id: string, scheduledAt?: string) =>
     apiClient.put(`/editor/articles/${id}/schedule`, { scheduledAt }),
 
-  // The desk signatures on a story: what its photograph says about itself, who
-  // paid for the copy, and what the newsroom is correcting. Never the text -
-  // an edit to the words goes through the writer's own endpoint.
+  // The desk signatures on a story: what its photograph says about itself, the
+  // same two lines under each picture that follows it, who paid for the copy,
+  // and what the newsroom is correcting. Never the text - an edit to the words
+  // goes through the writer's own endpoint - and never the list of media
+  // itself, which belongs to whoever reported it.
   updateDisclosure: (id: string, input: {
     imageCredit?: string
     imageCaption?: string
     imageSourceUrl?: string
+    media?: { id?: string; index: number; caption?: string; credit?: string }[]
     isSponsored?: boolean
     sponsor?: string
     correctionNote?: string

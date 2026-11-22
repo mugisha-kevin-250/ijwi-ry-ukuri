@@ -34,6 +34,15 @@ const MAX_ITEMS = 12;
 // never name something that is not a picture.
 const OWN_IMAGE = /^\/uploads\/[a-z0-9._-]{1,120}\.(?:jpe?g|png|webp|gif)$/i;
 
+// The two lines under a picture: what it shows, and whose it is. The caption is
+// longer than a credit because a caption describes a scene, and both are the
+// same length whether they sit under the picture at the top or the fourth one
+// down the page - which is the whole reason this service exists.
+const CAPTION_MAX = 240;
+const CREDIT_MAX = 160;
+
+const LIST_REASON = 'The extra pictures and clips have to be sent as a list.';
+
 function readImage(value) {
   // The scheme is filled in before anything else reads the text, so a host typed
   // straight into the box (`apimg.example.org/a.jpg`) is treated as the https
@@ -63,7 +72,7 @@ function normalize(value) {
   if (value === undefined) return { ok: true, untouched: true, media: [] };
   if (value === null) return { ok: true, media: [] };
   if (!Array.isArray(value)) {
-    return { ok: false, reason: 'The extra pictures and clips have to be sent as a list.' };
+    return { ok: false, reason: LIST_REASON };
   }
   if (value.length > MAX_ITEMS) {
     return { ok: false, reason: `A story carries up to ${MAX_ITEMS} extra pictures or clips. Remove one and save again.` };
@@ -79,8 +88,8 @@ function normalize(value) {
     const address = String(item.url === undefined || item.url === null ? '' : item.url).trim();
     if (!address) continue;
 
-    const caption = plainText(item.caption, { maxLength: 240 });
-    const credit = plainText(item.credit, { maxLength: 160 });
+    const caption = plainText(item.caption, { maxLength: CAPTION_MAX });
+    const credit = plainText(item.credit, { maxLength: CREDIT_MAX });
 
     if (kind === 'video') {
       const read = storyVideo.resolve(address);
@@ -104,4 +113,46 @@ function normalize(value) {
   return { ok: true, media };
 }
 
-module.exports = { normalize, MAX_ITEMS, OWN_IMAGE };
+/**
+ * The desk's pass over the gallery: the two lines only, never the pictures.
+ *
+ * A reviewer who cannot see the second photograph cannot caption it, and the
+ * caption and the credit are precisely the fields the desk, and not the author,
+ * is trusted to write - the rule the lead picture already follows. So a row here
+ * is identified and then its caption and its credit are replaced; the address,
+ * the kind and the order are not read, because what a photograph shows the
+ * reader about the reporting is the reporter's claim, not house style.
+ *
+ * A row the story does not have is skipped rather than refused. The desk's form
+ * can be one save behind a colleague's edit, and throwing away the caption that
+ * was written is worse than leaving a stale row alone.
+ *
+ * @param {unknown} value `[{ id?, index?, caption?, credit? }]` from the desk.
+ * @returns {{ok: true, patches: Array<object>} | {ok: false, reason: string}}
+ */
+function disclose(value) {
+  if (!Array.isArray(value)) return { ok: false, reason: LIST_REASON };
+
+  const patches = [];
+  for (const raw of value) {
+    const item = raw && typeof raw === 'object' ? raw : {};
+    // The row's identity is what the story sent out (`_id`), and a form that
+    // round-trips it sometimes calls it `id`. Either name means the same row.
+    const id = String(item.id === undefined || item.id === null ? item._id || '' : item.id).trim();
+    const patch = {
+      id,
+      index: Number.isInteger(item.index) && item.index >= 0 ? item.index : -1
+    };
+    if (item.caption !== undefined) patch.caption = plainText(item.caption, { maxLength: CAPTION_MAX });
+    if (item.credit !== undefined) patch.credit = plainText(item.credit, { maxLength: CREDIT_MAX });
+    // A row the desk opened and typed nothing into says nothing, and saying
+    // nothing out loud is not the same as clearing what the author wrote.
+    if (patch.caption === undefined && patch.credit === undefined) continue;
+    if (!patch.id && patch.index < 0) continue;
+    patches.push(patch);
+  }
+
+  return { ok: true, patches };
+}
+
+module.exports = { normalize, disclose, MAX_ITEMS, OWN_IMAGE, CAPTION_MAX, CREDIT_MAX };

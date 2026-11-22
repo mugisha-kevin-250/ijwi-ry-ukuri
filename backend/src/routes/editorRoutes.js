@@ -6,6 +6,7 @@ const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
 const workflow = require('../services/articleWorkflow');
 const lifecycle = require('../utils/articleLifecycle');
+const storyMedia = require('../services/storyMedia');
 const commentState = require('../utils/commentState');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { plainText, cleanText, safeMediaUrl } = require('../utils/textFields');
@@ -149,10 +150,11 @@ Object.entries(DECISIONS).forEach(([verb, state]) => {
 });
 
 /**
- * The three things a story needs after it is live, all of them a desk
- * signature and none of them a rewrite of the copy:
+ * What a story needs after it is live, all of it a desk signature and none of
+ * it a rewrite of the copy:
  *
- * - what the photograph says about itself (credit, caption, source link);
+ * - what the photograph says about itself (credit, caption, source link), and
+ *   the same two lines under each of the pictures that follow it;
  * - whether an advertiser paid for it, and who did;
  * - a correction, appended with the date and the person who recorded it.
  *
@@ -200,8 +202,36 @@ router.put('/articles/:id/disclosure', async (req, res, next) => {
       article.corrections.push({ note, at: new Date(), by: req.user._id });
     }
 
+    // The same two lines, under every picture after the first. An author sends
+    // the gallery and the desk approves it, and a borrowed photograph that
+    // reaches a reader with nothing under it is the disclosure nobody checked.
+    // Only the caption and the credit are written here: the list itself, and
+    // where each row points, stay the reporter's.
+    let galleryWritten = 0;
+    if (body.media !== undefined) {
+      const gallery = storyMedia.disclose(body.media);
+      if (!gallery.ok) return errorResponse(res, 400, gallery.reason);
+      const rows = Array.isArray(article.media) ? article.media : [];
+      for (const patch of gallery.patches) {
+        // A row the desk named by its id is that row and no other. If it has
+        // gone off the story, the line was written for a picture that is not
+        // there any more, and dropping it into whatever now sits in that
+        // position would hang somebody's credit under the wrong photograph.
+        const row = patch.id
+          ? rows.find((item) => String(item._id) === patch.id)
+          : rows[patch.index];
+        if (!row) continue;
+        if (patch.caption !== undefined) row.caption = patch.caption;
+        if (patch.credit !== undefined) row.credit = patch.credit;
+        galleryWritten += 1;
+      }
+      // A subdocument list is not watched the way a scalar field is, so say that
+      // something inside it moved or the save quietly writes nothing at all.
+      if (galleryWritten) article.markModified('media');
+    }
+
     Object.assign(article, changes);
-    if (!Object.keys(changes).length && !note) {
+    if (!Object.keys(changes).length && !note && !galleryWritten) {
       return errorResponse(res, 400, 'Nothing to record - write a caption, a sponsor or a correction');
     }
     article.updatedAt = new Date();

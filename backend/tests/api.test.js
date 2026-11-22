@@ -823,3 +823,71 @@ test('staff mark a message answered and only the owner can delete it', async () 
     .set('Authorization', `Bearer ${ownerToken}`);
   assert.equal(ownerDelete.status, 200);
 });
+
+test('the desk writes the lines under a gallery picture, not the picture', async () => {
+  const categoryResponse = await request(app).get('/api/categories');
+  const categoryId = categoryResponse.body.data.categories[0]._id;
+
+  const created = await request(app)
+    .post('/api/writers/articles')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      title: 'Two rooms and a statement',
+      summary: 'A visit that was photographed twice and filmed once.',
+      content: 'The reporting carries more than the picture at the top of it.',
+      category: categoryId,
+      media: [
+        { kind: 'image', url: '/uploads/second-room.jpg' },
+        { kind: 'video', url: 'https://www.youtube.com/watch?v=abcdef12345' }
+      ]
+    });
+
+  assert.equal(created.status, 201);
+  const storyId = created.body.data.article._id;
+  const rows = created.body.data.article.media;
+  assert.equal(rows.length, 2);
+
+  const saved = await request(app)
+    .put(`/api/editor/articles/${storyId}/disclosure`)
+    .set('Authorization', `Bearer ${editorToken}`)
+    .send({
+      media: [
+        { id: rows[0]._id, index: 0, caption: 'The kitchen after the fire', credit: 'Photo by Innocent Habimana' },
+        // A row the desk only had a word for keeps the line it was not given.
+        { id: rows[1]._id, index: 1, credit: 'Filmed outside the ministry' },
+        // A row that is not on this story, and a whole extra one, are skipped:
+        // the desk's form can be one save behind somebody else's edit.
+        { id: '000000000000000000000000', index: 0, caption: 'A picture nobody attached' },
+        { index: 9, caption: 'Off the end of the list' }
+      ]
+    });
+
+  assert.equal(saved.status, 200);
+  const written = saved.body.data.article.media;
+  assert.equal(written.length, 2, 'the desk cannot add a picture to a story it did not file');
+  assert.equal(written[0].caption, 'The kitchen after the fire');
+  assert.equal(written[0].credit, 'Photo by Innocent Habimana');
+  assert.equal(written[0].url, '/uploads/second-room.jpg', 'which photograph the story carries is not a desk decision');
+  assert.equal(written[1].caption, '');
+  assert.equal(written[1].credit, 'Filmed outside the ministry');
+  assert.ok(String(written[1].embedUrl || '').includes('youtube'), 'the embed stays whatever the server wrote');
+
+  // The same door refuses to be used as an editor: an address the desk sends is
+  // not read at all, so a story cannot be pointed somewhere else from review.
+  const redirected = await request(app)
+    .put(`/api/editor/articles/${storyId}/disclosure`)
+    .set('Authorization', `Bearer ${editorToken}`)
+    .send({ media: [{ index: 0, url: 'http://169.254.169.254/latest/meta-data', kind: 'video', caption: 'Rewritten' }] });
+
+  assert.equal(redirected.status, 200);
+  assert.equal(redirected.body.data.article.media[0].caption, 'Rewritten');
+  assert.equal(redirected.body.data.article.media[0].url, '/uploads/second-room.jpg');
+  assert.equal(redirected.body.data.article.media[0].kind, 'image');
+
+  // And a writer has no desk signature to write.
+  const notStaff = await request(app)
+    .put(`/api/editor/articles/${storyId}/disclosure`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ media: [{ index: 0, credit: 'Written by the author' }] });
+  assert.equal(notStaff.status, 403);
+});

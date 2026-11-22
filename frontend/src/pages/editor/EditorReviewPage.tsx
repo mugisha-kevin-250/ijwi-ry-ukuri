@@ -5,6 +5,8 @@ import { editorAPI, type StoryState } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import Avatar from '../../components/common/Avatar'
 import MediaImage from '../../components/common/MediaImage'
+import StoryVideo from '../../components/common/StoryVideo'
+import type { StoryMedia } from '../../types'
 import { useAuth } from '../../context/AuthContext'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
 import { looksLikeHtml, splitParagraphs } from '../../utils/storyBody'
@@ -38,11 +40,13 @@ export default function EditorReviewPage() {
   const [busy, setBusy] = useState('')
   const [note, setNote] = useState('')
 
-  // The three things the desk can say about a story without rewriting it: what
-  // its photograph shows and whose it is, whether anyone paid for it, and what
-  // we are correcting. They are held apart from `note`, which is a private
-  // comment to the writer and is never published.
+  // What the desk can say about a story without rewriting it: what its
+  // photograph shows and whose it is, the same two lines under every picture
+  // that follows it, whether anyone paid for it, and what we are correcting.
+  // They are held apart from `note`, which is a private comment to the writer
+  // and is never published.
   const [photo, setPhoto] = useState({ imageCredit: '', imageCaption: '' })
+  const [gallery, setGallery] = useState<StoryMedia[]>([])
   const [paid, setPaid] = useState({ isSponsored: false, sponsor: '' })
   const [correction, setCorrection] = useState('')
   const [disclosureBusy, setDisclosureBusy] = useState('')
@@ -71,7 +75,11 @@ export default function EditorReviewPage() {
     }
   }
 
-  const saveDisclosure = async (patch: Record<string, string | boolean>, label: string) => {
+  // Whatever the disclosure box can send is described by the client itself, so
+  // a new signature the desk is allowed to write needs one edit and not two.
+  type DisclosurePatch = NonNullable<Parameters<typeof editorAPI.updateDisclosure>[1]>
+
+  const saveDisclosure = async (patch: DisclosurePatch, label: string) => {
     setDisclosureBusy(label)
     setDisclosureError('')
     try {
@@ -97,6 +105,7 @@ export default function EditorReviewPage() {
       if (!story) throw new Error('missing')
       setArticle(story)
       setPhoto({ imageCredit: story.imageCredit || '', imageCaption: story.imageCaption || '' })
+      setGallery(Array.isArray(story.media) ? story.media : [])
       setPaid({ isSponsored: story.isSponsored === true, sponsor: story.sponsor || '' })
       setNextStates((storyRes.data.data as any)?.nextStates || [])
       setEvents((historyRes.data.data as any)?.events || [])
@@ -365,6 +374,81 @@ export default function EditorReviewPage() {
             {t('editor.disclosure.savePhoto')}
           </button>
         </div>
+
+        {/* The rest of what the story carries. A second photograph is approved
+            on the same desk as the first, and the line under it is the
+            disclosure that gets forgotten most often, because the person who
+            took it is usually not the person who filed the copy. The preview
+            sits next to each pair of inputs rather than further up the page so
+            the desk is writing about the picture it is looking at, and the
+            server takes the same two lines and nothing else: which photograph
+            is here, and where it points, stay the reporter's answer. */}
+        {gallery.length > 0 && (
+          <div className="mt-5 space-y-3 border-t border-slate-100 pt-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              {t('editor.disclosure.gallery')}
+            </p>
+            <p className="text-xs text-slate-500">{t('editor.disclosure.galleryHint')}</p>
+
+            {gallery.map((item, index) => (
+              <div key={item._id || `${item.kind}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="w-full max-w-[240px] shrink-0 overflow-hidden rounded-lg bg-white">
+                    {item.kind === 'video' ? (
+                      <StoryVideo
+                        source={item.source}
+                        embedUrl={item.embedUrl}
+                        videoUrl={item.url}
+                        title={item.caption || article?.title || ''}
+                      />
+                    ) : (
+                      <MediaImage src={item.url} alt="" className="aspect-video w-full object-cover" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <input
+                      value={item.caption || ''}
+                      onChange={(event) => setGallery((current) => current.map((row, position) => (
+                        position === index ? { ...row, caption: event.target.value } : row
+                      )))}
+                      maxLength={240}
+                      placeholder={t('editor.disclosure.captionHint')}
+                      aria-label={`${t('editor.disclosure.caption')} ${index + 1}`}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <input
+                      value={item.credit || ''}
+                      onChange={(event) => setGallery((current) => current.map((row, position) => (
+                        position === index ? { ...row, credit: event.target.value } : row
+                      )))}
+                      maxLength={160}
+                      placeholder={t('editor.disclosure.creditHint')}
+                      aria-label={`${t('editor.disclosure.credit')} ${index + 1}`}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => void saveDisclosure({
+                media: gallery.map((item, index) => ({
+                  id: item._id,
+                  index,
+                  caption: item.caption || '',
+                  credit: item.credit || '',
+                })),
+              }, 'gallery')}
+              disabled={disclosureBusy !== ''}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Check className="h-3.5 w-3.5" />
+              {t('editor.disclosure.saveGallery')}
+            </button>
+          </div>
+        )}
 
         <div className="mt-5 space-y-2 border-t border-slate-100 pt-4">
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">

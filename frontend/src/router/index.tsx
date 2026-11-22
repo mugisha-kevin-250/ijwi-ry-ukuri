@@ -63,6 +63,7 @@ const AdminAdsPage = lazy(() => import('../pages/admin/AdminAdsPage'))
 const AdminCategoriesPage = lazy(() => import('../pages/admin/AdminCategoriesPage'))
 const AdminLoginPage = lazy(() => import('../pages/admin/AdminLoginPage'))
 const AdminMailPage = lazy(() => import('../pages/admin/AdminMailPage'))
+const AdminSchedulerPage = lazy(() => import('../pages/admin/AdminSchedulerPage'))
 const AdminMessagesPage = lazy(() => import('../pages/admin/AdminMessagesPage'))
 const AdminPayoutsPage = lazy(() => import('../pages/admin/AdminPayoutsPage'))
 const AdminSettingsPage = lazy(() => import('../pages/admin/AdminSettingsPage'))
@@ -150,6 +151,7 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/mugishaimekevin/payouts', load: () => import('../pages/admin/AdminPayoutsPage') },
   { path: '/mugishaimekevin/messages', load: () => import('../pages/admin/AdminMessagesPage') },
   { path: '/mugishaimekevin/mail', load: () => import('../pages/admin/AdminMailPage') },
+  { path: '/mugishaimekevin/scheduler', load: () => import('../pages/admin/AdminSchedulerPage') },
   { path: '/mugishaimekevin/categories', load: () => import('../pages/admin/AdminCategoriesPage') },
   { path: '/mugishaimekevin/advertising', load: () => import('../pages/admin/AdminAdsPage') },
   { path: '/mugishaimekevin/settings', load: () => import('../pages/admin/AdminSettingsPage') },
@@ -408,6 +410,9 @@ export const router = createBrowserRouter([
           // The relay that mails codes, confirmations and alerts is a separate
           // question from the messages readers send us, so it has its own desk.
           { path: 'mail', element: <RequireAdmin><AdminMailPage /></RequireAdmin> },
+          // What the clock did on its own, and the way to finish a job a failed
+          // minute left half-done. Owner-only, like the mail desk it sits beside.
+          { path: 'scheduler', element: <RequireAdmin><AdminSchedulerPage /></RequireAdmin> },
           // The desk that owns the sections. It used to point at the reader's
           // /categories page, which shows what exists but lets nobody change it.
           { path: 'categories', element: <RequireAdmin><AdminCategoriesPage /></RequireAdmin> },

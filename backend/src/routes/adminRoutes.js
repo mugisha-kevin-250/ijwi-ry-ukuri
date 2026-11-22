@@ -21,6 +21,8 @@ const storyVideo = require('../services/storyVideo');
 const storyMedia = require('../services/storyMedia');
 const trendService = require('../services/trendService');
 const mailer = require('../services/mailerService');
+const scheduler = require('../jobs/scheduler');
+const schedulerLog = require('../services/schedulerLog');
 const generateSlug = require('../utils/generateSlug');
 const lifecycle = require('../utils/articleLifecycle');
 const workflow = require('../services/articleWorkflow');
@@ -1079,5 +1081,83 @@ router.post('/mail/test', authorize('ADMIN'), async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * The scheduler's own desk: what the clock did, and a way to finish a job a
+ * failed minute left half-done.
+ *
+ * Reading the runs is ADMIN-only for the same reason the mail diagnostics are:
+ * the rows say when the newsroom's work happened, and an editor's queue already
+ * shows that from the stories themselves. Pressing a job is the part worth
+ * stating out loud, because the whole design is that a machine never publishes
+ * what a human has not approved - so the button runs `publish` over stories
+ * that are already approved and timed, and nothing else.
+ *
+ * Only the jobs marked `manual` may be pressed. The weekly ledger is refused
+ * by the same rule that keeps it out of the list of buttons, and the refusal
+ * says so rather than returning an empty success.
+ */
+const RUN_COOLDOWN_MS = 15 * 1000;
+const lastRunAt = new Map();
+
+router.get('/scheduler/runs', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const desk = await schedulerLog.desk(req.query.limit);
+    // The desk is only as honest as the job list it was built from: which
+    // schedules exist, what each is for, and which of them may be pressed.
+    const jobs = Object.entries(scheduler.JOBS).map(([name, job]) => ({
+      name,
+      every: job.every,
+      summary: job.summary,
+      manual: job.manual === true,
+      last: desk.latest[name] ? {
+        status: desk.latest[name].status,
+        at: desk.latest[name].createdAt,
+        ms: desk.latest[name].ms,
+        did: desk.latest[name].did,
+        error: desk.latest[name].error,
+      } : null,
+    }));
+    return successResponse(res, 200, 'Scheduled work', { ...desk, jobs });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/scheduler/run/:job', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const name = String(req.params.job || '').toLowerCase();
+    const job = scheduler.JOBS[name];
+    if (!job) return errorResponse(res, 404, 'There is no scheduled job with that name');
+    if (!job.manual) {
+      return errorResponse(res, 409, `${name} closes a week and fills the payout queue. It runs on its own on Monday and is not a button.`);
+    }
+
+    // One press per job every fifteen seconds: the point is to recover a run,
+    // not to give a bored operator a way to ask the sports feed the same
+    // question forty times in a minute.
+    const key = `${req.user._id}:${name}`;
+    const since = lastRunAt.get(key) || 0;
+    if (Date.now() - since < RUN_COOLDOWN_MS) {
+      const wait = Math.ceil((RUN_COOLDOWN_MS - (Date.now() - since)) / 1000);
+      return errorResponse(res, 429, `${name} was pressed a moment ago. Try again in ${wait}s.`);
+    }
+    lastRunAt.set(key, Date.now());
+
+    // A pass that is still going is reported, not queued behind: the answer the
+    // operator needs is "it is running now", not a second one starting under it.
+    const result = await scheduler.runJob(name, { trigger: 'admin' });
+    if (result.status === 'failed') {
+      return errorResponse(res, 500, result.error);
+    }
+    if (result.status === 'skipped') {
+      return errorResponse(res, 409, `That job is still running from its last turn: ${result.reason}.`);
+    }
+    return successResponse(res, 200, `${name} ran`, result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 module.exports = router;

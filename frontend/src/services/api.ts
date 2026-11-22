@@ -903,6 +903,49 @@ export interface MailTestResult {
   reason: string
 }
 
+/**
+ * One turn of the clock's own work, as `SchedulerRun` stores it.
+ *
+ * `did` is whatever counts the job reported - `{ published: 2 }`, `{ refreshed:
+ * 4, failed: 1 }` - and is printed as pairs rather than as an object dump, so a
+ * desk that is open on screen shows numbers and not internal shapes.
+ */
+export interface SchedulerJobStatus {
+  name: string
+  /** The cron line the job is registered on, shown as it is written. */
+  every: string
+  summary: string
+  manual: boolean
+  last: SchedulerRunRecord | null
+}
+
+export interface SchedulerRunRecord {
+  status: 'ok' | 'failed' | 'skipped' | string
+  at: string
+  ms: number | null
+  did: Record<string, number | boolean | string> | null
+  error: string | null
+}
+
+export interface SchedulerDesk {
+  jobs: SchedulerJobStatus[]
+  runs: {
+    job: string
+    status: string
+    trigger: string
+    createdAt: string
+    ms: number | null
+    did: Record<string, number | boolean | string> | null
+    error: string | null
+  }[]
+  failuresToday: number
+  stored: number
+  /** Whether this process is the one that wakes for the clock at all. */
+  running: boolean
+  timezone: string
+  keepDays: number
+}
+
 export const adminAPI = {
   getDashboard: () =>
     apiClient.get<AdminDashboardStats>('/admin/dashboard'),
@@ -1246,6 +1289,50 @@ export const adminAPI = {
     } catch (error: any) {
       const body = error?.response?.data as { data?: Record<string, unknown>; message?: string } | undefined
       if (body && (body.data || body.message)) return read(body)
+      throw error
+    }
+  },
+
+  getSchedulerDesk: async (): Promise<SchedulerDesk> => {
+    const response = await apiClient.get('/admin/scheduler/runs')
+    const payload = response.data.data as Partial<SchedulerDesk> | null
+    return {
+      jobs: Array.isArray(payload?.jobs) ? payload.jobs : [],
+      runs: Array.isArray(payload?.runs) ? payload.runs : [],
+      failuresToday: Number(payload?.failuresToday ?? 0),
+      stored: Number(payload?.stored ?? 0),
+      running: payload?.running === true,
+      timezone: String(payload?.timezone || ''),
+      keepDays: Number(payload?.keepDays ?? 14),
+    }
+  },
+
+  /**
+   * Press one scheduled job and report what it said, without throwing.
+   *
+   * Every answer here is a sentence an operator needs to read rather than catch:
+   * the cooldown ("publish was pressed a moment ago"), the overlap ("that job is
+   * still running"), and the refusal for the weekly ledger all come back with a
+   * status that an interceptor would otherwise flatten into "Request failed
+   * with status code 429". So the body is read on both paths and only a failure
+   * with no message in it is rethrown.
+   */
+  runSchedulerJob: async (
+    job: string,
+  ): Promise<{ ok: boolean; message: string; did: Record<string, number | boolean | string> | null }> => {
+    const read = (payload?: { message?: string; data?: Record<string, unknown> }) => {
+      const did = payload?.data?.did
+      return {
+        ok: true,
+        message: String(payload?.message || `${job} ran`),
+        did: (did && typeof did === 'object' ? did : null) as Record<string, number | boolean | string> | null,
+      }
+    }
+    try {
+      return read((await apiClient.post<Record<string, unknown>>(`/admin/scheduler/run/${job}`)).data)
+    } catch (error: any) {
+      const body = error?.response?.data as { message?: string } | undefined
+      if (body?.message) return { ok: false, message: body.message, did: null }
       throw error
     }
   },

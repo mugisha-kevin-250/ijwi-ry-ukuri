@@ -4,6 +4,7 @@ const workflow = require('../services/articleWorkflow');
 const rewardService = require('../services/rewardService');
 const radioService = require('../services/radioService');
 const liveScoreService = require('../services/liveScoreService');
+const schedulerLog = require('../services/schedulerLog');
 const breakingNews = require('../utils/breakingNews');
 const env = require('../config/env');
 
@@ -22,19 +23,22 @@ async function publishDueStories() {
   }).limit(100);
 
   let published = 0;
+  let held = 0;
   for (const article of due) {
     const result = await workflow.moveStory({ article, to: 'published', by: null });
     // The story stays approved and is tried again next run rather than being
-    // forced through a rule that refuses it.
+    // forced through a rule that refuses it. `held` is what the desk then shows
+    // as "2 due, 1 refused" instead of a silent queue that never empties.
     if (result.error) {
       console.warn(`Scheduled story ${article._id} stayed in review: ${result.error}`);
+      held += 1;
       continue;
     }
     article.scheduledAt = null;
     await article.save();
     published += 1;
   }
-  return published;
+  return { published, held };
 }
 
 // Monday just after midnight, in the server's own zone: last week is closed, so
@@ -42,7 +46,91 @@ async function publishDueStories() {
 async function runWeeklyPay() {
   const stats = await rewardService.generateWeeklyStats();
   await rewardService.createPayoutForEligibleEarnings();
-  return stats;
+  return { writers: stats.writers };
+}
+
+/**
+ * The clock's jobs, named the way the desk names them.
+ *
+ * Each one returns the small counts that go into the run log, so the line the
+ * admin reads is the same sentence the process printed. `manual` is the part
+ * that matters for the "run it now" button: publishing, the breaking expiry,
+ * the radio bulletin and the scores pass are all idempotent - pressing them
+ * twice costs one extra feed call and changes nothing a second time - while the
+ * weekly ledger closes a week and hands out payouts, so a mid-week press is an
+ * operator error waiting to happen and is refused rather than offered.
+ */
+const JOBS = {
+  publish: {
+    manual: true,
+    every: '*/5 * * * *',
+    summary: 'Stories the desk timed for a minute that has now gone.',
+    run: () => publishDueStories(),
+  },
+  breaking: {
+    manual: true,
+    every: '*/5 * * * *',
+    summary: 'Take the breaking label off the stories that have aged out.',
+    run: async () => ({ expired: await breakingNews.expireStale({ Article, now: new Date() }) }),
+  },
+  radio: {
+    manual: true,
+    every: '* * * * *',
+    summary: 'Assemble the bulletin whose slot has arrived.',
+    run: async () => {
+      const aired = await radioService.airDueBulletin();
+      if (!aired) return {};
+      return { stories: aired.stories, slot: String(aired.slotName || '').slice(0, 40) };
+    },
+  },
+  scores: {
+    manual: true,
+    every: '* * * * *',
+    summary: 'Re-read the competitions and matches readers have open.',
+    run: async () => {
+      const pass = await liveScoreService.refreshWatched({ now: new Date() });
+      return { refreshed: pass.refreshed, failed: pass.failed, watched: pass.watched };
+    },
+  },
+  'weekly-pay': {
+    manual: false,
+    every: '10 0 * * 1',
+    summary: 'Close last week and fill the payout queue. Not a manual job.',
+    run: () => runWeeklyPay(),
+  },
+};
+
+// A job that is still going when its next tick arrives must not be started
+// twice. Both the cron and the admin's button come through here, so the lock
+// that the scores pass used to keep for itself is now the whole scheduler's,
+// and a press that lands mid-run says so instead of doubling the feed calls.
+const inFlight = new Set();
+
+/**
+ * Run one named job, timed and written down.
+ *
+ * Returns `{ status, did }` or `{ status: 'failed', error }` - never throws,
+ * because the caller is usually a clock tick and an unhandled rejection inside
+ * one is how a healthy service gets restarted over a bad minute.
+ */
+async function runJob(name, { trigger = 'cron' } = {}) {
+  const job = JOBS[name];
+  if (!job) return { status: 'unknown', error: `There is no scheduled job called ${name}` };
+
+  if (inFlight.has(name)) {
+    return schedulerLog.skipped({
+      job: name,
+      trigger,
+      reason: 'the previous pass has not finished',
+    });
+  }
+
+  inFlight.add(name);
+  try {
+    return await schedulerLog.track({ job: name, trigger, fn: job.run });
+  } finally {
+    inFlight.delete(name);
+  }
 }
 
 function startScheduler() {
@@ -53,77 +141,15 @@ function startScheduler() {
 
   const options = { timezone: env.SCHEDULER_TZ };
 
-  cron.schedule('*/5 * * * *', async () => {
-    try {
-      const published = await publishDueStories();
-      if (published) console.log(`Published ${published} story/stories that were due.`);
-    } catch (error) {
-      console.error('Scheduled publishing run failed:', error?.message || error);
-    }
-    // A breaking story is an emergency that has to be able to end. Nothing else
-    // ever takes the label back off, so without this the site fills with red
-    // flags from last month and the desk has no honest count to work from.
-    try {
-      const expired = await breakingNews.expireStale({ Article, now: new Date() });
-      if (expired) console.log(`Took the breaking label off ${expired} stor${expired === 1 ? 'y' : 'ies'} that aged out.`);
-    } catch (error) {
-      console.error('Breaking news expiry run failed:', error?.message || error);
-    }
-  }, options);
+  // One schedule per job, all of them through `runJob`, so a job cannot be
+  // registered with a cron line and forgotten from the desk - or run by a cron
+  // line whose outcome nobody records.
+  for (const [name, job] of Object.entries(JOBS)) {
+    cron.schedule(job.every, () => runJob(name), options);
+  }
 
-  // The bulletin a reader hears is assembled the first time someone asks for it,
-  // so this is not what makes the radio work - it is what makes it work *promptly*.
-  // Without it the reader who arrives one minute after the six o'clock has to wait
-  // for a model call while the page sits there, and on a free host that sleeps
-  // between visits, that reader is the only thing that ever wakes it.
-  cron.schedule('* * * * *', async () => {
-    try {
-      const aired = await radioService.airDueBulletin();
-      if (aired) {
-        console.log(`Radio: ${aired.slotName} ${aired.occurrence} assembled with ${aired.stories} stor${aired.stories === 1 ? 'y' : 'ies'} (${aired.scriptSource}).`);
-      }
-    } catch (error) {
-      console.error('Radio bulletin run failed:', error?.message || error);
-    }
-  }, options);
-
-  cron.schedule('10 0 * * 1', async () => {
-    try {
-      const week = await runWeeklyPay();
-      console.log(`Computed pay for week starting ${week.weekStart.toISOString()} across ${week.writers} writer(s).`);
-    } catch (error) {
-      console.error('Weekly pay run failed:', error?.message || error);
-    }
-  }, options);
-
-  // The scores page is warm, not pushed: one pass a minute re-fetches the
-  // leagues and matches readers actually have open, and every reader in the
-  // world is then served from this database. This is the only place the sports
-  // feed is asked for on a schedule, which is what keeps a free instance and a
-  // free public feed compatible - but it also means a slow minute must not
-  // become two minutes of overlapping work, so the pass refuses to start if the
-  // last one is still going.
-  let scorePassRunning = false;
-  cron.schedule('* * * * *', async () => {
-    if (scorePassRunning) {
-      console.warn('Live score pass skipped: the previous pass is still running.');
-      return;
-    }
-    scorePassRunning = true;
-    try {
-      const pass = await liveScoreService.refreshWatched({ now: new Date() });
-      if (pass.refreshed || pass.failed) {
-        console.log(`Live scores: refreshed ${pass.refreshed}, failed ${pass.failed}, watching ${pass.watched}.`);
-      }
-    } catch (error) {
-      console.error('Live score run failed:', error?.message || error);
-    } finally {
-      scorePassRunning = false;
-    }
-  }, options);
-
-  console.log('Scheduler started: story publishing every 5 minutes, the radio bulletin and the live scores on the minute, weekly pay on Mondays.');
-  return { publishDueStories, runWeeklyPay, airDueBulletin: radioService.airDueBulletin, refreshWatched: liveScoreService.refreshWatched };
+  console.log('Scheduler started: story publishing and the breaking expiry every 5 minutes, the radio bulletin and the live scores on the minute, weekly pay on Mondays.');
+  return { runJob, JOBS };
 }
 
-module.exports = { startScheduler, publishDueStories, runWeeklyPay };
+module.exports = { startScheduler, runJob, publishDueStories, runWeeklyPay, JOBS };

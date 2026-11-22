@@ -69,6 +69,9 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     { href: '/mugishaimekevin/payouts', label: t('nav.admin.payouts') },
     { href: '/mugishaimekevin/messages', label: t('nav.admin.messages') },
     { href: '/mugishaimekevin/mail', label: t('nav.admin.mail') },
+    // The clock's own desk: what ran on its own, and the way to finish a job a
+    // failed minute left half-done.
+    { href: '/mugishaimekevin/scheduler', label: t('nav.admin.scheduler') },
     // The section desk, not the reader's category index: an admin clicking here
     // is here to change the sections, not to browse them.
     { href: '/mugishaimekevin/categories', label: t('nav.admin.categories') },

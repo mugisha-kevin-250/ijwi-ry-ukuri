@@ -537,6 +537,7 @@ const translations: Record<string, Translations> = {
     'nav.admin.payouts': 'Payouts',
     'nav.admin.messages': 'Reader messages',
     'nav.admin.mail': 'Mail desk',
+    'nav.admin.scheduler': 'Scheduler desk',
     'nav.admin.categories': 'Categories',
     'nav.admin.advertising': 'Advertising',
     'nav.admin.news': 'Top stories',

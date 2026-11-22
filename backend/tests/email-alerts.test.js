@@ -6,6 +6,8 @@ process.env.SMTP_HOST = '';
 process.env.SMTP_PORT = '';
 process.env.SMTP_USER = '';
 process.env.SMTP_PASSWORD = '';
+process.env.MAILJET_API_KEY = '';
+process.env.MAILJET_SECRET = '';
 process.env.MAIL_FROM_EMAIL = '';
 process.env.MAIL_FROM_NAME = '';
 
@@ -41,6 +43,30 @@ test.mock.method(nodemailer, 'createTransport', () => ({
     return { messageId: 'stubbed' };
   },
 }));
+
+// The send API is the other door a mail can leave by, and it must not be opened
+// at a real provider from a test run either. So `fetch` is a recorder: what it
+// was asked for, and either a reply, or the network error the whole fallback
+// exists for.
+let apiCalls = [];
+let apiAnswer = null;
+let apiFailure = null;
+test.mock.method(globalThis, 'fetch', async (url, init) => {
+  apiCalls.push({ url, init });
+  if (apiFailure) throw apiFailure;
+  const status = apiAnswer?.status ?? 200;
+  const body = apiAnswer?.body ?? JSON.stringify({ Messages: [{ Status: 'success', MessageID: 777001 }] });
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => body,
+  };
+});
+
+function fakeApiKeys() {
+  env.MAILJET_API_KEY = 'test-api-key';
+  env.MAILJET_SECRET = 'test-api-secret';
+}
 
 function fakeConfigured() {
   env.SMTP_HOST = 'smtp.invalid.test';
@@ -336,13 +362,110 @@ test('the mail desk answers without the SMTP config instead of pretending', asyn
   assert.match(attempt.reason, /not configured/, 'a test press on an unconfigured server says so, and mails nothing');
 });
 
+test('a mail leaves over the send API when the account carries its pair', async () => {
+  fakeConfigured();
+  fakeApiKeys();
+  apiCalls = [];
+  const before = outbox.length;
+
+  const result = await mailer.send({
+    to: 'api@example.com', subject: 'Confirm your news alerts', text: 'code 123456', html: '<p>hi</p>', purpose: 'newsletter-confirm',
+  });
+
+  assert.equal(result.delivered, true);
+  assert.equal(apiCalls.length, 1, 'the API answered, so the mail is not sent twice');
+  assert.equal(outbox.length, before, 'and the SMTP transport never saw it');
+
+  const call = apiCalls[0];
+  assert.equal(call.url, 'https://api.mailjet.com/v3.1/send');
+  const message = JSON.parse(call.init.body).Messages[0];
+  assert.equal(message.To[0].Email, 'api@example.com');
+  assert.equal(message.From.Email, 'news@example.org');
+  assert.equal(message.Subject, 'Confirm your news alerts');
+  assert.equal(message.TextPart, 'code 123456');
+  assert.equal(message.HTMLPart, '<p>hi</p>', 'the HTML part travels as itself');
+
+  const row = await MailAttempt.findOne({ purpose: 'newsletter-confirm' }).sort({ createdAt: -1 }).lean();
+  assert.equal(row.via, 'mailjet-api', 'the desk can say which door it went out of');
+  assert.equal(row.outcome, 'sent');
+  const stored = JSON.stringify(row);
+  // The pair becomes one Authorization header and is never written anywhere:
+  // not into the log row, and not into the base64 form either, which is the
+  // shape that would leak quietly from a stored request dump.
+  assert.ok(!stored.includes('test-api-key'), 'the api key is not stored');
+  assert.ok(!stored.includes('test-api-secret'), 'the api secret is not stored');
+  assert.ok(!stored.includes(Buffer.from('test-api-key:test-api-secret', 'utf8').toString('base64')), 'nor is the login pair');
+  assert.match(call.init.headers.Authorization, /^Basic /, 'and it travels only as one request header');
+
+  const diagnostics = await mailer.diagnostics();
+  assert.equal(diagnostics.via, 'mailjet-api');
+  assert.equal(diagnostics.keys.MAILJET_API_KEY, true);
+  assert.match(diagnostics.host, /api\.mailjet\.com/, 'the host line names the door in use');
+});
+
+test('a refusal from the send API is final, in the provider\'s own words', async () => {
+  fakeConfigured();
+  fakeApiKeys();
+  apiAnswer = { status: 401, body: JSON.stringify({ StatusCode: 401, ErrorMessage: 'API key authentication/authorization failure', ErrorInfo: '' }) };
+  apiCalls = [];
+  const before = outbox.length;
+
+  const result = await mailer.send({ to: 'api@example.com', subject: 'Your sign-in code', text: 'y', purpose: 'signin-code' });
+
+  assert.equal(result.delivered, false);
+  assert.match(result.reason, /HTTP 401/);
+  assert.match(result.reason, /authentication\/authorization failure/);
+  assert.equal(outbox.length, before, 'a key the provider does not know is not retried over SMTP with the same key');
+  assert.equal(apiCalls.length, 1);
+
+  const row = await MailAttempt.findOne({ purpose: 'signin-code' }).sort({ createdAt: -1 }).lean();
+  assert.equal(row.outcome, 'rejected');
+  assert.equal(row.via, 'mailjet-api');
+  assert.ok(!JSON.stringify(row).includes('test-api-secret'), 'the sentence names the failure, not the credential');
+
+  apiAnswer = null;
+});
+
+test('a send API that never answers falls back to the relay, and says so', async () => {
+  fakeConfigured();
+  fakeApiKeys();
+  apiFailure = new TypeError('fetch failed');
+  apiCalls = [];
+  const before = outbox.length;
+
+  const result = await mailer.send({ to: 'fell@example.com', subject: 'A story', text: 'y', purpose: 'story-alert' });
+
+  assert.equal(result.delivered, true, 'the mail still goes out by the door that works');
+  assert.equal(outbox.length, before + 1);
+  assert.equal(apiCalls.length, 1, 'the API was tried once, not retried into a stall');
+
+  const row = await MailAttempt.findOne({ purpose: 'story-alert' }).sort({ createdAt: -1 }).lean();
+  assert.equal(row.via, 'smtp');
+  assert.match(row.reason, /the SMTP relay was tried instead/, 'and the one line carries both halves of the story');
+
+  apiFailure = null;
+});
+
+test('the desk names the SMTP door when no api pair is set', async () => {
+  fakeConfigured();
+  const diagnostics = await mailer.diagnostics();
+  assert.equal(diagnostics.via, 'smtp');
+  assert.equal(diagnostics.keys.MAILJET_API_KEY, false);
+  assert.match(diagnostics.host, /^smtp\.invalid\.test:587/, 'the relay address is what the desk shows');
+});
+
 test.afterEach(() => {
   // Back to the honest off state, so no later test can mail anything even by
-  // accident, and the stubbed transport is never pointed at a real host.
+  // accident, and neither stub is pointed at a real host.
   env.SMTP_HOST = '';
   env.SMTP_PORT = 587;
   env.MAIL_FROM_EMAIL = '';
+  env.MAILJET_API_KEY = '';
+  env.MAILJET_SECRET = '';
   mailDelayMs = 0;
   sendFailure = null;
+  apiAnswer = null;
+  apiFailure = null;
+  apiCalls = [];
   env.MAIL_ANSWER_BUDGET_MS = 3000;
 });

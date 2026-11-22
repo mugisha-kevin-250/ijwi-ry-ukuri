@@ -874,6 +874,8 @@ export interface MailAttemptRecord {
   outcome: string
   reason: string | null
   messageId: string | null
+  /** Which door it went out of: 'mailjet-api', 'smtp', or null when the row predates the split. */
+  via: string | null
   ms: number | null
 }
 
@@ -883,12 +885,16 @@ export interface MailDeskStatus {
   from: string
   reason: string
   warning: string
+  /** The path this server mails through right now, as the server reads its own environment. */
+  via: string
   keys: {
     SMTP_HOST: boolean
     SMTP_PORT: boolean
     SMTP_USER: boolean
     SMTP_PASSWORD: boolean
     MAIL_FROM_EMAIL: boolean
+    MAILJET_API_KEY?: boolean
+    MAILJET_SECRET?: boolean
   }
   last24Hours: { delivered: number; refused: number }
   last: MailAttemptRecord[]
@@ -900,6 +906,8 @@ export interface MailTestResult {
   configured: boolean
   from: string
   host: string
+  /** The door the test mail actually used, reported by the send itself. */
+  via: string
   reason: string
 }
 
@@ -1248,12 +1256,15 @@ export const adminAPI = {
       from: String(payload?.from || ''),
       reason: String(payload?.reason || ''),
       warning: String(payload?.warning || ''),
+      via: String(payload?.via || 'smtp'),
       keys: {
         SMTP_HOST: payload?.keys?.SMTP_HOST === true,
         SMTP_PORT: payload?.keys?.SMTP_PORT === true,
         SMTP_USER: payload?.keys?.SMTP_USER === true,
         SMTP_PASSWORD: payload?.keys?.SMTP_PASSWORD === true,
         MAIL_FROM_EMAIL: payload?.keys?.MAIL_FROM_EMAIL === true,
+        MAILJET_API_KEY: payload?.keys?.MAILJET_API_KEY === true,
+        MAILJET_SECRET: payload?.keys?.MAILJET_SECRET === true,
       },
       last24Hours: {
         delivered: Number(payload?.last24Hours?.delivered ?? 0),
@@ -1281,6 +1292,7 @@ export const adminAPI = {
         configured: data.configured === true,
         from: typeof data.from === 'string' ? data.from : '',
         host: typeof data.host === 'string' ? data.host : '',
+        via: typeof data.via === 'string' ? data.via : 'smtp',
         reason: reason || String(payload?.message || ''),
       }
     }

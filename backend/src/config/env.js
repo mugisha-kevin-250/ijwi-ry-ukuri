@@ -76,6 +76,14 @@ module.exports = {
   SMTP_SECURE: process.env.SMTP_SECURE === 'true',
   SMTP_USER: process.env.SMTP_USER || '',
   SMTP_PASSWORD: process.env.SMTP_PASSWORD || process.env.SMTP_PASS || '',
+  // Mailjet's transactional send API, which logs in with the same API-key and
+  // secret pair its SMTP relay does - so these two names are optional. When
+  // they are set (or when SMTP_HOST says mailjet, in which case the SMTP user
+  // and password already are the pair) a mail leaves over ordinary HTTPS
+  // instead of port 587, and a host that blocks or stalls outbound SMTP stops
+  // being able to look like a broken newsroom.
+  MAILJET_API_KEY: process.env.MAILJET_API_KEY || process.env.MAILJET_USER || '',
+  MAILJET_SECRET: process.env.MAILJET_SECRET || process.env.MAILJET_KEY || '',
   // The address a mail is signed from has to be one the sending provider has
   // verified for this account, so it is never guessed here; it is only looked
   // for under the names an operator is likely to have typed.

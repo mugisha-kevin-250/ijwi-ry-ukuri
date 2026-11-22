@@ -29,6 +29,10 @@ const mailAttemptSchema = new mongoose.Schema({
   // the field that answers "email is not coming".
   reason: { type: String, trim: true },
   messageId: { type: String, trim: true },
+  // Which door the mail went out of: 'mailjet-api' or 'smtp'. Absent on the
+  // rows written before the send API existed, and on a 'queued' row, which is
+  // written before any door has been tried.
+  via: { type: String, trim: true },
   ms: { type: Number },
 }, { timestamps: true });
 

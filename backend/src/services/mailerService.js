@@ -9,6 +9,13 @@ const MailAttempt = require('../models/MailAttempt');
 const KEEP_DAYS = 30;
 const REASON_MAX_CHARS = 320;
 
+// Mailjet's transactional send endpoint, and the patience allowed for it. The
+// one thing this URL buys is that a mail leaves on the same 443 that already
+// carries every other outbound call the server makes, instead of on an SMTP
+// port that a hosting provider may quietly stall.
+const MAILJET_SEND_URL = 'https://api.mailjet.com/v3.1/send';
+const API_TIMEOUT_MS = 12000;
+
 /**
  * What the relay itself said, in one line worth reading.
  *
@@ -40,7 +47,7 @@ function maskAddress(address) {
  * Write one outcome down. Never throws: a database that is having a bad day must
  * not turn into "the newsroom cannot send email".
  */
-async function record({ purpose, to, subject, delivered, outcome, reason, messageId, ms }) {
+async function record({ purpose, to, subject, delivered, outcome, reason, messageId, ms, via }) {
   try {
     await MailAttempt.create({
       purpose: String(purpose || 'mail').toLowerCase(),
@@ -50,6 +57,10 @@ async function record({ purpose, to, subject, delivered, outcome, reason, messag
       outcome,
       reason: reason || undefined,
       messageId: messageId || undefined,
+      // Which door it went out of. A refusal means a different thing from the
+      // send API ("your key is wrong") than it does from the relay ("I could
+      // not open a socket"), and the desk should not have to guess.
+      via: via ? String(via).slice(0, 24) : undefined,
       ms: Number.isFinite(ms) ? Math.round(ms) : undefined,
     });
     await MailAttempt.deleteMany({ createdAt: { $lt: new Date(Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000) } });
@@ -61,8 +72,21 @@ async function record({ purpose, to, subject, delivered, outcome, reason, messag
 // Email is opt-in the way push is: with no SMTP credentials every route still
 // answers, it just reports honestly that nothing will be delivered instead of
 // pretending a mail was sent.
+//
+// The pair Mailjet's send API logs in with. Either the dedicated names carry it,
+// or - when the SMTP host says mailjet - the SMTP user and password already are
+// the API key and secret, which is how the provider documents the two. Nothing
+// here reads a value into a log line; the keys stay in this function's return.
+function mailjetKeys() {
+  const hostIsMailjet = /mailjet/i.test(String(env.SMTP_HOST || ''));
+  const user = env.MAILJET_API_KEY || (hostIsMailjet ? env.SMTP_USER : '');
+  const secret = env.MAILJET_SECRET || (hostIsMailjet ? env.SMTP_PASSWORD : '');
+  return user && secret ? { user, secret } : null;
+}
+
 function status() {
-  if (!env.SMTP_HOST) {
+  const keys = mailjetKeys();
+  if (!env.SMTP_HOST && !keys) {
     return { configured: false, reason: 'email alerts are not configured on this server (SMTP_HOST is not set)' };
   }
   if (!env.MAIL_FROM_EMAIL) {
@@ -72,13 +96,20 @@ function status() {
   // needs no credentials is a real setup, and turning one off because this file
   // expects a password would break mail that works. It is worth naming though,
   // because a half-pasted set of Render variables looks exactly like a relay
-  // that has stopped answering.
-  const warning = (!env.SMTP_USER || !env.SMTP_PASSWORD)
+  // that has stopped answering - and it is only worth naming when the login is
+  // the path being used, since the send API carries its own pair.
+  const warning = (!keys && (!env.SMTP_USER || !env.SMTP_PASSWORD))
     ? 'SMTP_USER or the password (SMTP_PASSWORD / SMTP_PASS) is not set - a relay that requires a login will refuse every mail'
     : null;
   return {
     configured: true,
-    host: `${env.SMTP_HOST}:${env.SMTP_PORT}${env.SMTP_SECURE ? ' (implicit TLS)' : ' (STARTTLS)'}`,
+    // Which door the mail goes out of, in the words an operator reads on the
+    // desk. An API path still names the SMTP endpoint it would fall back to,
+    // because that is the one a "Connection timeout" line refers to.
+    via: keys ? 'mailjet-api' : 'smtp',
+    host: keys
+      ? `${MAILJET_SEND_URL} (SMTP fallback at ${env.SMTP_HOST || 'not set'}:${env.SMTP_PORT})`
+      : `${env.SMTP_HOST}:${env.SMTP_PORT}${env.SMTP_SECURE ? ' (implicit TLS)' : ' (STARTTLS)'}`,
     from: env.MAIL_FROM_NAME ? `${env.MAIL_FROM_NAME} <${env.MAIL_FROM_EMAIL}>` : env.MAIL_FROM_EMAIL,
     ...(warning ? { warning } : {}),
   };
@@ -110,6 +141,85 @@ function getTransport() {
   return transport;
 }
 
+/**
+ * The provider's sentence, out of a v3.1 body.
+ *
+ * Mailjet reports a whole-call failure (`{"StatusCode":401,"ErrorMessage":"…"}`)
+ * and a per-message one (`Messages[0].Errors[]`) in different places, and both
+ * are worth more than the HTTP status: "invalid API key" and "sender address is
+ * not verified" are different jobs for the owner, and the only way to tell them
+ * apart without a mailbox is to read what came back.
+ */
+function apiRefusal(status, parsed, raw) {
+  const message = parsed && Array.isArray(parsed.Messages) ? parsed.Messages[0] : null;
+  const errors = message && Array.isArray(message.Errors)
+    ? message.Errors.map((item) => item && item.ErrorMessage).filter(Boolean)
+    : [];
+  const parts = [
+    `HTTP ${status}`,
+    parsed && parsed.ErrorMessage ? String(parsed.ErrorMessage) : '',
+    message && message.ErrorMessage ? String(message.ErrorMessage) : '',
+    errors.join('; '),
+    !parsed && raw ? String(raw).slice(0, 160) : '',
+  ].filter(Boolean);
+  return providerReason({ response: parts.join(' - ') });
+}
+
+/**
+ * One mail through the provider's HTTPS endpoint. Never throws.
+ *
+ * `reachable` is the whole design: an answer with a status code is the
+ * provider's considered refusal and is final, while a socket that never opened
+ * is exactly the failure this path exists to step around, so it hands the mail
+ * to the SMTP relay instead of reporting a second timeout.
+ */
+async function sendViaApi({ to, subject, text, html, keys }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  // The pair is base64'd into one header and dropped; it is never logged, never
+  // stored, and never part of a reason string.
+  const token = Buffer.from(`${keys.user}:${keys.secret}`, 'utf8').toString('base64');
+  try {
+    const response = await fetch(MAILJET_SEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}` },
+      body: JSON.stringify({
+        Messages: [{
+          From: { Email: env.MAIL_FROM_EMAIL, ...(env.MAIL_FROM_NAME ? { Name: env.MAIL_FROM_NAME } : {}) },
+          To: [{ Email: String(to) }],
+          Subject: String(subject || ''),
+          TextPart: String(text || ''),
+          ...(html ? { HTMLPart: String(html) } : {}),
+        }],
+      }),
+      signal: controller.signal,
+    });
+    const raw = await response.text().catch(() => '');
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch { /* an error page is still readable as text */ }
+    const message = parsed && Array.isArray(parsed.Messages) ? parsed.Messages[0] : null;
+    const accepted = response.ok && (!message || String(message.Status || 'success').toLowerCase() === 'success');
+    if (accepted) {
+      return {
+        reachable: true,
+        ok: true,
+        messageId: message && message.MessageID ? String(message.MessageID).slice(0, 120) : '',
+        reason: `accepted by the send API (HTTP ${response.status})`,
+      };
+    }
+    return { reachable: true, ok: false, messageId: '', reason: apiRefusal(response.status, parsed, raw) };
+  } catch (error) {
+    return {
+      reachable: false,
+      ok: false,
+      messageId: '',
+      reason: providerReason(error) || 'the send API could not be reached',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Messages are plain text with a minimal HTML alternative: no images, no
 // tracking pixels, nothing that phones home when a reader opens the mail.
 async function send({ to, subject, text, html, purpose = 'mail' }) {
@@ -119,25 +229,49 @@ async function send({ to, subject, text, html, purpose = 'mail' }) {
     return { delivered: false, skipped: 'NOT_CONFIGURED', reason: state.reason };
   }
   const startedAt = Date.now();
+
+  // HTTPS first, when the account is set up for it. Whatever the API itself
+  // says is final; only a connection that never opened falls through below.
+  const keys = mailjetKeys();
+  let apiNote = '';
+  if (keys) {
+    const api = await sendViaApi({ to, subject, text, html, keys });
+    if (api.reachable) {
+      await record({
+        purpose, to, subject,
+        delivered: api.ok,
+        outcome: api.ok ? 'sent' : 'rejected',
+        messageId: api.messageId,
+        reason: api.reason,
+        ms: Date.now() - startedAt,
+        via: 'mailjet-api',
+      });
+      return api.ok
+        ? { delivered: true, messageId: api.messageId }
+        : { delivered: false, error: 'SEND_FAILED', reason: api.reason };
+    }
+    apiNote = `${api.reason}; the SMTP relay was tried instead`;
+  }
+
   try {
     const info = await getTransport().sendMail({ from: state.from, to, subject, text, html });
     const messageId = info && info.messageId ? String(info.messageId).slice(0, 120) : '';
     await record({
       purpose, to, subject, delivered: true, outcome: 'sent',
-      messageId, ms: Date.now() - startedAt,
+      messageId, ms: Date.now() - startedAt, via: 'smtp',
       // The relay accepted the message. Whether it reached the inbox is the
       // provider's business, and this is the point where we can honestly stop.
-      reason: info && info.response ? providerReason({ response: info.response }) : '',
+      reason: [apiNote, info && info.response ? providerReason({ response: info.response }) : ''].filter(Boolean).join('; '),
     });
     return { delivered: true, messageId };
   } catch (error) {
     // One redacted line: the provider's own failure text, never an address,
     // never the password.
     console.warn('newsletter email send failed:', error.message);
-    const reason = providerReason(error) || 'the mail relay could not be reached';
+    const reason = [apiNote, providerReason(error) || 'the mail relay could not be reached'].filter(Boolean).join('; ');
     await record({
       purpose, to, subject, delivered: false, outcome: 'rejected', reason,
-      ms: Date.now() - startedAt,
+      ms: Date.now() - startedAt, via: 'smtp',
     });
     // `reason` travels back to the caller as well. It is never shown to a
     // reader - it is what the admin's mail screen prints so that "email is not
@@ -412,14 +546,21 @@ async function diagnostics(limit = 20) {
   ]);
   return {
     configured: state.configured,
-    // The four names an operator has to get right, each reduced to set/not set.
+    // The names an operator has to get right, each reduced to set/not set. The
+    // two Mailjet ones only matter when the API is the path; SMTP_USER and
+    // SMTP_PASSWORD are the same pair when the host says mailjet, which is why
+    // the desk is told which path this server is on rather than left to infer
+    // it from five dots.
     keys: {
       SMTP_HOST: Boolean(env.SMTP_HOST),
       SMTP_PORT: Boolean(process.env.SMTP_PORT),
       SMTP_USER: Boolean(env.SMTP_USER),
       SMTP_PASSWORD: Boolean(env.SMTP_PASSWORD),
       MAIL_FROM_EMAIL: Boolean(env.MAIL_FROM_EMAIL),
+      MAILJET_API_KEY: Boolean(env.MAILJET_API_KEY),
+      MAILJET_SECRET: Boolean(env.MAILJET_SECRET),
     },
+    via: state.via || null,
     host: state.host || null,
     from: state.from || null,
     reason: state.reason || null,
@@ -433,6 +574,7 @@ async function diagnostics(limit = 20) {
       delivered: doc.delivered,
       reason: doc.reason || null,
       messageId: doc.messageId || null,
+      via: doc.via || null,
       ms: doc.ms ?? null,
     })),
   };
@@ -466,7 +608,7 @@ async function sendTestMail({ to }) {
       + `<p style="margin:0;color:#6b7889;font-size:14px;">Sent by ${escapeHtml(state.from)} through ${escapeHtml(state.host)}.</p>`,
   });
   const result = await send({ to, subject, text, html, purpose: 'test' });
-  return { ...result, configured: true, from: state.from, host: state.host };
+  return { ...result, configured: true, from: state.from, host: state.host, via: state.via || 'smtp' };
 }
 
 module.exports = {

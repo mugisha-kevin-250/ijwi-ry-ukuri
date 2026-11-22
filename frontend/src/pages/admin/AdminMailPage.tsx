@@ -53,6 +53,22 @@ const KEY_LABELS: Record<string, string> = {
   SMTP_USER: 'SMTP_USER — the api key',
   SMTP_PASSWORD: 'SMTP_PASSWORD — the smtp secret',
   MAIL_FROM_EMAIL: 'MAIL_FROM_EMAIL — the sender address',
+  MAILJET_API_KEY: 'MAILJET_API_KEY — the api key, again',
+  MAILJET_SECRET: 'MAILJET_SECRET — the api secret',
+}
+
+/**
+ * The path the mail actually leaves by, in the operator's words.
+ *
+ * Two doors exist because one of them can be blocked by the hosting provider
+ * rather than by the newsroom: an outbound SMTP port that silently stalls looks
+ * identical, from the site, to a mail system nobody configured.
+ */
+function viaLine(via: string, host: string): string {
+  if (via === 'mailjet-api') {
+    return 'Mails leave over ordinary HTTPS through Mailjet\'s send API. The SMTP relay below is only tried if that endpoint cannot be reached at all - a refusal from the API is final.'
+  }
+  return `Mails leave through the SMTP relay${host ? ` at ${host}` : ''}. Set the Mailjet api key and secret to send over HTTPS instead, which is the door a hosting provider is far less likely to stall.`
 }
 
 function ago(iso: string): string {
@@ -98,7 +114,7 @@ export default function AdminMailPage() {
       setResult(attempt.delivered
         ? {
           ok: true,
-          text: `The relay took the mail from ${attempt.from}. If it is not in the inbox within a minute, look in junk and then check the sender is a verified address with the provider.`,
+          text: `The mail left through ${attempt.via === 'mailjet-api' ? 'Mailjet\'s HTTPS send API' : 'the SMTP relay'} and was taken by ${attempt.from}. If it is not in the inbox within a minute, look in junk and then check the sender is a verified address with the provider.`,
         }
         : {
           ok: false,
@@ -177,14 +193,20 @@ export default function AdminMailPage() {
             )}
 
             <ul className="mt-4 grid gap-1.5 text-sm sm:grid-cols-2">
-              {Object.keys(KEY_LABELS).map((key) => (
+              {Object.keys(KEY_LABELS)
+                // The two Mailjet names are only listed when that pair decides
+                // the path; on a server mailing through SMTP they would be two
+                // red dots explaining a thing nobody is using.
+                .filter((key) => !key.startsWith('MAILJET_') || status.via === 'mailjet-api')
+                .map((key) => (
                 <li key={key} className="flex items-center gap-2">
-                  <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${status.keys[key as keyof MailDeskStatus['keys']] ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                  <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${(status.keys as Record<string, boolean>)[key] ? 'bg-emerald-500' : 'bg-red-400'}`} />
                   <span className="font-mono text-xs text-slate-600">{KEY_LABELS[key].split(' — ')[0]}</span>
                   <span className="text-xs text-slate-500">{KEY_LABELS[key].split(' — ')[1]}</span>
                 </li>
               ))}
             </ul>
+            <p className="mt-3 text-sm text-slate-600">{viaLine(status.via, status.host)}</p>
             <p className="mt-3 text-xs text-slate-500">
               These are environment values set on the hosting dashboard, not on this site. A green dot means the
               server was given a value; it cannot say whether that value is the current one.
@@ -254,7 +276,7 @@ export default function AdminMailPage() {
                       <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${OUTCOME_STYLES[attempt.outcome] || 'border-slate-200 bg-slate-50 text-slate-600'}`}>
                         {OUTCOME_LABELS[attempt.outcome] || attempt.outcome}
                       </span>
-                      <span className="text-[11px] text-slate-400">{ago(attempt.at)}{attempt.ms ? ` · ${attempt.ms} ms` : ''}</span>
+                      <span className="text-[11px] text-slate-400">{ago(attempt.at)}{attempt.ms ? ` · ${attempt.ms} ms` : ''}{attempt.via ? ` · ${attempt.via}` : ''}</span>
                     </div>
                   </li>
                 ))}

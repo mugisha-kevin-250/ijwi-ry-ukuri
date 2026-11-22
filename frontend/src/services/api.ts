@@ -758,6 +758,22 @@ export interface PhotoSearchResult {
   note?: string
 }
 
+/**
+ * RADAR's own ordering of one topic, with its parts listed.
+ *
+ * The total is never shown without the three numbers under it and the version
+ * that made them, so an editor can disagree with a ranking by looking at the
+ * arithmetic instead of guessing at it.
+ */
+export interface TrendScore {
+  version: string
+  total: number
+  parts: { traffic: number; repeat: number; freshness: number }
+  ageHours: number | null
+  onList: boolean
+  reason: string
+}
+
 /** One search Google reported as trending, with the headlines it credited. */
 export interface TrendTopicRecord {
   topic: string
@@ -768,6 +784,21 @@ export interface TrendTopicRecord {
   headlines: { title: string; url: string; source: string }[]
   storedDay?: string
   lastSeenAt?: string
+  /** How many times this server has read the topic off a feed. */
+  sightings?: number
+  score?: TrendScore
+  /** The group this topic shares its words with, when it shares any. */
+  cluster?: { id: string; size: number; shared: string[] } | null
+}
+
+/** Several spellings of one search, together. */
+export interface TrendCluster {
+  id: string
+  label: string
+  shared: string[]
+  size: number
+  approxTraffic: number
+  lines: { topic: string; trafficLabel: string; approxTraffic: number | null; score?: TrendScore | null; headlines: number }[]
 }
 
 export interface TrendGeoRecord {
@@ -780,6 +811,8 @@ export interface TrendGeoRecord {
   fetchedAt: string
   sourceUrl: string
   topics: TrendTopicRecord[]
+  clusters?: TrendCluster[]
+  groupedLines?: number
 }
 
 export interface TrendRadar {
@@ -789,6 +822,36 @@ export interface TrendRadar {
   liveRegions: number
   cacheMinutes: number
   checkedAt: string
+  /** Which arithmetic produced the scores on this payload. */
+  scoreVersion?: string
+  scoreWeights?: {
+    trafficPointsPerDecade?: number
+    repeatPointsAt16Sightings?: number
+    freshnessHalfLifeHours?: number
+    freshnessFloorHours?: number
+    freshnessPoints?: number
+  }
+  historyDays?: number
+}
+
+/** One topic, day by day, as this server actually stored it. */
+export interface TrendHistory {
+  geo: string | null
+  topic: string
+  days: number
+  scoreVersion?: string
+  sightings: number
+  reports: {
+    day: string
+    geo: string
+    trafficLabel: string
+    approxTraffic: number | null
+    sightings: number
+    firstSeenAt?: string | null
+    lastSeenAt?: string | null
+    score?: TrendScore
+  }[]
+  note?: string
 }
 
 /** One message a reader sent through /contact. */
@@ -1240,6 +1303,29 @@ export const adminAPI = {
       liveRegions: Number(payload?.liveRegions ?? 0),
       cacheMinutes: Number(payload?.cacheMinutes ?? 15),
       checkedAt: payload?.checkedAt || '',
+      scoreVersion: payload?.scoreVersion || '',
+      scoreWeights: payload?.scoreWeights || undefined,
+      historyDays: Number(payload?.historyDays ?? 0),
+    }
+  },
+
+  /**
+   * One topic's stored days, read from the rows the feed already wrote.
+   *
+   * A blank answer is the honest one - a topic nobody searched is not a topic
+   * whose traffic went to zero - so the server's own note is kept.
+   */
+  getTrendHistory: async (geo: string, topic: string): Promise<TrendHistory> => {
+    const response = await apiClient.get('/admin/trends/history', { geo, topic })
+    const payload = response.data.data as Partial<TrendHistory> | null
+    return {
+      geo: payload?.geo || geo,
+      topic: payload?.topic || topic,
+      days: Number(payload?.days ?? 0),
+      scoreVersion: payload?.scoreVersion || '',
+      sightings: Number(payload?.sightings ?? 0),
+      reports: Array.isArray(payload?.reports) ? payload.reports : [],
+      note: payload?.note ? String(payload.note) : '',
     }
   },
 

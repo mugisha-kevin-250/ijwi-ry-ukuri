@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, ExternalLink, RefreshCw, TrendingUp } from 'lucide-react'
-import { adminAPI, type TrendGeoRecord, type TrendRadar as TrendRadarData, type TrendTopicRecord } from '../../services/api'
+import { AlertTriangle, ExternalLink, History, RefreshCw, TrendingUp } from 'lucide-react'
+import { adminAPI, type TrendCluster, type TrendGeoRecord, type TrendHistory, type TrendRadar as TrendRadarData, type TrendScore, type TrendTopicRecord } from '../../services/api'
 
 /**
  * The searches Google reports for the regions this newsroom writes about.
@@ -10,6 +10,13 @@ import { adminAPI, type TrendGeoRecord, type TrendRadar as TrendRadarData, type 
  * panel says so and shows the last topics it really did receive, dated - it
  * never presents an old list as a live one, and it never shows a number Google
  * did not publish.
+ *
+ * Under that sits RADAR's own ordering, and it is kept visibly separate. Google
+ * hands over forty lines in the order its feed felt like; an editor needs to
+ * know which of them is the same event, which has been searched all week, and
+ * which appeared once. So each line carries a score with its parts and its
+ * version printed beside it, related lines are folded into one group, and any
+ * line can be opened to the days this server actually stored.
  */
 
 const REASONS: Record<string, string> = {
@@ -34,8 +41,121 @@ function clock(value: string): string {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString()
 }
 
-function TopicRow({ topic, onUse }: { topic: TrendTopicRecord; onUse?: (topic: string) => void }) {
+/** How long ago Google printed this, in the words a reader of the desk wants. */
+function since(ageHours: number | null): string {
+  if (ageHours === null || ageHours === undefined) return 'no date'
+  if (ageHours < 1) return 'under an hour ago'
+  if (ageHours < 24) return `${Math.round(ageHours)} h ago`
+  return `${Math.round(ageHours / 24)} d ago`
+}
+
+/**
+ * The score, with its parts.
+ *
+ * A single number that reorders the list would be the kind of claim this panel
+ * has always refused to make, so the total only ever appears next to the three
+ * figures that made it and the version of the arithmetic behind them.
+ */
+function ScoreLine({ score }: { score: TrendScore }) {
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+      <span className="font-bold text-slate-700">RADAR score {score.total.toFixed(2)}</span>
+      <span>band {score.parts.traffic.toFixed(2)}</span>
+      <span>repeat {score.parts.repeat.toFixed(2)}</span>
+      <span>freshness {score.parts.freshness.toFixed(2)}</span>
+      <span className="font-mono text-slate-400">{score.version}</span>
+      {!score.onList && <span className="text-amber-700">off today&apos;s list</span>}
+    </p>
+  )
+}
+
+/**
+ * The days one topic was really stored, drawn from the rows the feed wrote.
+ *
+ * A gap is left as a gap: a day this server never read the topic is not a day it
+ * dropped to zero, and a line drawn through that missing day would be a picture
+ * of a trend that did not happen.
+ */
+function HistoryPanel({ geo, topic }: { geo: string; topic: string }) {
+  const [history, setHistory] = useState<TrendHistory | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    setError('')
+    adminAPI.getTrendHistory(geo, topic)
+      .then((result) => { if (alive) setHistory(result) })
+      .catch((err: any) => { if (alive) setError(err?.response?.data?.message || 'The stored days could not be read.') })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [geo, topic])
+
+  if (loading) return <p className="mt-2 text-xs text-slate-500">Reading the days this server stored…</p>
+  if (error) return <p className="mt-2 text-xs text-red-700">{error}</p>
+  if (!history || history.reports.length === 0) {
+    return <p className="mt-2 text-xs text-slate-500">{history?.note || 'This server has never read that topic off a feed, so there is nothing to show.'}</p>
+  }
+
+  const peaks = history.reports.map((row) => row.approxTraffic || 0)
+  const top = Math.max(...peaks, 1)
+  const points = history.reports
+    .map((row, index) => `${(index / Math.max(history.reports.length - 1, 1)) * 100},${34 - ((row.approxTraffic || 0) / top) * 30}`)
+    .join(' ')
+
+  return (
+    <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+        <span className="font-bold text-slate-800">
+          {history.reports.length} {history.reports.length === 1 ? 'day' : 'days'} stored · read {history.sightings} times in all
+        </span>
+        <span>Only the days the feed reported {history.topic} are drawn; a day it never reported is left out, not plotted as nothing.</span>
+      </div>
+      {history.reports.length > 1 && (
+        <svg viewBox="0 0 100 36" className="mt-2 h-9 w-full" role="img" aria-label={`Traffic for ${history.topic} over ${history.reports.length} stored days`}>
+          <polyline points={points} fill="none" stroke="#1d4ed8" strokeWidth="1.5" />
+          {history.reports.map((row, index) => (
+            <circle
+              key={row.day}
+              cx={(index / Math.max(history.reports.length - 1, 1)) * 100}
+              cy={34 - ((row.approxTraffic || 0) / top) * 30}
+              r="1.6"
+              fill="#1d4ed8"
+            />
+          ))}
+        </svg>
+      )}
+      <ul className="mt-1.5 divide-y divide-slate-200 text-xs">
+        {history.reports.map((row) => (
+          <li key={`${row.day}-${row.geo}`} className="flex flex-wrap items-center justify-between gap-2 py-1">
+            <span className="font-mono text-slate-500">{row.day}</span>
+            {/* The band is that day's own Google figure, exactly as printed. */}
+            <span className="text-slate-700">{row.trafficLabel ? `${row.trafficLabel} searches` : 'no band printed'}</span>
+            <span className="text-slate-500">read {row.sightings}×</span>
+            {row.score && <span className="text-slate-500">score {row.score.total.toFixed(2)}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function TopicRow({
+  topic,
+  geo,
+  onUse,
+  also = [],
+}: {
+  topic: TrendTopicRecord
+  geo: string
+  onUse?: (topic: string) => void
+  also?: TrendTopicRecord[]
+}) {
   const [open, setOpen] = useState(false)
+  const [history, setHistory] = useState(false)
+  const shared = topic.cluster?.shared || []
+
   return (
     <li className="px-5 py-3.5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -55,7 +175,21 @@ function TopicRow({ topic, onUse }: { topic: TrendTopicRecord; onUse?: (topic: s
               <span>{topic.headlines.length} headline{topic.headlines.length > 1 ? 's' : ''} in Google&apos;s list</span>
             )}
             {topic.seenAt && <span>{clock(topic.seenAt)}</span>}
+            {typeof topic.sightings === 'number' && topic.sightings > 1 && (
+              <span>read {topic.sightings} times</span>
+            )}
           </span>
+          {topic.score && <ScoreLine score={topic.score} />}
+          {/* The words that made the grouping, because a group the desk cannot
+              question is a group the desk should not be steered by. */}
+          {also.length > 0 && (
+            <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 font-bold text-blue-700">
+                {also.length + 1} spellings of this search
+              </span>
+              {shared.length > 0 && <span>on the words {shared.join(', ')}</span>}
+            </span>
+          )}
         </button>
         {onUse && (
           <button
@@ -67,6 +201,42 @@ function TopicRow({ topic, onUse }: { topic: TrendTopicRecord; onUse?: (topic: s
           </button>
         )}
       </div>
+
+      {open && (
+        <div className="mt-2.5 flex flex-wrap gap-2 border-l-2 border-slate-100 pl-3">
+          <button
+            type="button"
+            onClick={() => setHistory((value) => !value)}
+            aria-expanded={history}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+          >
+            <History className="h-3.5 w-3.5" />
+            {history ? 'Hide the stored days' : `See the days since ${since(topic.score?.ageHours ?? null)}`}
+          </button>
+          <a
+            href={topic.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50"
+          >
+            The feed this came from <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      )}
+
+      {open && history && <HistoryPanel geo={geo} topic={topic.topic} />}
+
+      {open && also.length > 0 && (
+        <ul className="mt-2 border-l-2 border-slate-100 pl-3 text-xs text-slate-600">
+          {also.map((line) => (
+            <li key={line.topic} className="flex flex-wrap items-center gap-2 py-0.5">
+              <span className="font-medium text-slate-800">{line.topic}</span>
+              {line.trafficLabel && <span className="text-slate-500">{line.trafficLabel} searches</span>}
+              {line.score && <span className="text-slate-500">score {line.score.total.toFixed(2)}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {open && topic.headlines.length > 0 && (
         <ul className="mt-2.5 space-y-1.5 border-l-2 border-slate-100 pl-3">
@@ -97,12 +267,43 @@ function TopicRow({ topic, onUse }: { topic: TrendTopicRecord; onUse?: (topic: s
   )
 }
 
+/**
+ * The list, folded by group.
+ *
+ * The strongest line of a group leads and carries its other spellings underneath
+ * it; the rest of the group is not listed twice. Turning the folding off puts
+ * every line back where Google printed it, which is what an editor needs the
+ * first time they do not trust a grouping.
+ */
+function fold(topics: TrendTopicRecord[], grouped: boolean): { topic: TrendTopicRecord; also: TrendTopicRecord[] }[] {
+  if (!grouped) return topics.map((topic) => ({ topic, also: [] }))
+  const seen = new Set<string>()
+  const rows: { topic: TrendTopicRecord; also: TrendTopicRecord[] }[] = []
+  topics.forEach((topic) => {
+    if (seen.has(topic.topic)) return
+    const group = topic.cluster
+      ? topics.filter((item) => item.cluster?.id === topic.cluster?.id && item.topic !== topic.topic)
+      : []
+    group.forEach((line) => seen.add(line.topic))
+    seen.add(topic.topic)
+    rows.push({ topic, also: group })
+  })
+  return rows
+}
+
+function summary(clusters: TrendCluster[] | undefined): string {
+  if (!clusters || clusters.length === 0) return ''
+  const lines = clusters.reduce((total, group) => total + group.size, 0)
+  return `${clusters.length} ${clusters.length === 1 ? 'group' : 'groups'}, ${lines} lines folded`
+}
+
 export default function TrendRadar({ onUse }: { onUse?: (topic: string, geo: string) => void }) {
   const [data, setData] = useState<TrendRadarData | null>(null)
   const [geo, setGeo] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [grouped, setGrouped] = useState(true)
 
   const load = useCallback(async (force: boolean) => {
     if (force) setRefreshing(true)
@@ -131,6 +332,7 @@ export default function TrendRadar({ onUse }: { onUse?: (topic: string, geo: str
 
   const active = data?.geos.find((item) => item.geo === geo) || null
   const notice = active ? describe(active) : ''
+  const rows = active ? fold(active.topics, grouped) : []
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="trend-radar-heading">
@@ -145,7 +347,7 @@ export default function TrendRadar({ onUse }: { onUse?: (topic: string, geo: str
             </h2>
             <p className="text-xs text-slate-500">
               {data
-                ? `Google Trends · ${data.liveRegions} of ${data.geos.length} regions answered · checked ${clock(data.checkedAt) || 'never'}`
+                ? `Google Trends · ${data.liveRegions} of ${data.geos.length} regions answered · checked ${clock(data.checkedAt) || 'never'}${data.scoreVersion ? ` · ordered by our score ${data.scoreVersion}` : ''}`
                 : 'Google Trends, read by the server'}
             </p>
           </div>
@@ -220,12 +422,32 @@ export default function TrendRadar({ onUse }: { onUse?: (topic: string, geo: str
             </p>
           )}
 
-          {active && active.topics.length > 0 ? (
+          {active && active.topics.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-2.5">
+              <button
+                type="button"
+                onClick={() => setGrouped((value) => !value)}
+                aria-pressed={grouped}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                  grouped ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {grouped ? 'Spellings grouped' : 'Show every line Google printed'}
+              </button>
+              <span className="text-xs text-slate-500">
+                {grouped && active.groupedLines ? `${active.groupedLines} line${active.groupedLines === 1 ? '' : 's'} folded — ${summary(active.clusters)}` : `${active.topics.length} lines, in the order they came`}
+              </span>
+            </div>
+          )}
+
+          {active && rows.length > 0 ? (
             <ul className="divide-y divide-slate-100">
-              {active.topics.map((topic) => (
+              {rows.map(({ topic, also }) => (
                 <TopicRow
-                  key={`${topic.topic}-${topic.seenAt || ''}`}
+                  key={topic.topic}
                   topic={topic}
+                  geo={active.geo}
+                  also={also}
                   onUse={onUse ? (value) => onUse(value, active.geo) : undefined}
                 />
               ))}
@@ -235,14 +457,18 @@ export default function TrendRadar({ onUse }: { onUse?: (topic: string, geo: str
           ) : null}
 
           <p className="border-t border-slate-100 px-5 py-3 text-[11px] text-slate-400">
-            Cached for {data.cacheMinutes} minutes so Google is not asked on every look. Topics are evidence for a
-            headline, not a story in themselves — nothing here is published without an admin writing or approving it.
+            The band beside each line is Google&apos;s own, and the score under it is ours — {data.scoreVersion || 'the current version'}
+            {' '}adds the size of Google&apos;s band, how many times this server has read the line, and how long ago, with the
+            weight of each printed above so a ranking can be argued with. Cached for {data.cacheMinutes} minutes so Google is
+            not asked on every look, and history covers the {data.historyDays || 21} days of feed readings kept. Topics are
+            evidence for a headline, not a story in themselves — nothing here is published without an admin writing or
+            approving it.
           </p>
         </>
       )}
       {refreshing && (
         <p className="flex items-center gap-2 border-t border-slate-100 px-5 py-2.5 text-xs text-slate-500">
- Re-reading {data?.geos.length || 0} regions from Google…
+          Re-reading {data?.geos.length || 0} regions from Google…
         </p>
       )}
     </section>

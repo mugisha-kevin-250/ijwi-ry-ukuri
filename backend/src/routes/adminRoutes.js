@@ -747,6 +747,35 @@ router.get('/trends', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
+/**
+ * One topic, day by day, from the rows this server already stored.
+ *
+ * The radar shows what is being searched now; this answers the question an
+ * editor actually asks before committing a page to a trend - whether it has been
+ * growing or whether it is one morning's spike. Read-only over stored
+ * observations, and it reports a topic nobody has seen as nothing rather than as
+ * a flat line.
+ */
+router.get('/trends/history', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const { geo, topic, days } = req.query || {};
+    if (!topic || !String(topic).trim()) {
+      return errorResponse(res, 400, 'Name the topic whose history you want to read.');
+    }
+    const history = await trendService.history({ geo, topic, days });
+    if (!history || history.reports.length === 0) {
+      return successResponse(res, 200, 'No stored sightings for that topic', {
+        ...(history || {}),
+        reports: [],
+        note: 'This server has never read that topic off a feed, so there is nothing to show.',
+      });
+    }
+    return successResponse(res, 200, 'Trend history', history);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // The contact form on /contact lands here. Editors see it too: a correction
 // belongs to whoever reads it first, not only to the owner.
 router.get('/contact-messages', async (req, res, next) => {

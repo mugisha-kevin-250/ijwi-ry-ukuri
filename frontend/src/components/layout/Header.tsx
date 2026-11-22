@@ -347,16 +347,17 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
                 )}
               </div>
             ) : (
-              /* Signing in lives on the masthead at every width. It used to be
-                 hidden below 640px because the bottom bar ended in the same
-                 sign-in, and a reader looking for a way in was left to find the
-                 hamburger and open it. The bar is four destinations now, so the
-                 way in is back where the rest of the site's chrome is - and on a
-                 phone it takes the shorter words and the tighter padding. */
+              /* From 640px up both doors sit on the masthead. Below that the row
+                 carries Register only: a phone has the search line and four bottom
+                 icons to fit, "Login" and "Register" spelled side by side was the
+                 crowding, and the bottom bar already ends in Login for anybody who
+                 has an account. So the way in for a returning reader is one press
+                 away at the bottom of the screen, and the way for a new one is the
+                 button that is still here. */
               <div className={`items-center gap-1.5 sm:gap-3 ${variant === 'public' ? 'flex' : 'hidden md:flex'}`}>
                 <Link
                   to="/login"
-                  className="px-2 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors sm:px-4 sm:py-2 sm:text-sm sm:font-medium"
+                  className="hidden px-2 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors sm:inline-block sm:px-4 sm:py-2 sm:text-sm sm:font-medium"
                 >
                   {t('nav.login')}
                 </Link>

@@ -510,6 +510,81 @@ test('an answer that is an error object is unreadable rather than empty', async 
   }
 });
 
+// --- the competitions that never answer ----------------------------------------------
+
+test('a competition that never answers is rested instead of asked every poll', async () => {
+  await SportScoreboard.deleteMany({});
+  const D4 = dayKey(-2, now);
+  const D5 = dayKey(-3, now);
+  const D6 = dayKey(-4, now);
+  // Five codes on the production watch list fail their own scoreboard every
+  // single time, and a failed fetch stores nothing - so the next poll found them
+  // "missing" again and paid for the same refusal forever. The days rotate
+  // because that is the shape of the leak: the thirty-second cooldown is keyed
+  // on a competition's day, and a broken code has a different day every time.
+  const dead = stubFetch(() => httpResponse(400));
+  try {
+    for (const date of [YESTERDAY, TODAY, TOMORROW]) await scoreboard({ date, league: 'eng.1', now });
+    assert.equal(dead.calls.length, 3, 'three days of one broken competition cost three calls');
+
+    const page = await scoreboard({ date: D4, league: 'eng.1', now: minutes(1) });
+    assert.equal(dead.calls.length, 3, 'the fourth day is answered without asking the feed');
+    assert.deepEqual(page.errors, [{ code: 'eng.1', reason: 'PROVIDER_ERROR' }], 'and names the competition it could not read');
+    assert.equal(page.pendingLeagues.length, 0, 'a rested league is not a league the next poll will bring');
+    assert.equal(page.leagues.length, 0, 'a rested league is not shown as a league with no matches');
+    assert.equal(page.followed.some((item) => item.code === 'eng.1'), true, 'it is still named on the page');
+
+    // A rest, not a death sentence: when it is over exactly one call is made,
+    // and the polls in between it are free.
+    await scoreboard({ date: D5, league: 'eng.1', now: minutes(15) });
+    assert.equal(dead.calls.length, 4, 'one probe when the rest is over');
+    await scoreboard({ date: D5, league: 'eng.1', now: minutes(16) });
+    assert.equal(dead.calls.length, 4, 'and silence again until the next one');
+  } finally {
+    dead.restore();
+  }
+
+  const back = stubFetch(() => jsonResponse(scoreboardFeed('English Premier League')));
+  try {
+    const page = await scoreboard({ date: D6, league: 'eng.1', now: minutes(30) });
+    assert.equal(back.calls.length, 1, 'the probe is the one call that finds it fixed');
+    assert.deepEqual(page.errors, []);
+    assert.equal(page.leagues.length, 1, 'a competition that starts answering is on the page again');
+    assert.equal(await SportScoreboard.countDocuments({ code: 'eng.1', dateKey: D6 }), 1, 'and its day is stored');
+  } finally {
+    back.restore();
+  }
+});
+
+test('a short outage is rested for minutes, not written off for an hour', async () => {
+  await SportScoreboard.deleteMany({});
+  const D4 = dayKey(-2, now);
+  const D5 = dayKey(-3, now);
+  // Three failures are also what twenty seconds of ESPN looks like, and a page
+  // that gave up for an hour on a Tuesday afternoon would be its own bug.
+  const flaky = stubFetch((url) => (flaky.calls.length <= 3 ? httpResponse(503) : jsonResponse(scoreboardFeed(url.includes('esp.1') ? 'Spanish LALIGA' : 'English Premier League'))));
+  try {
+    for (const date of [YESTERDAY, TODAY, TOMORROW]) await scoreboard({ date, league: 'eng.1', now });
+    assert.equal(flaky.calls.length, 3);
+    await scoreboard({ date: D4, league: 'eng.1', now: minutes(1) });
+    assert.equal(flaky.calls.length, 3, 'a league on its third failure rests');
+
+    const page = await scoreboard({ date: D5, league: 'eng.1', now: minutes(15) });
+    assert.equal(flaky.calls.length, 4, 'and it is asked again long before an hour');
+    assert.deepEqual(page.errors, [], 'the good read clears the streak');
+    assert.equal(page.leagues.length, 1);
+
+    // The next minute asks again, as a live day always does: clearing the
+    // streak means the league is back on the normal clock, not quietly muted.
+    const live = await scoreboard({ date: D5, league: 'eng.1', now: minutes(16) });
+    assert.equal(flaky.calls.length, 5, 'a recovered league keeps its own one-minute clock');
+    assert.deepEqual(live.errors, [], 'and is answered as a read, never as a refusal');
+    assert.equal(await SportScoreboard.countDocuments({ code: 'eng.1', dateKey: D5 }), 1);
+  } finally {
+    flaky.restore();
+  }
+});
+
 // --- the scheduled pass ----------------------------------------------------------------
 
 test('the pass keeps warm only what a reader is looking at', async () => {

@@ -135,6 +135,28 @@ const REFRESHING_POLL_SECONDS = 10;
 const FAILURE_COOLDOWN_MS = 30 * 1000;
 // A league table moves once a matchday, not once a minute.
 const STANDINGS_TTL = 6 * HOUR_MS;
+// Some competitions never answer at all, and thirty seconds is the wrong length
+// of pause for a competition that will never answer.
+//
+// Five codes on the production watch list - the Confederations' and the OFC's
+// champions, the Women's Champions League, FIFA's intercontinental cup - fail
+// their own scoreboard every single time. A failed fetch stores nothing, so on
+// the next poll they are "missing" again and each reader's page view spends five
+// of the twelve upstream calls a minute on an answer that is already known.
+// After a few consecutive failures the same competition is left alone for ten
+// minutes, and one that has failed often enough is left alone for an hour with
+// exactly one call to probe it when the hour is up - which is how a competition
+// that ESPN starts serving again gets found without the newsroom paying for the
+// silence.
+//
+// The pause is deliberately shorter than an hour at first: the same three
+// failures are also what a twenty-second outage looks like, and a scores page
+// that admits it could not read a league for ten minutes is a fair price, while
+// one that gives up for an hour on a Tuesday afternoon is not.
+const PROVIDER_BACKOFF_AFTER = 3;
+const PROVIDER_BACKOFF_MS = 10 * MINUTE_MS;
+const PROVIDER_DEAD_AFTER = 8;
+const PROVIDER_DEAD_MS = 60 * MINUTE_MS;
 
 const DEFAULT_LEAGUES = [
   { code: 'eng.1', name: 'English Premier League', logo: 'https://a.espncdn.com/i/leaguelogos/soccer/500/23.png' },
@@ -723,6 +745,11 @@ function sideFromSummary(roster, boxTeam, headerCompetitor, state) {
 const inflight = new Map();
 // What the feed refused recently, by the same key.
 const failures = new Map();
+// How many times in a row each competition has failed to answer at all. The
+// thirty-second cooldown above is keyed on the day; this is keyed on the
+// competition, because a competition whose endpoint does not exist fails every
+// day the reader asks for, and it is the competition that is broken.
+const streaks = new Map();
 
 /**
  * Write a cache row without ever losing the row that was already there.
@@ -772,6 +799,42 @@ async function answerFromRun(run) {
 function recentlyRefused(key) {
   const held = failures.get(key);
   return held && Date.now() - held.at < FAILURE_COOLDOWN_MS ? held.reason : null;
+}
+
+/**
+ * How long this competition has earned a rest for, or 0 for "ask it again".
+ *
+ * Counting the streak per competition rather than per day is the whole point:
+ * the day is what the cooldown is keyed on, and a broken code has a different
+ * day every time it is asked about.
+ */
+function streakPauseMs(count) {
+  if (count >= PROVIDER_DEAD_AFTER) return PROVIDER_DEAD_MS;
+  if (count >= PROVIDER_BACKOFF_AFTER) return PROVIDER_BACKOFF_MS;
+  return 0;
+}
+
+/** The reason to answer with instead of calling, or null when the feed may be asked. */
+function providerPause(code, now = Date.now()) {
+  const key = String(code || '');
+  const held = streaks.get(key);
+  if (!held) return null;
+  const pause = streakPauseMs(held.count);
+  if (!pause) return null;
+  if (now - held.at >= pause) {
+    // The rest is over. Leave the streak one short of what earned it, so a
+    // competition that is genuinely gone costs exactly one call per rest and one
+    // that has come back is found on that first call.
+    streaks.set(key, { ...held, at: now, count: Math.max(PROVIDER_BACKOFF_AFTER, held.count) - 1 });
+    return null;
+  }
+  return held.reason;
+}
+
+function noteStreak(code, reason, now = Date.now()) {
+  const key = String(code || '');
+  const held = streaks.get(key);
+  streaks.set(key, { count: (held ? held.count : 0) + 1, at: now, reason: reason || 'PROVIDER_ERROR' });
 }
 
 /**
@@ -858,6 +921,17 @@ async function loadScoreboard(code, dateKey, { urgent = false, now = new Date() 
   const refused = recentlyRefused(key);
   if (refused) return { ok: true, doc, fetched: false, reason: refused };
 
+  // ...and the feed has said no to this competition so many times in a row that
+  // the newsroom has stopped believing it will answer today. This is the leak the
+  // thirty-second cooldown cannot close: it is keyed on the day, and a code with
+  // no scoreboard endpoint fails on every day, so a page view of the whole watch
+  // list paid for the same five refusals over and over. Answering from here is
+  // honest as long as the row is not presented as an empty day - the caller gets
+  // the reason, and a league with nothing stored and a reason stays a league this
+  // newsroom could not read.
+  const paused = providerPause(code, now.getTime());
+  if (paused) return { ok: false, reason: paused, doc, fetched: false, paused: true };
+
   const run = (async () => {
     const upstream = await fetchJson(code === WORLD_CODE ? worldUrl(dateKey) : scoreboardUrl(code, dateKey), { urgent });
     // The row that was already here travels back with the bad news, so the
@@ -865,9 +939,11 @@ async function loadScoreboard(code, dateKey, { urgent = false, now = new Date() 
     // "no feed".
     if (!upstream.ok) {
       failures.set(key, { at: Date.now(), reason: upstream.reason });
+      noteStreak(code, upstream.reason, now.getTime());
       return { ...upstream, doc };
     }
     failures.delete(key);
+    streaks.delete(String(code));
     const league = (upstream.body.leagues || [])[0] || {};
     const rows = (upstream.body.events || []).map(matchRowOf);
     // The world board is everybody's competition at once, and the page prints a
@@ -1235,7 +1311,11 @@ async function scoreboard({ date, league, live = false, now = new Date() } = {})
     // matches. It is a league this newsroom has not managed to read yet, and it
     // is named as such rather than disappearing from the page.
     if (!doc) {
-      if (!pending.includes(code) && missing.includes(code)) pending.push(code);
+      // A competition the feed is being paused around is not one that is about to
+      // arrive, and leaving it in `pending` would tell every reader's page that a
+      // poll will bring it - which is the fast polling that spent the budget in
+      // the first place. It is named in `errors` instead, which is the truth.
+      if (!pending.includes(code) && !result.paused && missing.includes(code)) pending.push(code);
       continue;
     }
     groups.push(leagueRows(doc, {
@@ -1897,6 +1977,7 @@ async function search({ q, now = new Date() } = {}) {
 function resetCaches() {
   inflight.clear();
   failures.clear();
+  streaks.clear();
 }
 
 module.exports = {
@@ -1926,6 +2007,12 @@ module.exports = {
   capWorldRows,
   coverageProof,
   provenEmptyMs,
+  providerPause,
+  streakPauseMs,
+  PROVIDER_BACKOFF_AFTER,
+  PROVIDER_BACKOFF_MS,
+  PROVIDER_DEAD_AFTER,
+  PROVIDER_DEAD_MS,
   MAX_WORLD_ROWS,
   PROVEN_EMPTY_TTL,
   worldGroups,

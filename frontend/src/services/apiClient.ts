@@ -252,8 +252,12 @@ class ApiClient {
     return this.client.put<ApiResponse<T>>(url, data)
   }
 
-  public delete<T = unknown>(url: string): Promise<AxiosResponse<ApiResponse<T>>> {
-    return this.client.delete<ApiResponse<T>>(url)
+  // Closing an account is a DELETE that has to carry a password, so the body is
+  // optional here and every existing caller that deletes by URL alone is
+  // untouched. Without it the only alternative would be putting the account
+  // password in an address, where it lands in server logs.
+  public delete<T = unknown>(url: string, data?: unknown): Promise<AxiosResponse<ApiResponse<T>>> {
+    return this.client.delete<ApiResponse<T>>(url, data === undefined ? undefined : { data })
   }
 
   public get baseURL(): string {

@@ -1,9 +1,16 @@
 import { Link } from 'react-router-dom'
 import PublisherPage, { Section } from '../../components/layout/PublisherPage'
+import { useAuth } from '../../context/AuthContext'
 import { useSeo } from '../../utils/useSeo'
 import { contactEmail, publisherPagesUpdated } from '../../utils/siteConfig'
 
 export default function PrivacyPage() {
+  // The deletion promise is only useful if the page points at the button that
+  // keeps it. A reader's own account screen is at /user/<their id>, and a
+  // visitor who is not signed in has to sign in before that address exists.
+  const { user } = useAuth()
+  const accountHref = user?._id ? `/user/${user._id}` : '/login'
+  const accountLabel = user?._id ? 'the account screen' : 'sign in and open your account screen'
   useSeo({
     title: 'Privacy policy',
     description:"Exactly what RADAR stores about a reader, who else sees it, and how to ask for it to be removed.",
@@ -93,7 +100,11 @@ export default function PrivacyPage() {
                 {contactEmail}
               </a>
               . A story you wrote stays as it is - a published report is a matter of public record - but your name can
-              be taken off it, and the account and its reading records can be deleted.
+              be taken off it, and the account and its reading records can be deleted.{' '}
+              <Link to={accountHref} className="font-medium text-brand-700 underline-offset-4 hover:underline dark:text-brand-300">
+                {accountLabel}
+              </Link>
+              {' '}and close the account in one press, proved by the account password; it erases what we hold on you.
             </>
           ) : (
             <>

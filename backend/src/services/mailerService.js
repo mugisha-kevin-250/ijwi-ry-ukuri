@@ -3,6 +3,7 @@ const nodemailer = require('nodemailer');
 const env = require('../config/env');
 const NewsletterSubscriber = require('../models/NewsletterSubscriber');
 const MailAttempt = require('../models/MailAttempt');
+const Category = require('../models/Category');
 
 // A diagnostic, not an archive: a month is longer than any mail problem takes to
 // be noticed, and the free cluster does not need 2019's bounces.
@@ -173,7 +174,7 @@ function apiRefusal(status, parsed, raw) {
  * is exactly the failure this path exists to step around, so it hands the mail
  * to the SMTP relay instead of reporting a second timeout.
  */
-async function sendViaApi({ to, subject, text, html, keys }) {
+async function sendViaApi({ to, subject, text, html, keys, headers }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   // The pair is base64'd into one header and dropped; it is never logged, never
@@ -190,6 +191,9 @@ async function sendViaApi({ to, subject, text, html, keys }) {
           Subject: String(subject || ''),
           TextPart: String(text || ''),
           ...(html ? { HTMLPart: String(html) } : {}),
+          // The unsubscribe header travels with the message rather than only
+          // inside its body, which is the part a mail client's own button reads.
+          ...(headers && Object.keys(headers).length ? { Headers: headers } : {}),
         }],
       }),
       signal: controller.signal,
@@ -222,7 +226,7 @@ async function sendViaApi({ to, subject, text, html, keys }) {
 
 // Messages are plain text with a minimal HTML alternative: no images, no
 // tracking pixels, nothing that phones home when a reader opens the mail.
-async function send({ to, subject, text, html, purpose = 'mail' }) {
+async function send({ to, subject, text, html, purpose = 'mail', headers = null }) {
   const state = status();
   if (!state.configured) {
     await record({ purpose, to, subject, outcome: 'not-configured', reason: state.reason });
@@ -235,7 +239,7 @@ async function send({ to, subject, text, html, purpose = 'mail' }) {
   const keys = mailjetKeys();
   let apiNote = '';
   if (keys) {
-    const api = await sendViaApi({ to, subject, text, html, keys });
+    const api = await sendViaApi({ to, subject, text, html, keys, headers });
     if (api.reachable) {
       await record({
         purpose, to, subject,
@@ -254,7 +258,13 @@ async function send({ to, subject, text, html, purpose = 'mail' }) {
   }
 
   try {
-    const info = await getTransport().sendMail({ from: state.from, to, subject, text, html });
+    const info = await getTransport().sendMail({
+      from: state.from, to, subject, text, html,
+      // nodemailer takes the extras as a plain object of header names, and writes
+      // them into the message itself, so they survive a relay that rewrites
+      // nothing but the envelope.
+      ...(headers && Object.keys(headers).length ? { headers } : {}),
+    });
     const messageId = info && info.messageId ? String(info.messageId).slice(0, 120) : '';
     await record({
       purpose, to, subject, delivered: true, outcome: 'sent',
@@ -335,19 +345,50 @@ function mintToken() {
   return { token, tokenHash: hashToken(token) };
 }
 
-// The lookup is by hash, so the only thing an attacker's timing can measure is
-// the index; timingSafeEqual on top stops an operator-bearing query against
-// the hash field from being read back as a match.
-async function findByToken(token) {
+/**
+ * The reader behind a link, found by the hash of the token in it.
+ *
+ * Two hashes are searched because the mail carries two links: the confirmation
+ * one, which is minted again with every send, and the stop one, which stays put
+ * so that the unsubscribe button a mail client shows still points at something
+ * after the reader has confirmed and the first link has been superseded. A token
+ * is only ever worth what it says it is worth - `findConfirmToken` will not
+ * hand back a row on the strength of an unsubscribe token.
+ */
+async function findByToken(token, field = 'confirmTokenHash') {
   const raw = String(token || '');
   if (!/^[a-f0-9]{48}$/.test(raw)) return null;
   const hash = hashToken(raw);
-  const subscriber = await NewsletterSubscriber.findOne({ confirmTokenHash: hash });
+  const subscriber = await NewsletterSubscriber.findOne({ [field]: hash });
   if (!subscriber) return null;
-  const stored = Buffer.from(subscriber.confirmTokenHash || '', 'utf8');
+  const stored = Buffer.from(subscriber[field] || '', 'utf8');
   const wanted = Buffer.from(hash, 'utf8');
   if (stored.length !== wanted.length || !crypto.timingSafeEqual(stored, wanted)) return null;
   return subscriber;
+}
+
+/**
+ * The two links every alert mail carries, made together and stored apart.
+ *
+ * A token only exists while the mail that printed it exists, because the row
+ * keeps nothing but its hash - so both are minted at send time and the newest
+ * mail is always the one with the working links. They are separate tokens
+ * rather than one, so that the address in a mail client's unsubscribe button can
+ * never be the credential that confirms a subscription, and a half-used
+ * confirmation link can never be read as somebody asking to be left alone.
+ */
+async function mintLinks(subscriber) {
+  const confirm = mintToken();
+  const stop = mintToken();
+  await NewsletterSubscriber.updateOne(
+    { _id: subscriber._id },
+    { $set: { confirmTokenHash: confirm.tokenHash, unsubscribeTokenHash: stop.tokenHash } },
+  );
+  const base = siteBase();
+  return {
+    confirm: `${base}/api/newsletter/confirm?token=${confirm.token}`,
+    stop: `${base}/api/newsletter/unsubscribe?token=${stop.token}`,
+  };
 }
 
 // Links point back at the newsletter routes themselves, so a mail works even
@@ -449,19 +490,27 @@ function sendSignInCode({ to, code, subject = 'Your RADAR sign-in code', ttlMinu
   });
 }
 
-function sendConfirmation(subscriber, token) {
-  const confirm = `${siteBase()}/api/newsletter/confirm?token=${token}`;
-  const off = `${siteBase()}/api/newsletter/unsubscribe?token=${token}`;
+/**
+ * The double opt-in mail.
+ *
+ * It mints its own two links rather than being handed one, because the address
+ * is only half-recorded until this mail exists: the row is stored as pending,
+ * and the token that turns it into a subscription is the thing in the reader's
+ * inbox. The stop link is printed here too, so a subscription nobody asked for
+ * can be refused before it is ever accepted.
+ */
+async function sendConfirmation(subscriber) {
+  const { confirm, stop } = await mintLinks(subscriber);
   const text = [
     'Confirm your email alerts for the newsroom.',
     `Open this link to confirm: ${confirm}`,
-    `Changed your mind? Stop it here: ${off}`,
+    `Changed your mind? Stop it here: ${stop}`,
     'If you did not ask for this, just ignore the mail - nothing is sent until you confirm.',
   ].join('\n\n');
   const body = [
     '<p style="margin:0 0 16px;">One click and the newsroom can send you its alerts. Nothing arrives until you do it.</p>',
     `<p style="margin:0 0 20px;"><a href="${confirm}" style="display:inline-block;background:#1877F2;color:#ffffff;font-weight:700;padding:12px 20px;border-radius:8px;text-decoration:none;">Confirm my email address</a></p>`,
-    `<p style="margin:0;color:#6b7889;font-size:14px;">Changed your mind? <a href="${off}" style="color:#41608a;">Stop these alerts</a> before you ever start them.</p>`,
+    `<p style="margin:0;color:#6b7889;font-size:14px;">Changed your mind? <a href="${stop}" style="color:#41608a;">Stop these alerts</a> before you ever start them.</p>`,
   ].join('\n');
   return send({
     to: subscriber.email,
@@ -469,20 +518,97 @@ function sendConfirmation(subscriber, token) {
     text,
     purpose: 'newsletter-confirm',
     html: shell({ title: 'Confirm your news alerts', preview: 'One click and your RADAR alerts are on.', body }),
+    headers: unsubscribeHeaders(stop),
   });
+}
+
+/**
+ * The header a mail client reads instead of the reader.
+ *
+ * RFC 8058's one-click unsubscribe is a URL in the message and a POST the
+ * client is allowed to make without asking anybody: which is the only version
+ * of "stop mailing me" that works for a reader who cannot find the link at the
+ * bottom of the mail. The same URL is still printed in the body, because plenty
+ * of clients show the header to nobody.
+ */
+function unsubscribeHeaders(stopUrl) {
+  return {
+    'List-Unsubscribe': `<${stopUrl}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
+}
+
+/**
+ * The words around a story, in the language the reader asked for.
+ *
+ * Only the wrapper is translated, and that is the honest limit: the headline and
+ * the summary are the newsroom's, in the language it published them, and a mail
+ * that claimed otherwise would be making a story say something its author did
+ * not write. What a reader chose their language for is the sentence that tells
+ * them what this mail is and how to stop it - the part that is ours.
+ *
+ * Anything not on this list is mailed in English, and the account screen only
+ * offers these three, so a reader is never promised a language the newsroom has
+ * no words for.
+ */
+const ALERT_WORDS = {
+  en: {
+    read: 'Read the story',
+    stop: 'Stop these alerts',
+    footer: 'one click, no questions asked.',
+    because: 'You get these because you asked RADAR to tell you when the newsroom publishes.',
+  },
+  rw: {
+    read: 'Soma inkuru',
+    stop: 'Hagarika izi nkuru',
+    footer: 'ijyi rimwe, nta bibazo.',
+    because: 'Urabona izi nkuru kuko wasabye ko RADAR ikumenyesha iyo urubuga rwanditse inkuru nshya.',
+  },
+  fr: {
+    read: "Lire l'article",
+    stop: 'Arrêter ces alertes',
+    footer: 'un clic, sans questions.',
+    because: 'Vous recevez ces alertes parce que vous avez demandé à RADAR de vous prévenir des nouvelles publications.',
+  },
+};
+
+function alertWords(language) {
+  const key = String(language || '').toLowerCase().slice(0, 8);
+  return ALERT_WORDS[key] || ALERT_WORDS.en;
+}
+
+// The preference screen asks this instead of keeping its own list, so the two
+// sides cannot drift into promising a language the other has no words for.
+function alertLanguages() {
+  return Object.keys(ALERT_WORDS);
 }
 
 // The publish flow can call this without caring whether email works - the
 // return value always says which of the two it was:
 //   await announceByEmail('Headline', { text: 'A short intro', html: '<p>...</p>' })
-// html is optional; the plain text body is always sent alongside it.
-async function announceByEmail(subject, body) {
+// html is optional; the plain text body is always sent alongside it. `body` may
+// also be a function of the reader's words, which is how a story alert writes
+// itself into the language that address asked for.
+async function announceByEmail(subject, body, options = {}) {
   const state = status();
-  const total = await NewsletterSubscriber.countDocuments({ status: 'confirmed' });
-  if (!state.configured) return { delivered: false, skipped: 'NOT_CONFIGURED', sent: 0, failed: 0, total };
-
-  const text = typeof body === 'string' ? body : String((body && body.text) || '');
-  const html = (body && body.html) ? String(body.html) : `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+  // The desks this story belongs to, newest filing first: the section it is
+  // filed under and every desk above it. A reader who ticked "Sports" is asking
+  // for the sports newsroom, which includes the football desk under it, so the
+  // whole branch has to be checked rather than the leaf alone.
+  const desks = (Array.isArray(options.sections) ? options.sections : [options.section])
+    .map((desk) => String(desk || '').trim().toLowerCase())
+    .filter((desk, index, list) => desk && list.indexOf(desk) === index);
+  const section = desks[0] || '';
+  // A reader who never picked a desk is not "nobody": they asked for the
+  // newsroom, so an empty choice gets everything. Only somebody who did choose
+  // is filtered, and only on the desks they did not choose.
+  const query = desks.length
+    ? { status: 'confirmed', $or: [{ 'sections.0': { $exists: false } }, { sections: { $in: desks } }] }
+    : { status: 'confirmed' };
+  const total = await NewsletterSubscriber.countDocuments(query);
+  if (!state.configured) {
+    return { delivered: false, skipped: 'NOT_CONFIGURED', sent: 0, failed: 0, total, section: section || null };
+  }
 
   let sent = 0;
   let failed = 0;
@@ -490,28 +616,33 @@ async function announceByEmail(subject, body) {
   // refusals is the fastest way to get the whole newsroom marked as spam. Each
   // mail also writes its own outcome row, which is what makes "half the list
   // never got it" a question with an answer.
-  for (const subscriber of await NewsletterSubscriber.find({ status: 'confirmed' }).lean()) {
-    // A fresh token per mail keeps the unsubscribe link of the newest message
-    // live, which is the one a reader actually clicks.
-    const { token, tokenHash } = mintToken();
-    await NewsletterSubscriber.updateOne({ _id: subscriber._id }, { $set: { confirmTokenHash: tokenHash } });
-    const off = `${siteBase()}/api/newsletter/unsubscribe?token=${token}`;
+  for (const subscriber of await NewsletterSubscriber.find(query).lean()) {
+    const words = alertWords(subscriber.language);
+    const built = typeof body === 'function' ? body(words) : (body || {});
+    const text = typeof built === 'string' ? built : String((built && built.text) || '');
+    const html = (built && built.html) ? String(built.html) : `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+    // Both links are minted again for this mail, so the newest message is the
+    // one with the working links - which is the only message a reader still has
+    // in front of them when they decide to stop.
+    const links = await mintLinks(subscriber);
     const result = await send({
       to: subscriber.email,
       subject,
-      text: `${text}\n\n--\nStop these alerts: ${off}`,
+      text: `${text}\n\n--\n${words.stop}: ${links.stop}\n${words.because}`,
       purpose: 'story-alert',
       html: shell({
         title: subject,
         preview: text.slice(0, 140),
         body: `${html}<hr style="border:none;border-top:1px solid #e3e8ef;margin:22px 0 14px;">`
-          + `<p style="margin:0;font-size:14px;"><a href="${off}" style="color:#41608a;">Stop these alerts</a> - one click, no questions asked.</p>`,
+          + `<p style="margin:0 0 8px;font-size:14px;">${escapeHtml(words.because)}</p>`
+          + `<p style="margin:0;font-size:14px;"><a href="${links.stop}" style="color:#41608a;">${escapeHtml(words.stop)}</a> - ${escapeHtml(words.footer)}</p>`,
       }),
+      headers: unsubscribeHeaders(links.stop),
     });
     if (result.delivered) sent += 1;
     else failed += 1;
   }
-  return { delivered: sent > 0 && failed === 0, sent, failed, total };
+  return { delivered: sent > 0 && failed === 0, sent, failed, total, section: section || null };
 }
 
 // A story, not a press release: the mail carries the headline, the summary the
@@ -520,11 +651,49 @@ async function announceStory(article) {
   if (!article || !article.title) return { delivered: false, skipped: 'NO_STORY', sent: 0, failed: 0, total: 0 };
   const link = `${siteBase()}/article/${article.slug || article._id}`;
   const summary = String(article.summary || '').trim();
-  const text = [summary, `Read it here: ${link}`].filter(Boolean).join('\n\n');
-  const html = `<p style="margin:0 0 16px;">${escapeHtml(summary).replace(/\n/g, '<br>')}</p>`
-    + `<p style="margin:0;"><a href="${escapeHtml(link)}" style="display:inline-block;background:#1877F2;color:#ffffff;font-weight:700;padding:12px 20px;border-radius:8px;text-decoration:none;">Read the story</a></p>`;
-  const result = await announceByEmail(String(article.title).slice(0, 200), { text, html });
-  return { ...result, link };
+  const desks = await deskSlugsOf(article);
+  const result = await announceByEmail(
+    String(article.title).slice(0, 200),
+    // Built per reader, so the button and the stop line are in the language
+    // that address asked for while the story text stays exactly as written.
+    (words) => ({
+      text: [summary, `${words.read}: ${link}`].filter(Boolean).join('\n\n'),
+      html: `<p style="margin:0 0 16px;">${escapeHtml(summary).replace(/\n/g, '<br>')}</p>`
+        + `<p style="margin:0;"><a href="${escapeHtml(link)}" style="display:inline-block;background:#1877F2;color:#ffffff;font-weight:700;padding:12px 20px;border-radius:8px;text-decoration:none;">${escapeHtml(words.read)}</a></p>`,
+    }),
+    { sections: desks },
+  );
+  return { ...result, link, section: desks[0] || null };
+}
+
+/**
+ * Which desks a story came from, in the spelling the reader's choice uses.
+ *
+ * The alert is filtered on the section slug rather than the category id because
+ * the choice on the account screen has to survive a category being renamed, and
+ * an id that a reader never saw is not something they can meaningfully tick.
+ * The parent chain is walked from the database rather than trusted from the
+ * story document, because a published article carries whichever fields the
+ * query happened to project, and a missing `parent` would silently narrow a
+ * reader's "Sports" choice to one sub-desk.
+ */
+async function deskSlugsOf(article) {
+  const raw = article && article.category;
+  const direct = raw && raw.slug ? String(raw.slug).toLowerCase() : '';
+  const id = String((raw && (raw._id || raw)) || '');
+  if (!/^[a-f0-9]{24}$/.test(id)) return direct ? [direct] : [];
+
+  const slugs = [];
+  let node = await Category.findById(id).select('slug parent').lean();
+  // Three levels is the deepest the section tree goes; the guard is for a
+  // mistyped parent that points back at its own child.
+  for (let depth = 0; node && depth < 3; depth += 1) {
+    if (node.slug) slugs.push(String(node.slug).toLowerCase());
+    if (!node.parent) break;
+    node = await Category.findById(String(node.parent)).select('slug parent').lean();
+  }
+  if (direct && !slugs.includes(direct)) slugs.unshift(direct);
+  return slugs.filter((slug, index) => slug && slugs.indexOf(slug) === index);
 }
 
 /**
@@ -624,5 +793,7 @@ module.exports = {
   sendSignInCode,
   announceByEmail,
   announceStory,
+  alertLanguages,
+  alertWords,
   siteBase,
 };

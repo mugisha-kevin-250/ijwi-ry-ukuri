@@ -446,6 +446,13 @@ export const userAPI = {
     apiClient.get<any>('/users/me/stats'),
   getProfile: (id: string) =>
     apiClient.get<any>(`/users/${id}/profile`),
+
+  // The one press on the account screen that cannot be taken back. The server
+  // wants the account password and an explicit agreement in the body, never in
+  // the URL, and it refuses byline, staff and payment histories with a plain
+  // sentence the screen prints as it was written.
+  closeAccount: (password: string) =>
+    apiClient.delete<any>('/users/me', { password, confirm: true }),
 }
 
 export const notificationAPI = {
@@ -1459,24 +1466,60 @@ export interface NewsletterSubscribeResult {
   message: string
 }
 
+/**
+ * One address's own alert choices, as the server keeps them.
+ *
+ * `sections` empty means the whole newsroom rather than nothing - the reader
+ * who ticked no desk asked for everything, and that is what the mail server
+ * honours. `status` is the honest state: nothing is mailed until the address
+ * has been confirmed through the link in a mail.
+ */
+export interface NewsletterSubscription {
+  email: string
+  status: 'pending' | 'confirmed' | 'unsubscribed'
+  sections: string[]
+  language: string
+  confirmedAt: string | null
+  unsubscribedAt: string | null
+  source: string | null
+}
+
+export interface NewsletterChoices {
+  sections?: string[]
+  language?: string
+}
+
+export interface NewsletterMeResult {
+  email: string | null
+  subscription: NewsletterSubscription | null
+  languages: string[]
+}
+
 export const newsletterAPI = {
   // The server admits whether a mail sender exists at all, so the page can say
-  // "nothing will arrive yet" instead of pretending a mail was sent.
-  getStatus: async (): Promise<{ configured: boolean; reason: string | null }> => {
+  // "nothing will arrive yet" instead of pretending a mail was sent. The
+  // language list comes from the same place because it is the mail server that
+  // has the words, not this bundle.
+  getStatus: async (): Promise<{ configured: boolean; reason: string | null; languages: string[] }> => {
     const response = await apiClient.get('/newsletter/status')
-    const payload = (response.data?.data || {}) as { configured?: boolean; reason?: string | null }
-    return { configured: payload.configured === true, reason: payload.reason || null }
+    const payload = (response.data?.data || {}) as { configured?: boolean; reason?: string | null; languages?: string[] }
+    return {
+      configured: payload.configured === true,
+      reason: payload.reason || null,
+      languages: Array.isArray(payload.languages) ? payload.languages : ['en'],
+    }
   },
 
   subscribe: async (
     email: string,
     source = 'home',
+    choices?: NewsletterChoices,
   ): Promise<NewsletterSubscribeResult> => {
     // postWakingUp, not post: this is the press readers were told "we could not
     // reach the newsroom" about, and the reason was the API being asleep rather
     // than the address being refused. The server itself no longer waits for the
     // mail relay to answer before it replies.
-    const response = await apiClient.postWakingUp('/newsletter/subscribe', { email, source })
+    const response = await apiClient.postWakingUp('/newsletter/subscribe', { email, source, ...(choices || {}) })
     const payload = (response.data?.data || {}) as { delivered?: boolean; queued?: boolean; needsConfirmation?: boolean; configured?: boolean }
     return {
       delivered: payload.delivered === true,
@@ -1484,6 +1527,29 @@ export const newsletterAPI = {
       needsConfirmation: payload.needsConfirmation === true,
       configured: payload.configured === true,
       message: response.data?.message || '',
+    }
+  },
+
+  // The reader's own row, reached through their session rather than by typing an
+  // address: there is no id in this call for anybody else to put there.
+  getMe: async (): Promise<NewsletterMeResult> => {
+    const response = await apiClient.get<any>('/newsletter/me')
+    const payload = (response.data?.data || {}) as NewsletterMeResult
+    return {
+      email: payload.email || null,
+      subscription: payload.subscription || null,
+      languages: Array.isArray(payload.languages) ? payload.languages : ['en'],
+    }
+  },
+
+  updateMe: async (
+    input: NewsletterChoices & { stop?: boolean; start?: boolean },
+  ): Promise<{ subscription: NewsletterSubscription | null; confirmationMailed: boolean | null }> => {
+    const response = await apiClient.put<any>('/newsletter/me', input)
+    const payload = (response.data?.data || {}) as { subscription?: NewsletterSubscription | null; confirmationMailed?: boolean | null }
+    return {
+      subscription: payload.subscription || null,
+      confirmationMailed: payload.confirmationMailed === null ? null : payload.confirmationMailed === true,
     }
   },
 }

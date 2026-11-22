@@ -1,7 +1,10 @@
 const express = require('express');
 const NewsletterSubscriber = require('../models/NewsletterSubscriber');
+const User = require('../models/User');
 const mailer = require('../services/mailerService');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
+const { protect, optionalAuth } = require('../middleware/auth');
+const { cleanList, oneOrNothing } = require('../utils/newsletterPrefs');
 
 const router = express.Router();
 
@@ -26,10 +29,21 @@ router.get('/status', (req, res) => {
   return successResponse(res, 200, 'Newsletter status', {
     configured: state.configured,
     reason: state.reason || null,
+    languages: mailer.alertLanguages(),
   });
 });
 
-router.post('/subscribe', async (req, res, next) => {
+/**
+ * The address joins the list as pending, and stays pending until the reader
+ * opens the mail we just sent them.
+ *
+ * Nothing else on the site works like this, and it is the point: an address
+ * typed into a form is not proof that whoever typed it can read it. The
+ * preference choices ride along now because they cost nothing to store and
+ * everything to ask for twice - a reader who chose three desks on the home page
+ * should not have to choose them again on the account screen.
+ */
+router.post('/subscribe', optionalAuth, async (req, res, next) => {
   try {
     const state = mailer.status();
     // Bots fill every field they are given, same trick as the contact form;
@@ -46,30 +60,40 @@ router.post('/subscribe', async (req, res, next) => {
       return errorResponse(res, 400, 'That email address is missing something, so we could not mail it.');
     }
 
+    const sections = cleanList(req.body?.sections);
+    const language = oneOrNothing(req.body?.language, mailer.alertLanguages());
+    const accountId = req.user && req.user._id ? req.user._id : null;
+
     let subscriber = await NewsletterSubscriber.findOne({ email });
     if (subscriber && subscriber.status === 'confirmed') {
       // Already on the list: no second mail and no pretend "check your inbox".
+      // The choices still belong to them, so a signed-in reader who arrives here
+      // with new preferences has them saved rather than thrown away.
+      if (sections || language || accountId) {
+        if (sections) subscriber.sections = sections;
+        if (language) subscriber.language = language;
+        if (accountId && !subscriber.user) subscriber.user = accountId;
+        await subscriber.save();
+      }
       return successResponse(res, 200, 'Already on the list', {
         delivered: false, needsConfirmation: false, configured: state.configured,
       });
     }
 
-    // A re-subscribe reactivates the one row this address is allowed to have,
-    // with a fresh token - the old link has been superseded anyway.
-    const { token, tokenHash } = mailer.mintToken();
     if (subscriber) {
+      // A re-subscribe reactivates the one row this address is allowed to have.
+      // The tokens are minted by the mail itself, so nothing here can leave a
+      // half-used link pointing at a row that moved on.
       subscriber.status = 'pending';
-      subscriber.confirmTokenHash = tokenHash;
       subscriber.confirmedAt = null;
       subscriber.unsubscribedAt = null;
     } else {
-      subscriber = new NewsletterSubscriber({
-        email,
-        status: 'pending',
-        confirmTokenHash: tokenHash,
-        source: String(req.body?.source || 'site').slice(0, 60),
-      });
+      subscriber = new NewsletterSubscriber({ email, status: 'pending' });
     }
+    if (sections) subscriber.sections = sections;
+    if (language) subscriber.language = language;
+    if (accountId) subscriber.user = accountId;
+    subscriber.source = String(req.body?.source || 'site').slice(0, 60);
 
     try {
       await subscriber.save();
@@ -80,7 +104,6 @@ router.post('/subscribe', async (req, res, next) => {
       subscriber = await NewsletterSubscriber.findOne({ email });
       if (!subscriber) throw error;
       subscriber.status = 'pending';
-      subscriber.confirmTokenHash = tokenHash;
       await subscriber.save();
     }
 
@@ -89,7 +112,7 @@ router.post('/subscribe', async (req, res, next) => {
     // budget and the mail finishes behind the response, so a relay that is slow
     // today cannot look like a dead newsroom.
     const result = await mailer.answerWithin(
-      () => mailer.sendConfirmation(subscriber, token),
+      () => mailer.sendConfirmation(subscriber),
       undefined,
       { purpose: 'newsletter-confirm', to: email, subject: 'Confirm your news alerts' },
     );
@@ -134,9 +157,12 @@ router.get('/confirm', async (req, res, next) => {
   }
 });
 
+// An unsubscribe link is only ever an unsubscribe link. The token in it is
+// looked up in its own field, so a confirmation link that has not been used yet
+// cannot also be read as a request to stop, and vice versa.
 async function resolveUnsubscribe(req) {
   const token = String(req.query.token ?? req.body?.token ?? '');
-  return mailer.findByToken(token);
+  return mailer.findByToken(token, 'unsubscribeTokenHash');
 }
 
 router.post('/unsubscribe', async (req, res, next) => {
@@ -169,6 +195,113 @@ router.get('/unsubscribe', async (req, res, next) => {
       await subscriber.save();
     }
     return page(res, 200, 'You are unsubscribed', 'No alert emails will be sent to this address again.');
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * The reader's own row, found through their own account.
+ *
+ * There is no id in this address and no query for another one: the row is found
+ * by the account's user link or by the email on the account, and nothing else
+ * can be read or written here. A reader who shares a family address is the case
+ * that has to keep working - they see the row that address owns, which is the
+ * row their alerts come from, and they cannot see anybody else's choices.
+ */
+async function ownSubscription(req) {
+  const account = await User.findById(req.user._id).select('email').lean();
+  const email = String(account && account.email ? account.email : '').toLowerCase();
+  const rows = await NewsletterSubscriber.find({
+    $or: [{ user: req.user._id }, ...(email ? [{ email }] : [])],
+  }).sort({ updatedAt: -1 });
+  return { account, subscriber: rows[0] || null, addressCount: rows.length };
+}
+
+function subscriptionState(subscriber) {
+  if (!subscriber) return null;
+  return {
+    email: subscriber.email,
+    status: subscriber.status,
+    sections: subscriber.sections || [],
+    language: subscriber.language || 'en',
+    confirmedAt: subscriber.confirmedAt,
+    unsubscribedAt: subscriber.unsubscribedAt,
+    source: subscriber.source,
+  };
+}
+
+router.get('/me', protect, async (req, res, next) => {
+  try {
+    const { account, subscriber } = await ownSubscription(req);
+    return successResponse(res, 200, 'Your email alerts', {
+      email: account ? account.email : null,
+      subscription: subscriptionState(subscriber),
+      languages: mailer.alertLanguages(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * What the reader wants, in what language, and whether they want it at all.
+ *
+ * `stop` is the account screen's one-click unsubscribe: the same thing the link
+ * in a mail does, reached without hunting for the newest message. It is offered
+ * here because a reader who is already signed in should not have to own an
+ * inbox to leave one.
+ */
+router.put('/me', protect, async (req, res, next) => {
+  try {
+    const { account, subscriber } = await ownSubscription(req);
+    if (!subscriber) {
+      return errorResponse(res, 404, 'That address is not on the alert list yet. Ask for alerts to start them.');
+    }
+
+    if (req.body?.sections !== undefined) {
+      const sections = cleanList(req.body.sections);
+      // An empty list is a choice, not a mistake: it means the whole newsroom.
+      subscriber.sections = sections || [];
+    }
+    if (req.body?.language !== undefined) {
+      const language = oneOrNothing(req.body.language, mailer.alertLanguages());
+      if (req.body.language && !language) {
+        return errorResponse(res, 400, 'We only have alert words in the languages on that list.');
+      }
+      if (language) subscriber.language = language;
+    }
+
+    let mailed = null;
+    let askAgain = false;
+    if (req.body?.stop === true) {
+      subscriber.status = 'unsubscribed';
+      subscriber.unsubscribedAt = new Date();
+    } else if (req.body?.start === true && subscriber.status !== 'confirmed') {
+      subscriber.status = 'pending';
+      subscriber.confirmedAt = null;
+      subscriber.unsubscribedAt = null;
+      askAgain = true;
+    }
+
+    await subscriber.save();
+
+    // Only an explicit "start them again" sends a mail. Changing which desks
+    // the reader wants is not a request for a third confirmation link.
+    if (askAgain) {
+      mailed = await mailer.answerWithin(
+        () => mailer.sendConfirmation(subscriber),
+        undefined,
+        { purpose: 'newsletter-confirm', to: subscriber.email, subject: 'Confirm your news alerts' },
+      );
+    }
+
+    return successResponse(res, 200, subscriber.status === 'unsubscribed'
+      ? 'Your email alerts are stopped'
+      : 'Your alert choices are saved', {
+      subscription: subscriptionState(subscriber),
+      confirmationMailed: mailed ? mailed.delivered === true : null,
+    });
   } catch (error) {
     next(error);
   }

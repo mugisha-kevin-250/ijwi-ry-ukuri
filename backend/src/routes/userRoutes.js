@@ -7,6 +7,7 @@ const Like = require('../models/Like');
 const Comment = require('../models/Comment');
 const Bookmark = require('../models/Bookmark');
 const WriterProfile = require('../models/WriterProfile');
+const accountDeletion = require('../services/accountDeletion');
 const { protect, optionalAuth } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { plainText, cleanText, safeMediaUrl } = require('../utils/textFields');
@@ -103,6 +104,40 @@ router.get('/me/stats', protect, async (req, res, next) => {
       following,
       totalLikes: likesAgg[0]?.totalLikes || 0,
       totalViews: likesAgg[0]?.totalViews || 0
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The door the privacy page has promised since the first release. It is a
+// DELETE on the reader's own address, and it asks for the password again
+// because nothing else on this screen is undoable: an access token left on a
+// borrowed laptop must not be enough to erase a person.
+router.delete('/me', protect, async (req, res, next) => {
+  try {
+    const { password, confirm } = req.body || {};
+    if (!password) {
+      return errorResponse(res, 400, 'Type the account password first. This cannot be a mis-click.');
+    }
+    if (confirm !== true) {
+      return errorResponse(res, 400, 'Say what you are agreeing to: the account and its personal data go for good.');
+    }
+
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) return errorResponse(res, 404, 'That account is already gone.');
+    if (!(await bcrypt.compare(String(password), user.password))) {
+      return errorResponse(res, 401, 'That is not the password on this account.');
+    }
+
+    const outcome = await accountDeletion.closeAccount(user);
+    if (!outcome.closed) {
+      // The newsroom's own record is the reason, said in the newsroom's words.
+      return errorResponse(res, 409, outcome.reasons.join(' '));
+    }
+    return successResponse(res, 200, 'Your account and the personal data we held on it are deleted.', {
+      removed: outcome.removed,
+      touchedStories: outcome.touchedStories,
     });
   } catch (error) {
     next(error);

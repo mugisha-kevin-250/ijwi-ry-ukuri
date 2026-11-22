@@ -9,6 +9,8 @@ import LanguageSelector from '../../components/layout/LanguageSelector'
 import { uploadImage } from '../../services/apiClient'
 import Avatar from '../../components/common/Avatar'
 import NewsAlertsCard from '../../components/pwa/NewsAlertsCard'
+import EmailAlertsCard from '../../components/pwa/EmailAlertsCard'
+import CloseAccountCard from '../../components/account/CloseAccountCard'
 import { useSeo, absoluteSiteUrl } from '../../utils/useSeo'
 import { toast } from 'react-toastify'
 
@@ -254,8 +256,15 @@ export default function UserProfilePage() {
       </div>
 
       {isOwnProfile && (
-        <div className="mt-6">
+        <div className="mt-6 space-y-6">
           <NewsAlertsCard />
+          <EmailAlertsCard />
+        </div>
+      )}
+
+      {isOwnProfile && (
+        <div className="mt-6">
+          <CloseAccountCard />
         </div>
       )}
 

@@ -167,6 +167,19 @@ app.post('/api/contact', contactLimiter);
 // confirm and unsubscribe links are GETs a reader opens from an old mail and
 // stay unthrottled.
 app.post('/api/newsletter/subscribe', contactLimiter);
+// Closing an account is one press, and the password is the only thing in front
+// of it, so the ceiling counts failed attempts from an address rather than the
+// reader's own - a wrong guess is the thing worth limiting here.
+const accountCloseLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('Too many tries from this address. Please come back in a while.')
+});
+app.delete('/api/users/me', accountCloseLimiter);
 // Translating the site's own labels is the one translation call a reader can
 // ask for on their own, so it is capped. It is a one-off per language per
 // browser, and the server only ever pays Google for the first reader.

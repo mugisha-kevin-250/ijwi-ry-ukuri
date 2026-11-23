@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
+import { resolveMediaUrl } from '../services/apiClient'
 
-const SITE_URL = 'https://ijwi-ry--ukuri.web.app'
+const SITE_URL = 'https://www.radartimes.2bd.net'
 const DEFAULT_TITLE = 'RADAR | Real news, real people, stories shaping Rwanda and the world'
 const DEFAULT_DESCRIPTION = 'RADAR - Real news, real people, and stories shaping Rwanda, Africa and the world.'
 const DEFAULT_IMAGE = `${SITE_URL}/icons/icon-512x512.png`
@@ -78,7 +79,10 @@ export function useSeo({
   const url = absoluteSiteUrl(path)
   const nextTitle = title ? `${title} | RADAR` : DEFAULT_TITLE
   const nextDescription = description || DEFAULT_DESCRIPTION
-  const nextImage = image || DEFAULT_IMAGE
+  const resolvedImage = image ? resolveMediaUrl(image) : ''
+  const nextImage = resolvedImage
+    ? (/^https?:\/\//i.test(resolvedImage) ? resolvedImage : absoluteSiteUrl(resolvedImage.startsWith('/') ? resolvedImage : `/${resolvedImage}`))
+    : DEFAULT_IMAGE
   // A page kept out of the index has no business describing itself to one, so the
   // structured data goes away with the index permission rather than alongside it.
   const jsonLdText = jsonLd && !noindex ? JSON.stringify(jsonLd) : ''

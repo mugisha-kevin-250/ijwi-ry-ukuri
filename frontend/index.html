@@ -51,6 +51,43 @@
     <link rel="preconnect" href="https://accounts.google.com" crossorigin>
     <link rel="preconnect" href="https://accounts.gstatic.com" crossorigin>
     <script async src="https://accounts.google.com/gsi/client?hl=en"></script>
+    <!-- Public pages are indexable by default. Individual private or empty profiles
+         override this through the route-level SEO hook when appropriate. -->
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+
+    <!-- Brand identity for Google Search. The favicon remains the small result icon;
+         this Organization logo identifies the publisher behind the news site. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.radartimes.2bd.net/#organization",
+            "name": "RADAR TIMES",
+            "alternateName": "RADAR",
+            "url": "https://www.radartimes.2bd.net/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://www.radartimes.2bd.net/icons/icon-512x512.png",
+              "width": 512,
+              "height": 512
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://www.radartimes.2bd.net/#website",
+            "url": "https://www.radartimes.2bd.net/",
+            "name": "RADAR TIMES",
+            "alternateName": "RADAR",
+            "publisher": {
+              "@id": "https://www.radartimes.2bd.net/#organization"
+            },
+            "inLanguage": "en"
+          }
+        ]
+      }
+    </script>
   </head>
   <body class="antialiased">
     <div id="app"></div>

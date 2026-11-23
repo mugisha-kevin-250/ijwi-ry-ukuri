@@ -21,6 +21,7 @@ import TranslationNotice from '../../components/news/TranslationNotice'
 import AskRadarAi from '../../components/ai/AskRadarAi'
 import { cn } from '../../utils/cn'
 import { useSeo, absoluteSiteUrl } from '../../utils/useSeo'
+import { resolveMediaUrl } from '../../services/apiClient'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
 import { requestSignIn } from '../../utils/signInPrompt'
 import { useArticleViewTracking } from '../../utils/viewTracking'
@@ -60,6 +61,7 @@ export default function ArticleDetailPage() {
   const [article, setArticle] = useState<Article | null>(null)
   const [relatedArticles, setRelatedArticles] = useState<Article[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isNotFound, setIsNotFound] = useState(false)
   const { liked, likes, toggle: toggleLike } = useArticleLike(article)
   const { bookmarked, toggle: toggleBookmark } = useArticleBookmark(article)
   const followAuthorId = article && typeof article.author === 'object' ? article.author._id : null
@@ -71,7 +73,8 @@ export default function ArticleDetailPage() {
     title: article?.title,
     description: article?.metaDescription || article?.summary,
     path: slug ? `/article/${slug}` : undefined,
-    image: article?.featuredImage,
+    image: article?.featuredImage ? absoluteSiteUrl(resolveMediaUrl(article.featuredImage)) : undefined,
+    noindex: isNotFound, 
     type: 'article',
     jsonLd: article
       ? [
@@ -87,7 +90,9 @@ export default function ArticleDetailPage() {
             },
             headline: article.title,
             description: article.metaDescription || article.summary,
-            image: article.featuredImage ? [article.featuredImage] : undefined,
+            image: article.featuredImage
+              ? [absoluteSiteUrl(resolveMediaUrl(article.featuredImage))]
+              : undefined,
             datePublished: article.publishedAt ?? article.createdAt,
             dateModified: article.updatedAt ?? article.createdAt,
             // The newsroom files every story in English and a reader picks a
@@ -139,18 +144,21 @@ export default function ArticleDetailPage() {
   useEffect(() => {
     const fetchArticle = async () => {
       if (!slug) return
+      setIsNotFound(false)
       try {
         const articleRes = await publicAPI.getArticleBySlug(slug)
         const payload = articleRes.data.data as any
         const articleData = (payload?.article ?? payload) as Article | null
         if (!articleData) {
-          navigate('/articles')
+          setIsNotFound(true)
           return
         }
         setArticle(articleData)
       } catch (error) {
         console.error('Failed to fetch article:', error)
-        navigate('/articles')
+        const status = (error as { response?: { status?: number } })?.response?.status
+        if (status === 404 || status === 410) setIsNotFound(true)
+        else navigate('/articles')
       } finally {
         setIsLoading(false)
       }

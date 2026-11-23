@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
+import { resolveMediaUrl } from '../services/apiClient'
 
-const SITE_URL = 'https://ijwi-ry--ukuri.web.app'
+const SITE_URL = 'https://www.radartimes.2bd.net'
 const DEFAULT_TITLE = 'RADAR | Real news, real people, stories shaping Rwanda and the world'
 const DEFAULT_DESCRIPTION = 'RADAR - Real news, real people, and stories shaping Rwanda, Africa and the world.'
 const DEFAULT_IMAGE = `${SITE_URL}/icons/icon-512x512.png`
@@ -61,6 +62,14 @@ export function absoluteSiteUrl(path?: string) {
   return `${SITE_URL}${path.startsWith('/') ? '' : '/'}${path}`
 }
 
+/** Convert API-relative media paths to public, crawlable image URLs. */
+export function absoluteMediaUrl(value?: string | null) {
+  const resolved = resolveMediaUrl(value)
+  if (!resolved || /^(data:|blob:)/i.test(resolved)) return DEFAULT_IMAGE
+  if (/^https?:\/\//i.test(resolved)) return resolved
+  return absoluteSiteUrl(resolved.startsWith('/') ? resolved : `/${resolved}`)
+}
+
 /**
  * Firebase Hosting serves one static shell, so search results would otherwise
  * show the same title for every route. This keeps the head in step with the
@@ -78,7 +87,7 @@ export function useSeo({
   const url = absoluteSiteUrl(path)
   const nextTitle = title ? `${title} | RADAR` : DEFAULT_TITLE
   const nextDescription = description || DEFAULT_DESCRIPTION
-  const nextImage = image || DEFAULT_IMAGE
+  const nextImage = image ? absoluteMediaUrl(image) : DEFAULT_IMAGE
   // A page kept out of the index has no business describing itself to one, so the
   // structured data goes away with the index permission rather than alongside it.
   const jsonLdText = jsonLd && !noindex ? JSON.stringify(jsonLd) : ''

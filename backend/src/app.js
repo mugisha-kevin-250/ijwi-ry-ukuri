@@ -30,16 +30,50 @@ const env = require('./config/env');
 
 const app = express();
 
-const allowedOrigins = env.CLIENT_URL.split(',').map((item) => item.trim()).filter(Boolean);
+// CORS is checked before every route, including error responses and OPTIONS
+// preflights. Normalize configured URLs so a trailing slash, uppercase host,
+// or explicit default port in Render's CLIENT_URL does not accidentally make
+// the browser origin fail an exact string comparison.
+const normalizeOrigin = (value) => {
+  try {
+    const parsed = new URL(String(value).trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+};
 
-app.use(cors({
+const allowedOrigins = new Set([
+  ...env.CLIENT_URL.split(/[,;]/).map(normalizeOrigin),
+  'https://www.radartimes.2bd.net',
+  'https://radartimes.2bd.net',
+  'https://ijwi-ry--ukuri.web.app',
+  'https://ijwi-ry--ukuri.firebaseapp.com',
+].filter(Boolean));
+
+const corsOptions = {
   origin: (origin, callback) => {
-    // No Origin header: same-origin, curl, health checks.
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    // Requests without an Origin header (curl, server-to-server, health checks)
+    // are not browser cross-origin requests and can continue normally.
+    if (!origin) return callback(null, true);
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (normalizedOrigin && allowedOrigins.has(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    // Do not reflect an unknown origin. Log it so a rejected production origin
+    // can be identified from Render logs without guessing or opening CORS to *.
+    console.warn(`[cors] Rejected browser origin: ${JSON.stringify(origin)}`);
     return callback(null, false);
   },
   credentials: true,
-}));
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
+};
+
+app.use(cors(corsOptions));
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

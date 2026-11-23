@@ -95,7 +95,7 @@ services:
         # backend/src/app.js builds a CORS allowlist from CLIENT_URL (comma-
         # separated), so both are listed. If you add a custom domain, append it.
         sync: false
-        value: https://ijwi-ry--ukuri.web.app,https://ijwi-ry--ukuri.firebaseapp.com
+        value: https://ijwi-ry--ukuri.web.app,https://ijwi-ry--ukuri.firebaseapp.com,https://www.radartimes.2bd.net,https://radartimes.2bd.net
 
       # --- uploads ---
       # backend/src/config/env.js reads UPLOAD_DIR, and both

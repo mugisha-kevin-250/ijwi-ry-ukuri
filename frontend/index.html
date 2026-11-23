@@ -13,7 +13,7 @@
     <meta name="theme-color" content="#1877F2" />
     <!-- The site always opens light; dark is only ever an explicit user choice. -->
     <meta name="color-scheme" content="light" />
-    <link rel="canonical" href="https://ijwi-ry--ukuri.web.app/" />
+    <link rel="canonical" href="https://www.radartimes.2bd.net/" />
 
     <link rel="manifest" href="/site.webmanifest" />
     <!-- Feed readers and news aggregators discover the RSS output here. -->
@@ -35,12 +35,12 @@
     <meta property="og:site_name" content="RADAR" />
     <meta property="og:title" content="RADAR | Real news, real people, stories shaping Rwanda and the world" />
     <meta property="og:description" content="Real news, real people, and stories shaping Rwanda, Africa and the world." />
-    <meta property="og:url" content="https://ijwi-ry--ukuri.web.app/" />
-    <meta property="og:image" content="https://ijwi-ry--ukuri.web.app/icons/icon-512x512.png" />
+    <meta property="og:url" content="https://www.radartimes.2bd.net/" />
+    <meta property="og:image" content="https://www.radartimes.2bd.net/icons/icon-512x512.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="RADAR | Real news, real people, stories shaping Rwanda and the world" />
     <meta name="twitter:description" content="Real news, real people, and stories shaping Rwanda, Africa and the world." />
-    <meta name="twitter:image" content="https://ijwi-ry--ukuri.web.app/icons/icon-512x512.png" />
+    <meta name="twitter:image" content="https://www.radartimes.2bd.net/icons/icon-512x512.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -51,6 +51,43 @@
     <link rel="preconnect" href="https://accounts.google.com" crossorigin>
     <link rel="preconnect" href="https://accounts.gstatic.com" crossorigin>
     <script async src="https://accounts.google.com/gsi/client?hl=en"></script>
+    <!-- Public pages are indexable by default. Individual private or empty profiles
+         override this through the route-level SEO hook when appropriate. -->
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+
+    <!-- Brand identity for Google Search. The favicon remains the small result icon;
+         this Organization logo identifies the publisher behind the news site. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.radartimes.2bd.net/#organization",
+            "name": "RADAR TIMES",
+            "alternateName": "RADAR",
+            "url": "https://www.radartimes.2bd.net/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://www.radartimes.2bd.net/icons/icon-512x512.png",
+              "width": 512,
+              "height": 512
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://www.radartimes.2bd.net/#website",
+            "url": "https://www.radartimes.2bd.net/",
+            "name": "RADAR TIMES",
+            "alternateName": "RADAR",
+            "publisher": {
+              "@id": "https://www.radartimes.2bd.net/#organization"
+            },
+            "inLanguage": "en"
+          }
+        ]
+      }
+    </script>
   </head>
   <body class="antialiased">
     <div id="app"></div>

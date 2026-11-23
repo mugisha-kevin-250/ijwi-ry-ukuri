@@ -227,7 +227,10 @@ router.post('/:id/view', optionalAuth, async (req, res, next) => {
       article.uniqueViews = Number(article.uniqueViews || 0) + 1;
       countersChanged = true;
     }
-    if (countersChanged) await article.save();
+    // A reader view changes engagement counters, not the story's editorial
+    // content. Keep Mongoose from advancing updatedAt so Article/NewsArticle
+    // dateModified remains a truthful editorial timestamp.
+    if (countersChanged) await article.save({ timestamps: false });
 
     return successResponse(res, 200, 'View processed', {
       result,

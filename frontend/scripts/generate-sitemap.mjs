@@ -23,7 +23,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const SITE_URL = 'https://ijwi-ry--ukuri.web.app'
+const SITE_URL = 'https://www.radartimes.2bd.net'
 const SITE_NAME = 'RADAR'
 const SITE_DESCRIPTION = 'News written by approved writers: world, politics, business, technology, sports, entertainment and health.'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -339,7 +339,6 @@ async function main() {
       // lastmod moves with the build - a stale date on a live page tells the
       // crawler the thing is not being looked after.
       urlEntry(`${SITE_URL}/live-sports`, today, '0.9', 'hourly'),
-      urlEntry(`${SITE_URL}/search`, null, '0.4', 'monthly'),
       ...publisherPages.map((slug) => urlEntry(`${SITE_URL}/${slug}`, today, '0.4', 'yearly')),
     ]),
   })
@@ -393,9 +392,12 @@ async function main() {
   // Newest first, because both the feed and the News sitemap lead with them.
   const newest = byNewest(articles.filter((a) => a?.slug))
   const news = newsSitemap(newest)
-  if (news.count) files.push({ name: 'sitemap-news.xml', xml: news.xml })
+  // Keep both specialized sitemap endpoints present even on quiet days. The News
+  // sitemap is valid with an empty urlset; this prevents robots.txt or Search
+  // Console from being sent to a stale file left over from an earlier build.
+  files.push({ name: 'sitemap-news.xml', xml: news.xml })
   const images = imageSitemap(newest)
-  if (images.count) files.push({ name: 'sitemap-images.xml', xml: images.xml })
+  files.push({ name: 'sitemap-images.xml', xml: images.xml })
   const feedUrl = write('feed.xml', rssFeed(newest))
 
   const written = files.map((file) => ({ name: file.name, url: write(file.name, file.xml) }))

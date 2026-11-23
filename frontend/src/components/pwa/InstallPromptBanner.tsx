@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Check, Download, X } from 'lucide-react'
+import { Bell, Download, X } from 'lucide-react'
 import { useI18n } from '../../context/I18nContext'
 import { pushAPI } from '../../services/api'
 import { isStandalone } from '../../pwa/serviceWorker'
@@ -13,7 +13,18 @@ interface BeforeInstallPromptEvent extends Event {
 
 const DISMISS_KEY = 'pwa-install-dismissed-at'
 const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000
-const REVEAL_DELAY_MS = 4000
+
+/**
+ * Seven seconds of reading before anything is asked.
+ *
+ * The browser hands over the install event as soon as the page is ready, which
+ * used to mean the very first thing a new visitor met was a sheet covering the
+ * whole page and stopping the story behind it from scrolling. The owner asked
+ * for the opposite: let the reader start reading, then ask, in a card the page
+ * stays visible under. Nothing here is timed out - the card is put away by the
+ * reader pressing Install or the cross, not by the clock.
+ */
+const REVEAL_AFTER_MS = 7000
 
 type Variant = 'install' | 'notifications' | 'ios' | null
 
@@ -35,42 +46,34 @@ function isWorkspacePath(): boolean {
 
 export default function InstallPromptBanner() {
   const { t } = useI18n()
-  const [variant, setVariant] = useState<Variant>(null)
+  // What wants to be shown, and whether the reader has had their seven seconds.
+  // The card is only ever the two of them together, so an install event that
+  // arrives early waits, and one that arrives late shows without further delay.
+  const [candidate, setCandidate] = useState<Variant>(null)
+  const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState(false)
   const promptRef = useRef<BeforeInstallPromptEvent | null>(null)
 
   useEffect(() => {
-    // Installed app windows cannot install again, but they are the best place
-    // for alerts - the OS delivers them even when the app is closed.
-    if (recentlyDismissed() || isWorkspacePath()) return
+    // An installed window cannot install, and a reader who said "not for a week"
+    // should not be asked again this visit.
+    if (recentlyDismissed() || isWorkspacePath() || isStandalone()) return
+
+    const timer = window.setTimeout(() => setReady(true), REVEAL_AFTER_MS)
 
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault()
       promptRef.current = event as BeforeInstallPromptEvent
-      setVariant('install')
+      setCandidate('install')
     }
-
-    if (isIosSafari()) {
-      // iOS has no install event to wait for, so the manual route is shown at once.
-      setVariant('ios')
-      return
-    }
-
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
-    const timer = window.setTimeout(async () => {
-      if (promptRef.current || isStandalone()) return
-      if (!pushSupported()) return
-      // Asking for permission when the server cannot deliver anything is noise.
-      const enabled = await pushAPI
-        .getStatus()
-        .then((response) => Boolean(response.data.data?.enabled))
-        .catch(() => false)
-      if (enabled) setVariant('notifications')
-    }, REVEAL_DELAY_MS)
+
+    // iOS has no install event to wait for, so the manual route is the candidate.
+    if (isIosSafari()) setCandidate('ios')
 
     const onInstalled = () => {
       promptRef.current = null
-      setVariant(null)
+      setCandidate(null)
     }
     window.addEventListener('appinstalled', onInstalled)
 
@@ -81,28 +84,37 @@ export default function InstallPromptBanner() {
     }
   }, [])
 
-  // The sheet covers the page, so the story behind it must not scroll past it.
+  // No install offer reached this browser - iOS was excluded above, and a
+  // desktop that has not fired the event - so the alerts card is what the seven
+  // seconds buys instead. Asking for permission when the server cannot deliver
+  // anything is noise, so the status call answers first.
   useEffect(() => {
-    if (variant !== 'install' && variant !== 'ios') return undefined
-    document.body.style.overflow = 'hidden'
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close()
-    }
-    window.addEventListener('keydown', onKeyDown)
+    if (!ready || candidate || promptRef.current) return
+    if (!pushSupported()) return
+    let alive = true
+    void pushAPI
+      .getStatus()
+      .then((response) => {
+        if (alive && response.data.data?.enabled) setCandidate('notifications')
+      })
+      .catch(() => {
+        // Unknown is unanswered, and an unanswered desk is not offered.
+      })
     return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', onKeyDown)
+      alive = false
     }
-  }, [variant])
+  }, [ready, candidate])
+
+  const variant = ready ? candidate : null
 
   const dismiss = () => {
     localStorage.setItem(DISMISS_KEY, String(Date.now()))
-    setVariant(null)
+    setCandidate(null)
   }
 
-  // No cooldown: the browser sheet was closed without an answer, so the reader
-  // simply gets the banner back on the next visit instead of a week of silence.
-  const close = () => setVariant(null)
+  // Put away for this visit only. The reader minimised the card rather than
+  // refusing the app, so the next visit asks again after its seven seconds.
+  const close = () => setCandidate(null)
 
   const install = async () => {
     const deferred = promptRef.current
@@ -112,15 +124,16 @@ export default function InstallPromptBanner() {
     const choice = await deferred.userChoice
     promptRef.current = null
     setBusy(false)
-    if (choice.outcome === 'accepted') setVariant(null)
-    else close()
+    // Accepted: the browser fires `appinstalled` and the card goes by itself.
+    // Declined in the browser sheet: no cooldown, so the card simply returns.
+    if (choice.outcome !== 'accepted') close()
   }
 
   const enableUpdates = async () => {
     setBusy(true)
     try {
       await enablePushNotifications()
-      setVariant(null)
+      setCandidate(null)
     } catch {
       // Denied or unsupported: hide the banner rather than nag on every visit.
       dismiss()
@@ -131,101 +144,52 @@ export default function InstallPromptBanner() {
 
   if (!variant) return null
 
-  if (variant === 'notifications') {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 sm:px-4 sm:pb-4"
-        style={{ animation: 'pwa-banner-in 420ms ease-out' }}
-      >
-        <div className="mx-auto flex max-w-2xl items-center gap-3 rounded-xl border border-blue-200 bg-white p-3 shadow-lg sm:gap-4 sm:p-4">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#1877F2] text-white">
-            <Bell className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold text-slate-900">{t('pwa.updateTitle')}</p>
-            <p className="mt-0.5 line-clamp-2 text-xs text-slate-600 sm:text-sm">{t('pwa.updateBody')}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void enableUpdates()}
-              disabled={busy}
-              className="rounded-lg bg-[#1877F2] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#166fe5] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 disabled:opacity-60 sm:text-sm"
-            >
-              {t('pwa.updateAction')}
-            </button>
-            <button
-              type="button"
-              onClick={dismiss}
-              aria-label={t('pwa.dismiss')}
-              className={cn(
-                'flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500',
-                'transition-colors hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600',
-              )}
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
+  const isInstall = variant === 'install'
   const isIos = variant === 'ios'
-  const features = ['pwa.featureNews', 'pwa.featureAlerts', 'pwa.featureOffline']
+  const title = isInstall ? t('pwa.installTitle') : isIos ? t('pwa.iosTitle') : t('pwa.updateTitle')
+  const body = isInstall ? t('pwa.installBody') : isIos ? t('pwa.iosBody') : t('pwa.updateBody')
+  const action = isInstall ? t('pwa.installAction') : isIos ? t('pwa.gotIt') : t('pwa.updateAction')
+  const onAction = isInstall ? () => void install() : isIos ? dismiss : () => void enableUpdates()
 
   return (
+    /*
+      One card, one line tall, sitting above the phone's bottom bar so it covers
+      neither the news nor the way out of the page. The feature list that used to
+      justify a full screen is gone; a reader who wants it gets it in the browser
+      sheet, which is the thing that actually installs the app.
+    */
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="install-sheet-title"
-      className="fixed inset-0 z-[90] flex flex-col justify-end bg-[#062b52]/95 px-4 pb-5 pt-10 sm:items-center sm:justify-center"
+      role="status"
+      aria-live="polite"
+      className="fixed inset-x-0 bottom-16 z-50 px-3 pb-2 sm:px-4 md:bottom-4"
+      style={{ animation: 'pwa-banner-in 420ms ease-out' }}
     >
-      <div className="mx-auto w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
-        <div className="flex items-center gap-3">
-          <img
-            src="/icons/icon-192x192.png"
-            alt=""
-            className="h-14 w-14 shrink-0 rounded-xl object-contain"
-            onError={(event) => {
-              event.currentTarget.src = '/favicon.svg'
-            }}
-          />
-          <p id="install-sheet-title" className="text-lg font-extrabold leading-snug text-slate-900">
-            {isIos ? t('pwa.iosTitle') : t('pwa.installTitle')}
-          </p>
+      <div className="mx-auto flex max-w-2xl items-center gap-3 rounded-xl border border-blue-200 bg-white p-2.5 shadow-lg sm:p-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1877F2] text-white">
+          {variant === 'notifications' ? <Bell className="h-4 w-4" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-bold text-slate-900">{title}</p>
+          <p className="hidden truncate text-xs text-slate-600 sm:block">{body}</p>
         </div>
-
-        <p className="mt-3 text-sm leading-relaxed text-slate-600">
-          {isIos ? t('pwa.iosBody') : t('pwa.installBody')}
-        </p>
-
-        <ul className="mt-4 space-y-2">
-          {features.map((key) => (
-            <li key={key} className="flex items-start gap-2 text-sm text-slate-700">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#1877F2]" aria-hidden="true" />
-              <span>{t(key)}</span>
-            </li>
-          ))}
-        </ul>
-
         <button
           type="button"
-          onClick={() => (isIos ? dismiss() : void install())}
+          onClick={onAction}
           disabled={busy}
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1877F2] px-4 py-3.5 text-base font-bold text-white transition-colors hover:bg-[#166fe5] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:opacity-60"
+          className="shrink-0 rounded-lg bg-[#1877F2] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#166fe5] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 disabled:opacity-60 sm:text-sm"
         >
-          <Download className="h-5 w-5" aria-hidden="true" />
-          {isIos ? t('pwa.gotIt') : t('pwa.installAction')}
+          {action}
         </button>
         <button
           type="button"
-          onClick={isIos ? dismiss : close}
-          className="mt-2 w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          onClick={close}
+          aria-label={t('pwa.dismiss')}
+          className={cn(
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500',
+            'transition-colors hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600',
+          )}
         >
-          {t('pwa.notNow')}
+          <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
     </div>

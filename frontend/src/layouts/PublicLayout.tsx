@@ -4,7 +4,6 @@ import Header from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
 import BottomNav from '../components/layout/BottomNav'
 import AnnouncerBar from '../components/audio/AnnouncerBar'
-import LanguageAlert from '../components/layout/LanguageAlert'
 import SignInPrompt from '../components/auth/SignInPrompt'
 import ConsentBanner from '../components/consent/ConsentBanner'
 import RouteFallback from '../components/common/RouteFallback'
@@ -42,7 +41,14 @@ export default function PublicLayout() {
       <AnnouncerBar />
       <SignInPrompt />
       <ConsentBanner />
-      <LanguageAlert />
+      {/*
+        Nothing asks a new reader which language they want. The site opens in
+        English - the language it is written in - and the switch is where a
+        reader who wants another one already finds it: the flag in the masthead,
+        the same flag in the phone menu, and the settings page. A first visit
+        that begins with a question the reader did not ask is a first visit that
+        begins with something to close.
+      */}
     </div>
   )
 }

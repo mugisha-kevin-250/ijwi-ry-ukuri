@@ -20,8 +20,7 @@ import ListenButton from '../../components/audio/ListenButton'
 import TranslationNotice from '../../components/news/TranslationNotice'
 import AskRadarAi from '../../components/ai/AskRadarAi'
 import { cn } from '../../utils/cn'
-import { useSeo, absoluteSiteUrl } from '../../utils/useSeo'
-import { resolveMediaUrl } from '../../services/apiClient'
+import { useSeo, absoluteSiteUrl, absoluteMediaUrl } from '../../utils/useSeo'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
 import { requestSignIn } from '../../utils/signInPrompt'
 import { useArticleViewTracking } from '../../utils/viewTracking'
@@ -73,7 +72,7 @@ export default function ArticleDetailPage() {
     title: article?.title,
     description: article?.metaDescription || article?.summary,
     path: slug ? `/article/${slug}` : undefined,
-    image: article?.featuredImage ? absoluteSiteUrl(resolveMediaUrl(article.featuredImage)) : undefined,
+    image: article?.featuredImage ? absoluteMediaUrl(article.featuredImage) : undefined,
     noindex: isNotFound, 
     type: 'article',
     jsonLd: article
@@ -91,7 +90,7 @@ export default function ArticleDetailPage() {
             headline: article.title,
             description: article.metaDescription || article.summary,
             image: article.featuredImage
-              ? [absoluteSiteUrl(resolveMediaUrl(article.featuredImage))]
+              ? [absoluteMediaUrl(article.featuredImage)]
               : undefined,
             datePublished: article.publishedAt ?? article.createdAt,
             dateModified: article.updatedAt ?? article.createdAt,

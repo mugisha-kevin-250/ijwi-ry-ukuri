@@ -93,7 +93,10 @@ const translations: Record<string, Translations> = {
     'ai.groundingNote': 'Answers about the news come from stories RADAR has published. Answers about this site come from our own handbook. Anything else is general background, and every reply is labelled with where it came from.',
     'ai.placeholder': 'Ask about the news, or how to use RADAR…',
     'ai.send': 'Send',
-    'ai.thinking': 'RADAR AI is reading the newsroom…',
+    // No trailing dots in the words: the three animated ones beside it are the
+    // ellipsis. And the desk is thinking, not only reading the newsroom - it
+    // answers greetings, definitions and drafts now too.
+    'ai.thinking': 'RADAR AI is thinking',
     'ai.readStory': 'Read the story',
     'ai.sourceNews': 'From RADAR reporting',
     'ai.sourceSite': 'About RADAR itself',

@@ -4,6 +4,7 @@ import { ArrowRight, RotateCcw, Send, Sparkles } from 'lucide-react'
 import { aiAPI, type AiAnswer, type AiAskTurn, type AiStatus } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import { useSeo } from '../../utils/useSeo'
+import ThinkingDots from '../../components/ai/ThinkingDots'
 
 /**
  * The RADAR AI chat page.
@@ -209,7 +210,14 @@ export default function RadarAiPage() {
 
         {busy && (
           <div className="flex justify-start">
-            <span className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-500">
+            {/* The answer takes seconds, so the wait is shown as work: three dots
+                rising beside the line, inside a status region so a reader who
+                cannot see them still hears that the desk is thinking. */}
+            <span
+              role="status"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-500"
+            >
+              <ThinkingDots />
               {t('ai.thinking')}
             </span>
           </div>
@@ -235,7 +243,10 @@ export default function RadarAiPage() {
           newsroom has not given this server its key, the page says so in the
           place where the box would be. */}
       {status === null ? (
-        <p className="mt-5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">{t('ai.checking')}</p>
+        <p className="mt-5 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+          <ThinkingDots />
+          {t('ai.checking')}
+        </p>
       ) : !status.configured ? (
         <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{t('ai.notConnected')}</p>
       ) : (

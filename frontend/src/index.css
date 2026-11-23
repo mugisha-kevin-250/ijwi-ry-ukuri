@@ -75,6 +75,47 @@ html {
   animation: app-splash-sweep 1.2s ease-in-out infinite;
 }
 
+/* RADAR AI thinks out loud in three dots while a Gemini answer is in flight:
+   each one lifts and brightens a fraction after the last, so a wait of several
+   seconds reads as work rather than a frozen page. The dots take the colour of
+   the bubble's own text, and a device that asked for less motion gets three
+   steady ones instead of none. */
+@keyframes ai-thinking-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.ai-thinking-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background-color: currentColor;
+  animation: ai-thinking-dot 1.05s ease-in-out infinite;
+}
+
+.ai-thinking-dot:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.ai-thinking-dot:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-thinking-dot {
+    animation: none;
+    opacity: 0.65;
+  }
+}
+
 /* The house advertisement: the offer drifts the way a printed banner does in a
    breeze, a light crosses the cloth, and the button leans towards the reader.
    Each is only ever applied behind motion-safe:, so a device that asked for

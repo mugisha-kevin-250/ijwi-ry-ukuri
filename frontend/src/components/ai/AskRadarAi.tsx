@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, Send, Sparkles, X } from 'lucide-react'
 import { aiAPI, type AiAskTurn, type AiAnswer } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
+import ThinkingDots from './ThinkingDots'
 
 /**
  * Ask RADAR AI.
@@ -144,7 +145,8 @@ export default function AskRadarAi({
             : 'bg-slate-100 px-4 py-2 text-xs text-slate-500'
         }
       >
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-2" role="status">
+          <ThinkingDots />
           {t('ai.checking')}
         </span>
       </div>
@@ -266,7 +268,13 @@ export default function AskRadarAi({
             ))}
             {busy && (
               <div className="flex justify-start">
-                <span className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-3 py-2 text-xs text-slate-500">
+                {/* The dots are the loader: an answer takes seconds and a box that
+                    only ever shows the reader's own question looks broken. */}
+                <span
+                  role="status"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-3 py-2 text-xs text-slate-500"
+                >
+                  <ThinkingDots />
                   {t('ai.thinking')}
                 </span>
               </div>

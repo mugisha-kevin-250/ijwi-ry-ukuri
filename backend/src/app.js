@@ -30,7 +30,15 @@ const env = require('./config/env');
 
 const app = express();
 
-const allowedOrigins = env.CLIENT_URL.split(',').map((item) => item.trim()).filter(Boolean);
+// Keep the original Firebase Hosting origins and explicitly trust both forms of
+// the RADAR custom domain. CLIENT_URL remains configurable for local/staging
+// deployments; the custom production domains must continue working even when
+// the manually-managed Render dashboard variable has not yet been updated.
+const allowedOrigins = [
+  ...env.CLIENT_URL.split(',').map((item) => item.trim()).filter(Boolean),
+  'https://www.radartimes.2bd.net',
+  'https://radartimes.2bd.net',
+];
 
 app.use(cors({
   origin: (origin, callback) => {

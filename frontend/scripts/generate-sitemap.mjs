@@ -392,7 +392,12 @@ async function main() {
   // Newest first, because both the feed and the News sitemap lead with them.
   const newest = byNewest(articles.filter((a) => a?.slug))
   const news = newsSitemap(newest)
-  // Keep both specialized sitemap endpoints present even on quiet days. The News\n  // sitemap is valid with an empty urlset; this prevents robots.txt or Search\n  // Console from being sent to a stale file left over from an earlier build.\n  files.push({ name: 'sitemap-news.xml', xml: news.xml })\n  const images = imageSitemap(newest)\n  files.push({ name: 'sitemap-images.xml', xml: images.xml })
+  // Keep both specialized sitemap endpoints present even on quiet days. The News
+  // sitemap is valid with an empty urlset; this prevents robots.txt or Search
+  // Console from being sent to a stale file left over from an earlier build.
+  files.push({ name: 'sitemap-news.xml', xml: news.xml })
+  const images = imageSitemap(newest)
+  files.push({ name: 'sitemap-images.xml', xml: images.xml })
   const feedUrl = write('feed.xml', rssFeed(newest))
 
   const written = files.map((file) => ({ name: file.name, url: write(file.name, file.xml) }))

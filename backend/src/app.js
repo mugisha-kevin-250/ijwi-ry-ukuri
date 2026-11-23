@@ -154,7 +154,17 @@ const readerAiLimiter = rateLimit({
   max: aiRoutes.QUESTIONS_PER_HOUR,
   standardHeaders: true,
   legacyHeaders: false,
-  message: tooMany('RADAR AI has answered enough questions from this address for one hour. Please ask again later.')
+  // "Please ask again later" on a stranger's desk is a locked door with no
+  // clock on it, and a reader who has just been told to rephrase a perfectly
+  // good question will assume the feature is broken. This ceiling runs on a
+  // fixed window whose turnover the server knows, so the reader gets the
+  // minutes instead, and the header goes out for anything that reads those.
+  message: (req, res) => {
+    const resetAt = req.rateLimit?.resetTime ? new Date(req.rateLimit.resetTime).getTime() : Date.now() + 60000;
+    const minutes = Math.max(1, Math.ceil((resetAt - Date.now()) / 60000));
+    if (res && typeof res.set === 'function') res.set('Retry-After', String(minutes * 60));
+    return tooMany(`RADAR AI has answered ${aiRoutes.QUESTIONS_PER_HOUR} questions from this address in one hour. Ask again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`);
+  }
 });
 
 // An open form is the one place on a news site where a stranger can write into the

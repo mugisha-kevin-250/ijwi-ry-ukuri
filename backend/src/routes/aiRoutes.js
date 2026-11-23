@@ -101,12 +101,27 @@ router.post('/ask', async (req, res, next) => {
   } catch (error) {
     // The model's own failures are newsroom information, not stack traces: the
     // reader gets a sentence about the desk, and nothing about the upstream.
+    // Which sentence depends on which failure this actually was, because telling
+    // a reader to rephrase a question the model never got round to reading is
+    // how a working feature gets reported as a broken one.
     const code = String(error?.code || '');
+    const status = Number(error?.status || 0);
+    // Named in the log, never in the page. "Google had no capacity", "the key is
+    // wrong" and "the quota is spent" are three different things for the owner
+    // to do about it, and from outside they all look like one unanswered
+    // question. No key, no reader text and nothing the model said goes here.
+    console.warn(`[ai] reader question failed: code=${code || 'none'} upstream_status=${status || 'none'} model=${error?.model || 'none'} tries=${error?.attempts || 1}`);
+
     if (code === 'AI_EMPTY') return errorResponse(res, 400, error.message);
-    if (code === 'AI_BLOCKED') return errorResponse(res, 400, 'RADAR AI will not answer that one. Ask about the news instead.');
-    if (code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, 'RADAR AI is not connected right now. Please try again later.');
-    if (code === 'AI_RATE_LIMIT') return errorResponse(res, 429, 'RADAR AI is answering a lot of questions at the moment. Please try again in a minute.');
-    if (code === 'AI_UNREACHABLE') return errorResponse(res, 502, 'RADAR AI could not be reached just now. Please try again in a moment.');
+    if (code === 'AI_BLOCKED') return errorResponse(res, 400, 'RADAR AI could not put that one into words. Try asking it another way.');
+    if (code === 'AI_NOT_CONFIGURED' || code === 'AI_BAD_KEY') return errorResponse(res, 503, 'RADAR AI is not connected right now. Please try again later.');
+    // Google's own quota, spent by the whole site rather than by this reader,
+    // and it is not the same sentence as the per-address ceiling in app.js.
+    if (code === 'AI_RATE_LIMIT') return errorResponse(res, 429, 'RADAR AI has used up its questions to Google for this minute. Ask again in a moment.');
+    // The desk already tried the question twice, on two models, before it got
+    // here - see the busy-moment note in geminiService. So the reader is told
+    // what happened rather than being blamed for the wording of the question.
+    if (code === 'AI_UNREACHABLE' || status >= 500) return errorResponse(res, 502, 'The model behind RADAR AI is having a busy moment and did not answer. Nothing was lost - ask the question again.');
     if (code.startsWith('AI_')) return errorResponse(res, 502, 'RADAR AI could not answer that. Please try again, or rephrase your question.');
     return next(error);
   }

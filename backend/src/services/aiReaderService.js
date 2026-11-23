@@ -115,9 +115,41 @@ function matchesAHeadline(question, headlines) {
   });
 }
 
+/**
+ * Questions aimed at this newsroom rather than at the world.
+ *
+ * A reader asking "what is the biggest story today" names nothing that appears
+ * in any headline, so the match above cannot see it and the question fell to
+ * the research desk, which answered by introducing itself. That is the reply
+ * that reads to a person as a broken feature: they asked what RADAR has, and
+ * got what RADAR is.
+ *
+ * The cue is not a topic word but what the question points at - our coverage,
+ * or the news of the moment - so it takes a newsish noun together with either a
+ * pointer to us or a marker of time. Each on its own is too loose: "what is the
+ * weather today" is a question about the sky and not about the front page, and
+ * "tell me a joke about journalists" is not a question about our reporting.
+ *
+ * Passing it on to the news desk changes what the model is allowed to use, not
+ * what it is handed: the news desk states nothing that is not a published
+ * story, so an unpopular answer here is an honest one about our own files.
+ */
+const NEWS_WORDS = ['story', 'stories', 'news', 'headline', 'report', 'reporting', 'covered', 'coverage', 'article', 'update', 'journalism'];
+const OUR_POINTERS = ['radar', 'you', 'your', 'this site', 'the site', 'site', 'we', 'our'];
+const OF_THE_MOMENT = ['today', 'tonight', 'yesterday', 'latest', 'biggest', 'top', 'new', 'recent', 'currently', 'now', 'this week', 'this month', 'breaking', 'front page', 'any news', 'is there news'];
+
+function asksForOurNews(question) {
+  const text = String(question || '').toLowerCase();
+  if (!text.trim()) return false;
+  const aboutNews = NEWS_WORDS.some((word) => text.includes(word));
+  const aboutUs = OUR_POINTERS.some((word) => new RegExp(`\\b${word}\\b`).test(text));
+  const ofTheMoment = OF_THE_MOMENT.some((phrase) => text.includes(phrase));
+  return (aboutNews && (aboutUs || ofTheMoment)) || (aboutUs && ofTheMoment);
+}
+
 function pickMode({ question, story, headlines }) {
   if (isSiteQuestion(question)) return 'site';
-  if (story || matchesAHeadline(question, headlines)) return 'news';
+  if (story || matchesAHeadline(question, headlines) || asksForOurNews(question)) return 'news';
   return 'research';
 }
 
@@ -170,4 +202,4 @@ async function ask({ question, history = [], slug, topic } = {}) {
   };
 }
 
-module.exports = { ask, publishedStoryFor, recentHeadlines, pickMode, matchesAHeadline, HEADLINE_LIMIT };
+module.exports = { ask, publishedStoryFor, recentHeadlines, pickMode, matchesAHeadline, asksForOurNews, HEADLINE_LIMIT };

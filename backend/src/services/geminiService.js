@@ -8,6 +8,42 @@ const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const TIMEOUT_MS = Number(env.GEMINI_TIMEOUT_MS || 90000);
 const CHAT_TIMEOUT_MS = Number(env.GEMINI_CHAT_TIMEOUT_MS || 45000);
 
+/**
+ * A moment when Google's own model is too busy to answer.
+ *
+ * Measured against the live key, a plain reader question comes back 503
+ * "This model is currently experiencing high demand" roughly once in six
+ * tries, at random, and the very next call answers in two seconds. That is a
+ * property of the model's capacity pool, not of the question and not of this
+ * newsroom's key - which is why the answer is a second attempt rather than a
+ * sentence telling the reader to rephrase. The second attempt goes to another
+ * model because a busy pool usually has an idle neighbour, and it has to fit
+ * inside the thirty seconds the browser waits, so the reader's desk keeps a
+ * short ceiling per try: a median of about two seconds means a try that has
+ * reached eleven is not going to be the one that answers.
+ */
+const READER_TIMEOUT_MS = Number(env.GEMINI_READER_TIMEOUT_MS || 11000);
+const READER_RETRY_PAUSE_MS = Number(env.GEMINI_READER_RETRY_PAUSE_MS || 700);
+const FALLBACK_MODEL = String(env.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash-lite');
+const BUSY_STATUS = new Set([500, 502, 503, 504]);
+
+/** The failures another model or another second can clear, and only those. */
+function isBusyMoment(error) {
+  if (!error) return false;
+  if (error.code === 'AI_UNREACHABLE') return true;
+  return error.code === 'AI_REQUEST_FAILED' && BUSY_STATUS.has(Number(error.status));
+}
+
+function modelsToTry(primary) {
+  const wanted = String(primary || activeModel());
+  const fallback = FALLBACK_MODEL && FALLBACK_MODEL !== wanted ? FALLBACK_MODEL : '';
+  return fallback ? [wanted, fallback] : [wanted];
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function isConfigured() {
   return Boolean(env.GEMINI_API_KEY);
 }
@@ -24,8 +60,14 @@ function activeModel() {
  * the "did it actually finish" check are written once instead of drifting apart
  * in three places. It answers with the model's own words; reading those words as
  * a story or a photo list is the caller's business.
+ *
+ * A caller that passes more than one model is asking for the busy-moment
+ * handling above: the question is put again to the next model, after a short
+ * pause, and only when the failure was the kind a second try can clear. Callers
+ * that do not pass a list get exactly the one attempt they asked for, which is
+ * what the admin's generators and the photo search still do.
  */
-async function callGemini({
+async function callGeminiDetailed({
   contents,
   systemInstruction,
   temperature = 0.55,
@@ -33,7 +75,9 @@ async function callGemini({
   maxOutputTokens = 1600,
   responseMimeType,
   timeoutMs = TIMEOUT_MS,
-  useSearchGrounding = false
+  useSearchGrounding = false,
+  models = null,
+  retryPauseMs = 0
 }) {
   if (!isConfigured()) {
     const error = new Error('Gemini is not configured on the server');
@@ -41,11 +85,56 @@ async function callGemini({
     throw error;
   }
 
+  const queue = Array.isArray(models) && models.length ? models : [activeModel()];
+  let lastError = null;
+
+  for (let attempt = 0; attempt < queue.length; attempt++) {
+    const model = queue[attempt];
+    if (attempt && retryPauseMs > 0) await sleep(retryPauseMs);
+
+    try {
+      const text = await callOneModel({
+        model,
+        contents,
+        systemInstruction,
+        temperature,
+        topP,
+        maxOutputTokens,
+        responseMimeType,
+        timeoutMs,
+        useSearchGrounding
+      });
+      return { text, model, attempts: attempt + 1 };
+    } catch (error) {
+      lastError = error;
+      // The rest of the queue is only worth walking for a model that is having
+      // a bad minute. A key Google does not accept, an answer its safety read
+      // refused and a quota that is spent are true of every model on the key,
+      // and re-asking them spends the reader's time to say the same thing.
+      if (!isBusyMoment(error)) throw error;
+    }
+  }
+
+  lastError.attempts = queue.length;
+  throw lastError;
+}
+
+async function callOneModel({
+  model,
+  contents,
+  systemInstruction,
+  temperature,
+  topP,
+  maxOutputTokens,
+  responseMimeType,
+  timeoutMs,
+  useSearchGrounding
+}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response;
   try {
-    response = await fetch(`${ENDPOINT}/${activeModel()}:generateContent`, {
+    response = await fetch(`${ENDPOINT}/${model}:generateContent`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -70,8 +159,9 @@ async function callGemini({
       signal: controller.signal
     });
   } catch (err) {
-    const error = new Error(err.name === 'AbortError' ? 'Gemini took too long to answer' : 'Gemini could not be reached');
+    const error = new Error(err.name === 'AbortError' ? `${model} took too long to answer` : `${model} could not be reached`);
     error.code = 'AI_UNREACHABLE';
+    error.model = model;
     throw error;
   } finally {
     clearTimeout(timer);
@@ -81,10 +171,11 @@ async function callGemini({
   if (!response.ok) {
     // The status is the part that matters. Gemini's own error text can describe
     // the request that made it, so it is kept short and never carries a key.
-    const detail = payload?.error?.message || `Gemini answered with ${response.status}`;
+    const detail = payload?.error?.message || `${model} answered with ${response.status}`;
     const error = new Error(String(detail).slice(0, 200));
     error.code = response.status === 401 || response.status === 403 ? 'AI_BAD_KEY' : response.status === 429 ? 'AI_RATE_LIMIT' : 'AI_REQUEST_FAILED';
     error.status = response.status;
+    error.model = model;
     throw error;
   }
 
@@ -93,6 +184,7 @@ async function callGemini({
   if (finish && finish !== 'STOP') {
     const error = new Error(finish === 'MAX_TOKENS' ? 'Gemini stopped before finishing the answer' : `Gemini declined this request (${finish})`);
     error.code = 'AI_BLOCKED';
+    error.model = model;
     throw error;
   }
 
@@ -100,8 +192,14 @@ async function callGemini({
   if (!text) {
     const error = new Error('Gemini returned an empty answer');
     error.code = 'AI_EMPTY';
+    error.model = model;
     throw error;
   }
+  return text;
+}
+
+async function callGemini(options) {
+  const { text } = await callGeminiDetailed(options);
   return text;
 }
 
@@ -299,7 +397,8 @@ const READER_SYSTEM_BASE = [
   'How to answer:',
   '- Three short paragraphs at most, or a few lines of plain prose. No headings, no preamble, no summary of your own answer at the end.',
   '- Answer the question that was actually asked. If the reader asks in another language, answer in that language; otherwise answer in English.',
-  '- When you rely on a specific article, name it the way a reader would recognise it - its headline - so they can go and read it.'
+  '- When you rely on a specific article, name it the way a reader would recognise it - its headline - so they can go and read it.',
+  '- When the reader asks what is on, what is biggest or what happened lately instead of asking about one article, that is a question about this list and it is answered from it: name the two or three headlines that carry the news of the moment and say in a line what each is about. If the list is empty, say so.'
 ].join('\n');
 
 /**
@@ -409,19 +508,23 @@ async function askReader({ question, history = [], story = null, headlines = [],
     systemInstruction = `${READER_SYSTEM_BASE}\n\n${readerBriefing({ story, headlines })}`;
   }
 
-  const answer = await callGemini({
+  const answer = await callGeminiDetailed({
     contents,
     systemInstruction,
     temperature: 0.4,
     topP: 0.9,
     maxOutputTokens: 1200,
-    timeoutMs: CHAT_TIMEOUT_MS,
+    // The reader's own budget: one short try, a pause, and a second model
+    // before the browser gives up. See the busy-moment note at the top.
+    timeoutMs: READER_TIMEOUT_MS,
+    models: modelsToTry(activeModel()),
+    retryPauseMs: READER_RETRY_PAUSE_MS,
     // Only a question the newsroom cannot answer from its own files goes
     // looking, and only when the owner has thrown the switch.
     useSearchGrounding: mode === 'research' && env.GEMINI_GROUND_SEARCH
   });
 
-  return { answer, model: activeModel(), generatedAt: new Date().toISOString() };
+  return { answer: answer.text, model: answer.model, generatedAt: new Date().toISOString() };
 }
 
 /**

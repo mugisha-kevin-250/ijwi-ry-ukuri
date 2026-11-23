@@ -62,9 +62,9 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         </aside>
         <section className="p-6 sm:p-10">
           <Link to="/" className="text-sm font-bold text-blue-700 md:hidden">RADAR</Link>
-          <p className="mt-5 text-sm font-semibold text-blue-700">{isRegister ? 'Fungura konti yawe' : 'Murakaza neza'}</p>
-          <h2 className="mt-1 text-2xl font-extrabold text-slate-900">{isRegister ? 'Iyandikishe kuri RADAR' : 'Injira kuri RADAR'}</h2>
-          <p className="mt-2 text-sm text-slate-500">{isRegister ?"Tangira nk'umusomyi uhuze n'inkuru zo mu karere." :"Komeza gusoma no gucunga inkuru zawe."}</p>
+          <p className="mt-5 text-sm font-semibold text-blue-700">{isRegister ? 'Create your account' : 'Welcome'}</p>
+          <h2 className="mt-1 text-2xl font-extrabold text-slate-900">{isRegister ? 'Sign up for RADAR' : 'Sign in to RADAR'}</h2>
+          <p className="mt-2 text-sm text-slate-500">{isRegister ? "Start reading as a member of the community." : 'Keep reading and keep your stories.'}</p>
 
           <form onSubmit={submit} className="mt-7 space-y-4">
             {isRegister && (

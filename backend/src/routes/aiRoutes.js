@@ -78,7 +78,10 @@ router.post('/ask', async (req, res, next) => {
     }
 
     const question = plainText(req.body?.q, { maxLength: MAX_QUESTION });
-    if (question.trim().length < 3) {
+    // Two characters is as short as a question gets, and that is a greeting: "hi"
+    // arrives at this desk the way it arrives at any other, and a desk that answers
+    // "Type a question first" to a reader saying hello has already lost them.
+    if (question.trim().length < 2) {
       return errorResponse(res, 400, 'Type a question first - a few words are enough.');
     }
 

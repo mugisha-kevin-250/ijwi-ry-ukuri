@@ -5,6 +5,7 @@ Allow: /article/
 Allow: /categories
 Allow: /category/
 Allow: /search
+Allow: /radar-ai
 # An author's public profile is in the sitemap (sitemap-writers.xml), so it cannot
 # also be disallowed here: a URL a sitemap publishes and robots.txt blocks is an
 # error in Search Console and a page Google is told to want and then told to stay

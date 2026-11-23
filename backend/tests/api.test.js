@@ -57,6 +57,16 @@ test('public article access', async () => {
   assert.equal(response.status, 200);
 });
 
+test('readiness health check reports database connectivity', async () => {
+  const response = await request(app).get('/api/health/ready');
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    status: 'ready',
+    checks: { database: 'connected' },
+  });
+});
+
 test('writer registration', async () => {
   const response = await request(app)
     .post('/api/writers/apply')

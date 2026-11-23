@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -270,6 +271,19 @@ const swaggerOptions = {
 if (env.NODE_ENV !== 'production') {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerJsdoc(swaggerOptions)));
 }
+
+// Readiness is intentionally separate from liveness: a running Node process
+// can still be unable to serve newsroom requests when MongoDB is disconnected.
+// Load balancers and deploy checks can use this endpoint without exposing the
+// database URI, host, credentials, or any other connection details.
+app.get('/api/health/ready', (req, res) => {
+  const databaseReady = mongoose.connection.readyState === 1;
+  return res.status(databaseReady ? 200 : 503).json({
+    success: databaseReady,
+    status: databaseReady ? 'ready' : 'not_ready',
+    checks: { database: databaseReady ? 'connected' : 'unavailable' },
+  });
+});
 
 app.get('/api/health', (req, res) => {
   // Which desks this server can actually run. Every value here is a boolean or

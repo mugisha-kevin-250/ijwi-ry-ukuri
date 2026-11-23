@@ -339,6 +339,8 @@ async function main() {
       // lastmod moves with the build - a stale date on a live page tells the
       // crawler the thing is not being looked after.
       urlEntry(`${SITE_URL}/live-sports`, today, '0.9', 'hourly'),
+      // The public RADAR AI desk is a reader-facing page and belongs in the static page sitemap.
+      urlEntry(`${SITE_URL}/radar-ai`, today, '0.8', 'weekly'),
       ...publisherPages.map((slug) => urlEntry(`${SITE_URL}/${slug}`, today, '0.4', 'yearly')),
     ]),
   })

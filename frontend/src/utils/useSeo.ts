@@ -62,6 +62,14 @@ export function absoluteSiteUrl(path?: string) {
   return `${SITE_URL}${path.startsWith('/') ? '' : '/'}${path}`
 }
 
+/** Convert API-relative media paths to public, crawlable image URLs. */
+export function absoluteMediaUrl(value?: string | null) {
+  const resolved = resolveMediaUrl(value)
+  if (!resolved || /^(data:|blob:)/i.test(resolved)) return DEFAULT_IMAGE
+  if (/^https?:\/\//i.test(resolved)) return resolved
+  return absoluteSiteUrl(resolved.startsWith('/') ? resolved : `/${resolved}`)
+}
+
 /**
  * Firebase Hosting serves one static shell, so search results would otherwise
  * show the same title for every route. This keeps the head in step with the
@@ -79,10 +87,7 @@ export function useSeo({
   const url = absoluteSiteUrl(path)
   const nextTitle = title ? `${title} | RADAR` : DEFAULT_TITLE
   const nextDescription = description || DEFAULT_DESCRIPTION
-  const resolvedImage = image ? resolveMediaUrl(image) : ''
-  const nextImage = resolvedImage
-    ? (/^https?:\/\//i.test(resolvedImage) ? resolvedImage : absoluteSiteUrl(resolvedImage.startsWith('/') ? resolvedImage : `/${resolvedImage}`))
-    : DEFAULT_IMAGE
+  const nextImage = image ? absoluteMediaUrl(image) : DEFAULT_IMAGE
   // A page kept out of the index has no business describing itself to one, so the
   // structured data goes away with the index permission rather than alongside it.
   const jsonLdText = jsonLd && !noindex ? JSON.stringify(jsonLd) : ''

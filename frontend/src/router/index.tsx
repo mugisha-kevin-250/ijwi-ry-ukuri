@@ -45,6 +45,7 @@ const LiveSportsPage = lazy(() => import('../pages/public/LiveSportsPage'))
 const MyLibraryPage = lazy(() => import('../pages/public/MyLibraryPage'))
 const PasswordRecoveryPage = lazy(() => import('../pages/public/PasswordRecoveryPage'))
 const PrivacyPage = lazy(() => import('../pages/public/PrivacyPage'))
+const RadarAiPage = lazy(() => import('../pages/public/RadarAiPage'))
 const RadioPage = lazy(() => import('../pages/public/RadioPage'))
 const SearchPage = lazy(() => import('../pages/public/SearchPage'))
 const SectionPage = lazy(() => import('../pages/public/SectionPage'))
@@ -112,6 +113,7 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/live/:id', load: () => import('../pages/public/LivePage') },
   { path: '/live-sports', load: () => import('../pages/public/LiveSportsPage') },
   { path: '/weather', load: () => import('../pages/public/WeatherPage') },
+  { path: '/radar-ai', load: () => import('../pages/public/RadarAiPage') },
   { path: '/radio', load: () => import('../pages/public/RadioPage') },
   { path: '/search', load: () => import('../pages/public/SearchPage') },
   { path: '/library', load: () => import('../pages/public/MyLibraryPage') },
@@ -395,6 +397,11 @@ export const router = createBrowserRouter([
           // and because a reader who wants the rain is not looking for a section
           // of the archive.
           { path: 'weather', element: <WeatherPage /> },
+          // RADAR AI: the whole conversation, on its own address. The panel
+          // under a story is one box for one question; this is the desk open for
+          // as long as a reader wants to keep asking. A static name, so it is
+          // matched before the section routes below.
+          { path: 'radar-ai', element: <RadarAiPage /> },
           // RADAR Audio: the stories read aloud. A page, not a fake station.
           { path: 'radio', element: <RadioPage /> },
           { path: 'category/:slug', element: <CategorySectionRoute /> },

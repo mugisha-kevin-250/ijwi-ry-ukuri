@@ -110,15 +110,14 @@ const aiChatLimiter = rateLimit({
   message: tooMany('The research desk has answered enough questions for this hour, please try again later.')
 });
 
-// RADAR AI answers readers, and a reader is a stranger. Twelve questions an
-// hour per address is a long conversation and still keeps one tab, or one
-// office behind a carrier's address, from spending the site's monthly Gemini
-// budget before the newsroom has sold anything. Story-writing for staff stays
-// on the narrower ceilings above.
+// RADAR AI answers readers, and a reader is a stranger. The ceiling is the one
+// the desk itself publishes, because the chat page prints that number to the
+// reader and a page that names a limit the server does not enforce is lying in
+// both directions. Story-writing for staff stays on the narrower ceilings above.
 const readerAiLimiter = rateLimit({
   ...byClientIp,
   windowMs: 60 * 60 * 1000,
-  max: 12,
+  max: aiRoutes.QUESTIONS_PER_HOUR,
   standardHeaders: true,
   legacyHeaders: false,
   message: tooMany('RADAR AI has answered enough questions from this address for one hour. Please ask again later.')

@@ -316,6 +316,18 @@ export default function AskRadarAi({
           </button>
         </form>
 
+        {/* One box under a story is a question, not a conversation. The desk has
+            its own page now - taller, endless, and open to anything a reader
+            wants to ask - and getting there is one press, not one reload. */}
+        <Link
+          to="/radar-ai"
+          title="Keep asking on the RADAR AI page, where the chat has the whole window"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-800 transition hover:border-blue-300 hover:bg-blue-50"
+        >
+          {t('ai.openChatPage')}
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+
         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{t('ai.disclaimer')}</p>
       </div>
     </div>

@@ -35,6 +35,21 @@ const MAX_QUESTION = 1200;
 const MAX_TURNS_KEPT = 8;
 const MAX_TURN_CHARS = 1500;
 
+/**
+ * How many questions one address may ask in an hour.
+ *
+ * This is the number the reader-facing chat page works under, so it lives here,
+ * beside the desk, and `app.js` reads it for the rate limiter rather than the
+ * other way round: the ceiling and the page that names it must not be able to
+ * disagree. Twelve was set when the only way in was one boxed question under a
+ * story. A conversation spends twelve in six exchanges, and the whole point of
+ * the chat page is that a reader may keep asking - so the desk is staffed for
+ * forty an hour from one address, which is still a long way short of what one
+ * browser sitting on a shared carrier address could spend in an hour if it had
+ * no ceiling at all.
+ */
+const READER_AI_QUESTIONS_PER_HOUR = 40;
+
 /** Is the desk staffed at all. */
 router.get('/status', (req, res) => {
   return successResponse(res, 200, 'AI status', {
@@ -43,7 +58,8 @@ router.get('/status', (req, res) => {
     // The reader-facing panel names the limit it works under, so an answer that
     // stops arriving is explained by the page rather than by silence.
     maxQuestionChars: MAX_QUESTION,
-    turnsKept: MAX_TURNS_KEPT
+    turnsKept: MAX_TURNS_KEPT,
+    questionsPerHour: READER_AI_QUESTIONS_PER_HOUR
   });
 });
 
@@ -94,3 +110,4 @@ router.post('/ask', async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.QUESTIONS_PER_HOUR = READER_AI_QUESTIONS_PER_HOUR;

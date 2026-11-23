@@ -2526,6 +2526,8 @@ export interface AiStatus {
   model: string
   maxQuestionChars: number
   turnsKept: number
+  /** What the server actually enforces per address per hour, in its own words. */
+  questionsPerHour: number
 }
 
 export interface AiAnswer {
@@ -2555,11 +2557,12 @@ export const aiAPI = {
         model: typeof payload.model === 'string' ? payload.model : '',
         maxQuestionChars: typeof payload.maxQuestionChars === 'number' ? payload.maxQuestionChars : 1200,
         turnsKept: typeof payload.turnsKept === 'number' ? payload.turnsKept : 8,
+        questionsPerHour: typeof payload.questionsPerHour === 'number' ? payload.questionsPerHour : 0,
       }
     } catch {
       // A status call that cannot be answered is an unconnected desk. The panel
       // then says so rather than opening a chat box that only errors.
-      return { configured: false, model: '', maxQuestionChars: 1200, turnsKept: 8 }
+      return { configured: false, model: '', maxQuestionChars: 1200, turnsKept: 8, questionsPerHour: 0 }
     }
   },
 

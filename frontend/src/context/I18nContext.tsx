@@ -106,6 +106,18 @@ const translations: Record<string, Translations> = {
     'ai.suggestRwanda': 'What has RADAR reported from Rwanda this week?',
     'ai.suggestExplain': 'Explain what is happening in plain terms',
     'ai.suggestWrite': 'How do I write news on RADAR?',
+    // The chat page itself - the desk opened on its own address instead of the
+    // one box under a story.
+    'ai.openChatPage': 'Open the full chat',
+    'ai.pageTitle': 'Chat with RADAR AI',
+    'ai.pageIntro': 'Ask about what RADAR reported, about how this site works, or about anything else. News answers come only from stories this newsroom published; everything else is answered as background, and each reply is labelled with the desk that wrote it. Keep asking as long as you like - the thread is yours and this tab only, and nothing is saved.',
+    'ai.pageMetaDescription': 'Chat with RADAR AI about published RADAR news, how the site works, and general questions. Answers are labelled by source and nothing you ask is stored.',
+    'ai.pagePlaceholder': 'Ask anything - and keep the conversation going…',
+    'ai.enterToSend': 'Enter sends, Shift+Enter starts a new line.',
+    'ai.tryAsking': 'Try asking',
+    'ai.clearChat': 'Start a new chat',
+    'ai.limitBefore': 'It answers up to',
+    'ai.limitAfter': 'questions an hour from one address.',
     'ai.storySuggest1': 'What happened, in short?',
     'ai.storySuggest2': 'Who are the people and organisations in this story?',
     'ai.storySuggest3': 'What should I read next about this?',

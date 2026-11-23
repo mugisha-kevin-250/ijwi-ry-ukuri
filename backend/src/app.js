@@ -45,7 +45,7 @@ const normalizeOrigin = (value) => {
 };
 
 const allowedOrigins = new Set([
-  ...env.CLIENT_URL.split(/[,;\\n]/).map(normalizeOrigin),
+  ...env.CLIENT_URL.split(/[,;]/).map(normalizeOrigin),
   'https://www.radartimes.2bd.net',
   'https://radartimes.2bd.net',
   'https://ijwi-ry--ukuri.web.app',

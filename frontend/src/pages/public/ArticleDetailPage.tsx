@@ -557,20 +557,11 @@ export default function ArticleDetailPage() {
       )}
 
       {/* End of the read. Before anything else competes for attention, the
-          reader who wants more of this story gets a way to ask about it - and
-          the question is already written, because what they want is more about
-          the thing they just read, not a blank box to describe it into. */}
+          reader who wants more of this story gets a door to the desk - and the
+          story goes through the door with them, so the chat opens grounded on
+          the thing they just finished instead of a blank box. */}
       <div className="pt-6">
-        <AskRadarAi
-          variant="card"
-          slug={article.slug}
-          seedQuestion={`Explain more about this story: ${article.title}`}
-          suggestions={[
-            t('ai.storySuggest1'),
-            t('ai.storySuggest2'),
-            t('ai.storySuggest3'),
-          ]}
-        />
+        <AskRadarAi variant="card" slug={article.slug} storyTitle={article.title} />
       </div>
 
       {/* The reader has finished the story, so this is where an in-content unit

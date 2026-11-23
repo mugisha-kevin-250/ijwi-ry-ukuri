@@ -391,15 +391,10 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
-      {/* The breaking strip is gone; the same line of the page now opens the
-          question desk. It keeps the top story as its topic so a reader who
-          just wants to know what happened can ask about it in one tap. */}
-      <AskRadarAi
-        variant="strip"
-        topic={trending[0]?.title || ''}
-        slug={trending[0]?.slug || ''}
-        suggestions={[t('ai.suggestToday'), t('ai.suggestWrite'), t('ai.suggestExplain')]}
-      />
+      {/* The breaking strip is gone; this line is the door to the question desk,
+          and pressing it opens the chat page rather than unfolding a box over
+          the news. What the reader asks there is their own business. */}
+      <AskRadarAi variant="strip" />
 
       <main className="mx-auto max-w-7xl space-y-9 px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
         {loadError && (

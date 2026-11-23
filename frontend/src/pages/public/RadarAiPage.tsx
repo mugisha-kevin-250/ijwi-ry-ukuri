@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { ArrowRight, RotateCcw, Send, Sparkles } from 'lucide-react'
 import { aiAPI, type AiAnswer, type AiAskTurn, type AiStatus } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import { useSeo } from '../../utils/useSeo'
 import ThinkingDots from '../../components/ai/ThinkingDots'
@@ -9,25 +10,25 @@ import ThinkingDots from '../../components/ai/ThinkingDots'
 /**
  * The RADAR AI chat page.
  *
- * The panel at the bottom of a story is one box for one question, and it is
- * right where a reader is standing. This is the desk itself: a conversation that
- * keeps going, on its own page, with the whole window to answer in.
+ * Every "ask" on the site - the line on the home page, the button at the bottom
+ * of a story - opens this address, so this is where the desk lives rather than
+ * where a panel unfolds over the news.
  *
- * What "all questions allowed" means here, and what it cannot mean.
+ * It opens the way the assistants a reader already knows open: three welcome
+ * lines arriving one after another while the server wakes, then a mark and a
+ * greeting - with the reader's own name in it when this browser holds an
+ * account - and the questions they can tap instead of typing. There is no
+ * paragraph describing the service above the box, because a reader who arrives
+ * here is about to type rather than read about typing.
  *
- * Three desks answer behind this box. A question about what RADAR published is
- * answered from the published stories and from nothing else - that is the rule
- * that keeps this a newsroom and not a chatbot, and it is enforced on the server
- * by reading the story out of the database rather than believing what the page
- * sent. A question about this site is answered from the newsroom's own handbook.
- * Everything else - a term, a place, an institution, how something works, a
- * piece of history or science - goes to the research desk, and that desk answers
- * it instead of saying we have not reported on that. So a reader can ask
- * anything, and every reply carries the line saying which of the three wrote it.
- *
- * The one limit nobody can lift is the model's own refusal, printed as a message
- * rather than hidden, and the hourly ceiling from one address, which the page
- * quotes from the server rather than inventing.
+ * What the page still refuses to hide is where an answer came from. A question
+ * about what RADAR published is answered from the published stories and from
+ * nothing else - that rule is enforced on the server by reading the story out of
+ * the database rather than believing what the page sent - a question about this
+ * site is answered from the newsroom's own handbook, and anything else goes to
+ * the research desk, which answers it from general knowledge. Each reply carries
+ * the line saying which of the three wrote it, and the disclaimer under the box
+ * says what those labels are worth.
  *
  * The thread is this tab's, and no one else's. It is replayed to the model with
  * each question so a follow-up makes sense, and it is written nowhere: not to
@@ -45,17 +46,50 @@ interface Entry extends AiAskTurn {
   failure?: boolean
 }
 
+/** The story a reader arrived with, so the chat can start in front of it. */
+interface StoryContext {
+  slug: string
+  title: string
+}
+
 let entrySeq = 0
 const nextId = () => `radar-ai-${(entrySeq += 1)}`
 
+/**
+ * The welcome is timed, not raced. The lines come at their own pace and the
+ * desk opens when both the last line has had its moment and the server has
+ * answered the status call - whichever is later, so a fast server does not cut
+ * a sentence off and a cold one does not trap the reader in the introduction.
+ */
+const INTRO_FIRST_MS = 340
+const INTRO_GAP_MS = 1150
+const INTRO_HOLD_MS = 900
+/** Free Render sleeps for 5-13 seconds; past this the page opens and says so. */
+const INTRO_CAP_MS = 9000
+
+const prefersStillness = () =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 export default function RadarAiPage() {
   const { t } = useI18n()
+  const { user } = useAuth()
+  const location = useLocation()
   const [status, setStatus] = useState<AiStatus | null>(null)
+  const [lines, setLines] = useState(prefersStillness() ? 3 : 0)
+  const [welcomeDone, setWelcomeDone] = useState(false)
+  const [deskOpen, setDeskOpen] = useState(prefersStillness())
   const [entries, setEntries] = useState<Entry[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
+
+  // A reader who came from a story arrives with it, and the desk keeps it for the
+  // whole thread: the news answers stay grounded in the thing they just read.
+  const [story] = useState<StoryContext | null>(() => {
+    const given = (location.state as { story?: StoryContext } | null)?.story
+    return given && typeof given.slug === 'string' && given.slug ? { slug: given.slug, title: given.title || '' } : null
+  })
 
   useSeo({
     title: t('ai.pageTitle'),
@@ -87,6 +121,35 @@ export default function RadarAiPage() {
     }
   }, [])
 
+  // The welcome lines, one a beat after another, then the last one gets its own
+  // moment before the desk opens. A device that asked for less motion skips the
+  // performance and comes straight to the desk.
+  useEffect(() => {
+    if (prefersStillness()) {
+      setWelcomeDone(true)
+      return undefined
+    }
+    const timers = [1, 2, 3].map((line) => window.setTimeout(() => setLines(line), INTRO_FIRST_MS + (line - 1) * INTRO_GAP_MS))
+    const done = window.setTimeout(() => setWelcomeDone(true), INTRO_FIRST_MS + 2 * INTRO_GAP_MS + INTRO_HOLD_MS)
+    return () => {
+      timers.forEach((id) => window.clearTimeout(id))
+      window.clearTimeout(done)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!welcomeDone || deskOpen) return
+    if (status !== null) {
+      setDeskOpen(true)
+      return undefined
+    }
+    // Still nothing from the server: keep the reader in the welcome a little
+    // longer, but never past the cold-start ceiling. Opening without an answer
+    // is honest here - the page then says the desk is waking, not that it works.
+    const cap = window.setTimeout(() => setDeskOpen(true), INTRO_CAP_MS)
+    return () => window.clearTimeout(cap)
+  }, [welcomeDone, status, deskOpen])
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [entries, busy])
@@ -106,7 +169,7 @@ export default function RadarAiPage() {
       setDraft('')
       setBusy(true)
 
-      const result = await aiAPI.ask({ question, history })
+      const result = await aiAPI.ask({ question, slug: story?.slug || '', history })
 
       if ('error' in result) {
         setEntries((current) => [
@@ -122,53 +185,83 @@ export default function RadarAiPage() {
       setBusy(false)
       inputRef.current?.focus()
     },
-    [busy, entries],
+    [busy, entries, story],
   )
 
-  const suggestions = [
-    t('ai.suggestToday'),
-    t('ai.suggestWrite'),
-    'How does a central bank change the price of bread?',
-    'What is a supercomputer, in plain terms?',
-  ]
+  // Tapped instead of typed, because a blank box asks more of a reader than a
+  // suggested question does. With a story in hand the prompts are about it.
+  const suggestions = story
+    ? [t('ai.storySuggestSeed'), t('ai.storySuggest1'), t('ai.storySuggest2'), t('ai.storySuggest3')]
+    : [t('ai.suggestToday'), t('ai.suggestWrite'), 'How does a central bank change the price of bread?', 'What is a supercomputer, in plain terms?']
+
+  // The name belongs to the account this browser holds, and only its first word
+  // is used: a full name in a headline reads like a form letter.
+  const readerName = (user?.fullName || '').trim().split(/\s+/)[0]
+  const greeting = `${t('ai.hi')}${readerName ? ` ${readerName}` : ''}${t('ai.greetTail')}`
 
   const maxChars = status?.maxQuestionChars ?? 1200
 
-  return (
-    <div className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-8">
-      <header className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-sky-50 p-5 sm:p-6">
-        <span className="inline-flex items-center gap-1.5 rounded bg-white px-2 py-1 text-[11px] font-extrabold uppercase tracking-wide text-blue-700">
-          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-          {t('ai.badge')}
+  const chips = (
+    <div className="mt-3 flex flex-wrap justify-center gap-2">
+      {suggestions.map((prompt) => (
+        <button
+          key={prompt}
+          type="button"
+          onClick={() => void ask(prompt)}
+          disabled={busy || status?.configured !== true}
+          className="rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+        >
+          {prompt}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (!deskOpen) {
+    return (
+      <div className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-3xl flex-col items-center justify-center gap-4 px-4 py-10 text-center sm:px-6">
+        <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-700 to-sky-500 text-white shadow-lg">
+          <Sparkles className="h-7 w-7" aria-hidden="true" />
         </span>
-        <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">{t('ai.pageTitle')}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">{t('ai.pageIntro')}</p>
-        {status?.configured && status.questionsPerHour > 0 && (
-          <p className="mt-2 text-xs text-slate-500">
-            {t('ai.limitBefore')} {status.questionsPerHour} {t('ai.limitAfter')}
+        {lines >= 1 && <p className="ai-welcome-line text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">{t('ai.welcome1')}</p>}
+        {lines >= 2 && <p className="ai-welcome-line text-sm text-slate-600 sm:text-base">{t('ai.welcome2')}</p>}
+        {lines >= 3 && (
+          <p className="ai-welcome-line inline-flex items-center gap-2 text-xs text-slate-500">
+            {status === null && <ThinkingDots />}
+            {t('ai.welcome3')}
           </p>
         )}
-      </header>
+      </div>
+    )
+  }
 
+  return (
+    <div className="ai-desk-in mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-8">
       {/* The thread. It grows downward and the page scrolls with it, because a
           conversation you have to resize a box to read is not a conversation. */}
-      <div className="mt-5 flex-1 space-y-3" aria-live="polite">
+      <div className="flex-1 space-y-3" aria-live="polite">
         {entries.length === 0 && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <p className="text-sm font-bold text-slate-900">{t('ai.tryAsking')}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {suggestions.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => void ask(prompt)}
-                  disabled={busy || status?.configured !== true}
-                  className="rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-col items-center py-8 text-center sm:py-14">
+            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-700 to-sky-500 text-white shadow-lg">
+              <Sparkles className="h-7 w-7" aria-hidden="true" />
+            </span>
+            <h1 className="mt-5 max-w-xl text-2xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-3xl">{greeting}</h1>
+            {story && (
+              <p className="mt-2 max-w-md text-xs text-slate-500">
+                {story.title ? (
+                  <>
+                    <span className="font-bold text-slate-600">{t('ai.aboutThisStory')}</span>{' '}
+                    <Link to={`/article/${story.slug}`} className="font-bold text-blue-700 hover:underline">
+                      {story.title}
+                    </Link>
+                  </>
+                ) : (
+                  t('ai.aboutThisStory')
+                )}
+              </p>
+            )}
+            <p className="mt-6 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700">{t('ai.tryAsking')}</p>
+            {chips}
           </div>
         )}
 

@@ -86,12 +86,15 @@ const translations: Record<string, Translations> = {
     'ai.checking': 'Waking RADAR AI…',
     'ai.notConnected': 'RADAR AI is not connected yet. The newsroom has to give this server its Gemini key before it can answer.',
     'ai.badge': 'Ask RADAR AI',
-    'ai.stripBody': 'Ask our AI about the news, or about how to use this site.',
-    'ai.ask': 'Ask',
-    'ai.panelTitle': 'Ask RADAR AI',
-    'ai.close': 'Close RADAR AI',
-    'ai.groundingNote': 'Answers about the news come from stories RADAR has published. Answers about this site come from our own handbook. Anything else is general background, and every reply is labelled with where it came from.',
-    'ai.placeholder': 'Ask about the news, or how to use RADAR…',
+    // The strip is a door now, not a box: pressing it opens the chat page, so the
+    // line has to describe going somewhere rather than typing here.
+    'ai.stripBody': "The question desk is open - ask about today's news, this site, or anything else.",
+    'ai.ask': 'Start a chat',
+    // What the page says while the desk wakes. Three lines arriving one after
+    // another is the introduction; a cold server would otherwise be a blank box.
+    'ai.welcome1': 'Welcome to RADAR AI.',
+    'ai.welcome2': 'Ask about the news, this site, or whatever is on your mind.',
+    'ai.welcome3': 'One moment while the desk wakes',
     'ai.send': 'Send',
     // No trailing dots in the words: the three animated ones beside it are the
     // ellipsis. And the desk is thinking, not only reading the newsroom - it
@@ -103,27 +106,30 @@ const translations: Record<string, Translations> = {
     'ai.sourceResearch': 'General background - not RADAR reporting',
     'ai.disclaimer': 'RADAR AI writes these words, not a reporter, and it can be wrong. A line marked as RADAR reporting comes from a story on this site - open it and read it before repeating anything. A line marked as general background has not been checked by our reporters, and a live event may have moved since it was written.',
     'ai.explainTitle': 'Want this story explained?',
-    'ai.explainBody': 'Ask RADAR AI what happened, who is involved, or what a figure in the story means. Answers about the news come from what this newsroom published.',
-    'ai.explainButton': 'Ask AI to explain more',
+    'ai.explainBody': 'Ask RADAR AI what happened, who is involved, or what a figure in the story means. The chat opens with this story in front of it.',
+    'ai.explainButton': 'Chat about this story',
     'ai.suggestToday': 'What is the biggest story today?',
     'ai.suggestRwanda': 'What has RADAR reported from Rwanda this week?',
-    'ai.suggestExplain': 'Explain what is happening in plain terms',
     'ai.suggestWrite': 'How do I write news on RADAR?',
-    // The chat page itself - the desk opened on its own address instead of the
-    // one box under a story.
-    'ai.openChatPage': 'Open the full chat',
+    // The chat page. It opens the way the other assistants do: a mark and a
+    // greeting, not a paragraph describing the service, because the reader is
+    // about to type rather than read about typing. The name in the greeting is
+    // placed between two keys, never inside a sentence with a hole in it.
     'ai.pageTitle': 'Chat with RADAR AI',
-    'ai.pageIntro': 'Ask about what RADAR reported, about how this site works, or about anything else. News answers come only from stories this newsroom published; everything else is answered as background, and each reply is labelled with the desk that wrote it. Keep asking as long as you like - the thread is yours and this tab only, and nothing is saved.',
+    'ai.hi': 'Hi',
+    'ai.greetTail': ', what can I help you today?',
     'ai.pageMetaDescription': 'Chat with RADAR AI about published RADAR news, how the site works, and general questions. Answers are labelled by source and nothing you ask is stored.',
     'ai.pagePlaceholder': 'Ask anything - and keep the conversation going…',
     'ai.enterToSend': 'Enter sends, Shift+Enter starts a new line.',
     'ai.tryAsking': 'Try asking',
     'ai.clearChat': 'Start a new chat',
-    'ai.limitBefore': 'It answers up to',
-    'ai.limitAfter': 'questions an hour from one address.',
     'ai.storySuggest1': 'What happened, in short?',
     'ai.storySuggest2': 'Who are the people and organisations in this story?',
     'ai.storySuggest3': 'What should I read next about this?',
+    // First of the prompts when the reader arrived from a story: the desk has
+    // the story already, so this one does not have to name it again.
+    'ai.storySuggestSeed': 'Explain more about this story',
+    'ai.aboutThisStory': 'Asking about the story you came from:',
     'weather.title': 'RADAR Weather',
     'weather.tagline': 'Rain, heat and wind across Rwanda and the cities our readers live in, measured and dated.',
     'weather.taglineShort': 'Weather',

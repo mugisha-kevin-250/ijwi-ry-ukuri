@@ -116,6 +116,48 @@ html {
   }
 }
 
+/* The RADAR AI welcome: the page opens with three lines arriving one after
+   another, unhurried, while the desk is being woken - so a cold server reads as
+   an introduction instead of a blank box. Each line rises, and the desk it
+   reveals settles in behind it. A reader who asked for less motion gets the
+   finished page at once rather than a slower version of the same show. */
+@keyframes ai-welcome-line {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ai-desk-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ai-welcome-line {
+  animation: ai-welcome-line 900ms ease-out both;
+}
+
+.ai-desk-in {
+  animation: ai-desk-in 600ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-welcome-line,
+  .ai-desk-in {
+    animation-duration: 1ms;
+  }
+}
+
 /* The house advertisement: the offer drifts the way a printed banner does in a
    breeze, a light crosses the cloth, and the button leans towards the reader.
    Each is only ever applied behind motion-safe:, so a device that asked for

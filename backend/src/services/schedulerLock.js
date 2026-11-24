@@ -2,6 +2,17 @@ const { randomUUID } = require('crypto');
 const SchedulerLock = require('../models/SchedulerLock');
 
 const DEFAULT_LEASE_MS = 10 * 60 * 1000;
+let indexesPromise;
+
+async function ensureIndexes() {
+  if (!indexesPromise) {
+    indexesPromise = SchedulerLock.createIndexes().catch((error) => {
+      indexesPromise = null;
+      throw error;
+    });
+  }
+  await indexesPromise;
+}
 
 function leaseDuration() {
   const configured = Number(process.env.SCHEDULER_LOCK_LEASE_MS);
@@ -18,6 +29,7 @@ function leaseDuration() {
 async function acquire(job) {
   const name = String(job || '').trim().toLowerCase();
   if (!name) throw new Error('A scheduler job name is required');
+  await ensureIndexes();
   const owner = randomUUID();
   const now = new Date();
   try {
@@ -56,4 +68,4 @@ async function release(lock) {
   return result.deletedCount === 1;
 }
 
-module.exports = { acquire, renew, release, leaseDuration, DEFAULT_LEASE_MS };
+module.exports = { acquire, renew, release, ensureIndexes, leaseDuration, DEFAULT_LEASE_MS };

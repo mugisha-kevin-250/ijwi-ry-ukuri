@@ -13,6 +13,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const articleRoutes = require('./routes/articleRoutes');
 const editorRoutes = require('./routes/editorRoutes');
+const assignmentRoutes = require('./routes/assignmentRoutes');
 const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
@@ -344,6 +345,7 @@ app.use('/api/ai', readerAiLimiter, aiRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/writers', writerRoutes);
 app.use('/api/editor', editorRoutes);
+app.use('/api/assignments', assignmentRoutes);
 app.use('/api/users', userRoutes);
 // A separate, permission-gated activity endpoint keeps the immutable audit
 // trail independent from the admin router's existing feature surface.

@@ -20,7 +20,7 @@ export default function AdminGlobalNewsPage() {
         apiClient.get<any>('/global-news/status'),
         apiClient.get<any>('/global-news/queue', { page: 1, limit: 50 }),
       ])
-      setStatus(s.data as Status)
+      setStatus(s.data as unknown as Status)
       setItems((list.data as any).items || [])
     } catch (err) { setError(serverMessage(err, 'Could not load the global news desk.')) }
     finally { setLoading(false) }
@@ -40,7 +40,7 @@ export default function AdminGlobalNewsPage() {
   const review = async (id: string, decision: 'verified' | 'rejected') => {
     setBusy(id); setError(''); setNotice('')
     try {
-      await apiClient.patch(`/global-news/${id}/review`, { status: decision })
+      await apiClient.post(`/global-news/${id}/review`, { status: decision })
       setItems((current) => current.filter((item) => item._id !== id))
       setNotice(decision === 'verified' ? 'Lead marked verified. This does not publish it as a RADAR article.' : 'Lead rejected and removed from this queue.')
       await load()

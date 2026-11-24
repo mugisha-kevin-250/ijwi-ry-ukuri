@@ -101,6 +101,18 @@ app.use('/api', limiter);
 // is keyed on the reader's address rather than the shared proxy address.
 const byClientIp = { keyGenerator: (req) => clientIp(req) || req.ip };
 
+// Audius search and the public audio proxy are provider/bandwidth operations.
+// Keep them separate from the general API ceiling so one listener or scraper
+// cannot consume the whole newsroom's request budget.
+const audiusLimiter = rateLimit({
+  ...byClientIp,
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many radio requests. Please try again in a few minutes.' }
+});
+
 const tooMany = (text) => ({ success: false, message: text });
 
 const authLimiter = rateLimit({
@@ -341,6 +353,7 @@ app.use('/api/live', liveRoutes);
 // The radio timetable is read by every visitor, and building an edition is slow
 // enough on a cold database that it gets its own address rather than joining the
 // catch-all public story routes.
+app.use('/api/radio/audius', audiusLimiter);
 app.use('/api/radio', radioRoutes);
 app.use('/api/newsletter', newsletterRoutes);
 app.use('/uploads', express.static(env.UPLOAD_DIR));

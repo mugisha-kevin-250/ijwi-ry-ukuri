@@ -37,7 +37,7 @@ export default function AnnouncerBar() {
     <div
       role="region"
       aria-label={t('radio.barLabel')}
-      className="fixed bottom-16 left-0 right-0 z-40 border-t border-slate-800 bg-slate-900/95 text-white backdrop-blur md:bottom-0"
+      className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 border-t border-slate-800 bg-slate-900/95 text-white backdrop-blur md:bottom-0"
     >
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5 sm:px-6">
         <span className="flex shrink-0 items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-emerald-300">

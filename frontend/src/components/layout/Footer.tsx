@@ -42,6 +42,7 @@ export default function Footer() {
 
   const exploreLinks = [
     { label: t('footer.latest'), href: '/articles?sort=latest' },
+    { label: 'World news', href: '/global-news' },
     { label: t('home.trending'), href: '/articles?sort=trending' },
     { label: t('home.popular'), href: '/articles?sort=popular' },
     { label: t('footer.categories'), href: '/categories' },

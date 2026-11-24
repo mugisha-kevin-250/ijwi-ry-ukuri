@@ -13,6 +13,7 @@ const releaseSchema = new mongoose.Schema({
   rightsDeclaration: { type: Boolean, required: true, validate: value => value === true },
   rightsEvidenceUrl: { type: String, trim: true, maxlength: 500, default: '' },
   downloadAllowed: { type: Boolean, default: false },
+  plays: { type: Number, default: 0, min: 0, index: true },
   featured: { type: Boolean, default: false, index: true },
   status: { type: String, enum: ['pending', 'approved', 'rejected', 'takedown_pending', 'removed'], default: 'pending', index: true },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

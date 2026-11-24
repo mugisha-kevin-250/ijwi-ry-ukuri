@@ -114,3 +114,33 @@ Test these specific behaviors:
 - GitHub CI validates backend tests, frontend TypeScript/build and tracked-secret checks.
 - Verify the deployed /radio and /music pages, catalogue search, curated playback, mobile layouts and canonical metadata after release.
 - Previous Firebase deployment attempts had a Google Cloud authentication/secret issue. The expected GitHub Actions secret is FIREBASE_SERVICE_ACCOUNT_IJWI_RY_UKURI. A successful GitHub push or CI run alone does not prove Firebase production deployment succeeded.
+
+
+## Release 2 — newsroom assignments implemented
+
+- Added a MongoDB-backed NewsroomAssignment model with reporter, creator, desk, brief, priority, deadline, status, linked article, submission note and event history.
+- Added protected /api/assignments endpoints to list assignments, list eligible assignees, create assignments, update assignment details and progress statuses.
+- Editors/managing editors/admins with the existing review permission can create and manage assignments.
+- Writers can see only assignments assigned to their own account and can move them through accepted, in progress and submitted.
+- Assignment creation, edits and status changes write safe append-only entries to the existing AuditLog service.
+- Added a responsive shared assignment workspace at /writer/assignments and /editor/assignments.
+- Added sidebar links for reporters and editors and a shortcut card on the editor dashboard.
+- No new role or database migration is required; Mongoose creates the collection and indexes when first used.
+
+## Next release plan — not yet implemented
+
+1. **Music artist onboarding and rights desk:** artist applications, verified profiles, release metadata, explicit rights declarations, evidence/contract reference, editorial approval, takedown requests and a licence-aware download policy. Do not accept or host copyrighted audio until permission and storage controls exist.
+2. **Reader engagement:** account-saved playlists, music favourites, listening history and privacy controls; add abuse-resistant charts only after event deduplication and bot filtering.
+3. **Newsletter operations:** confirmation double opt-in, unsubscribe tokens, consent timestamp/source, bounce and complaint handling, campaign segmentation and delivery retry monitoring.
+4. **Podcast and video desk:** episode records, show/host profiles, RSS feed generation, transcript/caption support, chapters and provider-hosted audio/video.
+5. **Platform quality:** frontend unit and end-to-end tests, API integration tests for assignment permission boundaries, accessibility checks, responsive browser testing, Core Web Vitals, backup/restore drills and monitoring.
+6. **Editorial verification improvements:** structured source evidence, corrections workflow review, revision diff display and an audit-log search/export experience.
+
+Acceptance checks for the assignment release:
+- A reader cannot read or create assignments.
+- A writer can only see and update their own assigned records.
+- A writer cannot assign a story to another user, approve it or cancel it.
+- A reviewer can create and manage assignments.
+- Invalid user IDs, invalid deadlines, empty briefs and unsupported status values are rejected.
+- Assignment actions appear in the audit log.
+- Verify the new pages on narrow mobile widths and run backend tests plus frontend typecheck/build before production rollout.

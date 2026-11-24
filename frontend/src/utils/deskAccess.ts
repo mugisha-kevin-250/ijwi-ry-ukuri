@@ -105,6 +105,7 @@ const HOME_IN_ORDER: { permission: PermissionName; href: string }[] = [
   { permission: 'managePlatform', href: '/mugishaimekevin/mail' },
   { permission: 'manageCategories', href: '/mugishaimekevin/categories' },
   { permission: 'manageAds', href: '/mugishaimekevin/advertising' },
+  { permission: 'manageMusic', href: '/mugishaimekevin/music' },
   { permission: 'manageSettings', href: '/mugishaimekevin/settings' },
   { permission: 'review', href: '/editor/dashboard' },
   { permission: 'moderateComments', href: '/editor/comments' },

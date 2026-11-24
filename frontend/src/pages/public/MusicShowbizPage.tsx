@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowUpRight, Disc3, ExternalLink, Headphones, Music2, Search, Sparkles } from 'lucide-react'
 import { radioAPI, type AudiusTrack } from '../../services/api'
+import apiClient from '../../services/apiClient'
+import { useAuth } from '../../context/AuthContext'
 import { useSeo } from '../../utils/useSeo'
 
 function durationLabel(seconds: number) {
@@ -22,6 +24,15 @@ export default function MusicShowbizPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [searched, setSearched] = useState(false)
+  const { user } = useAuth()
+  const [releases, setReleases] = useState<any[]>([])
+  const [artist, setArtist] = useState<any>(null)
+  const [artistForm, setArtistForm] = useState({ stageName: '', biography: '', country: '', genres: '', officialUrl: '' })
+  const [releaseForm, setReleaseForm] = useState({ title: '', description: '', genre: '', language: '', artworkUrl: '', listeningUrl: '', rightsBasis: 'owner', rightsDeclaration: false })
+  const [musicStatus, setMusicStatus] = useState('')
+  const [musicError, setMusicError] = useState('')
+  const [musicBusy, setMusicBusy] = useState(false)
+  const [deskQueue, setDeskQueue] = useState<{ artists: any[]; releases: any[] }>({ artists: [], releases: [] })
 
   useSeo({
     title: 'RADAR Music & Showbiz — Music streaming and discovery',
@@ -31,11 +42,14 @@ export default function MusicShowbizPage() {
 
   useEffect(() => {
     let active = true
+    apiClient.get('/music/releases').then(response => { if (active) setReleases(response.data.data?.releases || []) }).catch(() => {})
+    if (user) apiClient.get('/music/artists/me').then(response => { if (active) setArtist(response.data.data?.artist || null) }).catch(() => {})
+    if (user?.role === 'ADMIN') apiClient.get('/music/desk/queue').then(response => { if (active) setDeskQueue(response.data.data || { artists: [], releases: [] }) }).catch(() => {})
     radioAPI.getAudiusPlaylist()
       .then((tracks) => { if (active) setStation(tracks) })
       .catch(() => { if (active) setError('The RADAR station could not load right now.') })
     return () => { active = false }
-  }, [])
+  }, [user])
 
   const search = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -55,6 +69,35 @@ export default function MusicShowbizPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+
+  const submitArtist = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setMusicError(''); setMusicStatus(''); setMusicBusy(true)
+    try {
+      const response = await apiClient.post('/music/artists/apply', { ...artistForm, genres: artistForm.genres.split(',').map(value => value.trim()).filter(Boolean) })
+      setArtist(response.data.data?.artist || null); setMusicStatus('Artist application sent. The RADAR rights desk must verify your profile before you can submit releases.')
+    } catch (err: any) { setMusicError(err?.response?.data?.message || 'Could not submit artist application.') }
+    finally { setMusicBusy(false) }
+  }
+  const submitRelease = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setMusicError(''); setMusicStatus(''); setMusicBusy(true)
+    try {
+      await apiClient.post('/music/releases', releaseForm)
+      setMusicStatus('Release submitted for editorial and copyright review. It will appear publicly only after approval.')
+      setReleaseForm({ title: '', description: '', genre: '', language: '', artworkUrl: '', listeningUrl: '', rightsBasis: 'owner', rightsDeclaration: false })
+    } catch (err: any) { setMusicError(err?.response?.data?.message || 'Could not submit this release.') }
+    finally { setMusicBusy(false) }
+  }
+  const reviewMusic = async (kind: 'artists' | 'releases', id: string, status: string) => {
+    setMusicError(''); setMusicStatus('')
+    try {
+      await apiClient.put(kind === 'artists' ? `/music/desk/artists/${id}/review` : `/music/desk/releases/${id}/review`, { status, note: 'Reviewed in RADAR music desk' })
+      const response = await apiClient.get('/music/desk/queue')
+      setDeskQueue(response.data.data || { artists: [], releases: [] })
+      setMusicStatus('Music desk decision saved.')
+      if (kind === 'artists' && user) { const mine = await apiClient.get('/music/artists/me'); setArtist(mine.data.data?.artist || null) }
+    } catch (err: any) { setMusicError(err?.response?.data?.message || 'Could not save the review decision.') }
   }
 
   return (
@@ -122,6 +165,18 @@ export default function MusicShowbizPage() {
           </ul>
         )}
       </section>
+
+
+      <section aria-labelledby="radar-approved-releases" className="mt-9">
+        <div className="mb-4"><p className="text-xs font-bold uppercase tracking-widest text-fuchsia-700">RADAR approved</p><h2 id="radar-approved-releases" className="mt-1 text-xl font-extrabold text-slate-950">Artists and releases</h2><p className="mt-1 text-sm text-slate-500">Music submitted by artists and reviewed by the RADAR rights desk.</p></div>
+        {releases.length === 0 ? <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No RADAR-approved artist releases have been published yet.</p> : <ul className="grid gap-3 sm:grid-cols-2">{releases.map(release => <li key={release._id} className="flex min-w-0 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">{release.artworkUrl ? <img src={release.artworkUrl} alt="" loading="lazy" className="h-16 w-16 rounded-xl object-cover" /> : <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-fuchsia-50 text-fuchsia-700"><Music2 className="h-6 w-6" /></span>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-950">{release.title}</p><p className="text-xs text-slate-500">{release.artist?.stageName || 'RADAR artist'} · {release.genre || 'Music'}</p><a href={release.listeningUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline">Listen on official provider <ArrowUpRight className="h-3 w-3" /></a></div></li>)}</ul>}
+      </section>
+      <section aria-labelledby="artist-onboarding" className="mt-9 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-4"><p className="text-xs font-bold uppercase tracking-widest text-blue-700">For musicians</p><h2 id="artist-onboarding" className="mt-1 text-xl font-extrabold text-slate-950">Submit your music to RADAR</h2><p className="mt-1 text-sm text-slate-600">Apply for an artist profile, then submit official listening links for review. RADAR does not host or redistribute audio files in this release.</p></div>
+        {!user ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">Sign in to apply for an artist profile and manage your releases. <Link to="/login" className="font-bold text-blue-700 underline">Sign in</Link></p> : artist ? <div className="rounded-xl bg-slate-50 p-4"><p className="text-sm font-bold text-slate-900">{artist.stageName}</p><p className="mt-1 text-xs text-slate-600">Artist profile status: <span className="font-bold capitalize">{artist.status}</span></p>{artist.status === 'verified' ? <form onSubmit={submitRelease} className="mt-5 grid gap-3 sm:grid-cols-2"><h3 className="font-bold sm:col-span-2">Submit a release</h3><input required maxLength={160} placeholder="Song or release title" value={releaseForm.title} onChange={e => setReleaseForm({ ...releaseForm, title: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><input placeholder="Genre" value={releaseForm.genre} onChange={e => setReleaseForm({ ...releaseForm, genre: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><input placeholder="Language" value={releaseForm.language} onChange={e => setReleaseForm({ ...releaseForm, language: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><input placeholder="Artwork URL (optional)" value={releaseForm.artworkUrl} onChange={e => setReleaseForm({ ...releaseForm, artworkUrl: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2" /><input required placeholder="Official listening URL" value={releaseForm.listeningUrl} onChange={e => setReleaseForm({ ...releaseForm, listeningUrl: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2" /><textarea placeholder="Release description" value={releaseForm.description} onChange={e => setReleaseForm({ ...releaseForm, description: e.target.value })} className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2" /><select value={releaseForm.rightsBasis} onChange={e => setReleaseForm({ ...releaseForm, rightsBasis: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="owner">I own the rights</option><option value="written_permission">I have written permission</option><option value="licensed">I hold a licence</option></select><label className="flex items-start gap-2 text-xs leading-relaxed text-slate-600 sm:col-span-2"><input type="checkbox" checked={releaseForm.rightsDeclaration} onChange={e => setReleaseForm({ ...releaseForm, rightsDeclaration: e.target.checked })} className="mt-0.5" /> I confirm I have the legal right to submit this release and that the information is accurate.</label><button disabled={musicBusy || !releaseForm.rightsDeclaration} className="min-h-11 rounded-xl bg-blue-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50 sm:col-span-2">{musicBusy ? 'Submitting…' : 'Submit release for review'}</button></form> : <p className="mt-2 text-sm text-slate-600">Your application is awaiting RADAR verification. Release submissions open after approval.</p> : <form onSubmit={submitArtist} className="grid gap-3 sm:grid-cols-2"><input required maxLength={100} placeholder="Artist / stage name" value={artistForm.stageName} onChange={e => setArtistForm({ ...artistForm, stageName: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><input placeholder="Country" value={artistForm.country} onChange={e => setArtistForm({ ...artistForm, country: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><input placeholder="Genres, separated by commas" value={artistForm.genres} onChange={e => setArtistForm({ ...artistForm, genres: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2" /><input placeholder="Official artist page (optional)" value={artistForm.officialUrl} onChange={e => setArtistForm({ ...artistForm, officialUrl: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2" /><textarea placeholder="Short artist biography" value={artistForm.biography} onChange={e => setArtistForm({ ...artistForm, biography: e.target.value })} className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2" /><button disabled={musicBusy} className="min-h-11 rounded-xl bg-blue-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50 sm:col-span-2">{musicBusy ? 'Submitting…' : 'Apply for artist profile'}</button></form>}
+        {musicStatus && <p role="status" className="mt-3 text-sm font-semibold text-emerald-700">{musicStatus}</p>}{musicError && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{musicError}</p>}
+      </section>
+      {user?.role === 'ADMIN' && <section aria-labelledby="music-desk-heading" className="mt-9 rounded-2xl border border-amber-200 bg-amber-50 p-5"><h2 id="music-desk-heading" className="text-lg font-extrabold text-slate-950">RADAR music rights desk</h2><p className="mt-1 text-sm text-slate-600">Administrator review queue for artist applications, releases and takedown requests.</p><div className="mt-4 grid gap-4 md:grid-cols-2"><div><h3 className="font-bold text-slate-900">Artist applications ({deskQueue.artists.length})</h3>{deskQueue.artists.map(item => <div key={item._id} className="mt-2 rounded-xl border bg-white p-3"><p className="text-sm font-bold">{item.stageName}</p><p className="text-xs text-slate-500">{item.user?.email || ''}</p><div className="mt-2 flex gap-2"><button onClick={() => reviewMusic('artists', item._id, 'verified')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">Verify</button><button onClick={() => reviewMusic('artists', item._id, 'rejected')} className="rounded-lg bg-slate-200 px-3 py-2 text-xs font-bold text-slate-800">Reject</button></div></div>)}</div><div><h3 className="font-bold text-slate-900">Release / takedown queue ({deskQueue.releases.length})</h3>{deskQueue.releases.map(item => <div key={item._id} className="mt-2 rounded-xl border bg-white p-3"><p className="text-sm font-bold">{item.title}</p><p className="text-xs text-slate-500">{item.artist?.stageName || 'Artist'} · {item.status}</p><a href={item.listeningUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-blue-700 underline">Review official release</a><div className="mt-2 flex gap-2"><button onClick={() => reviewMusic('releases', item._id, 'approved')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">Approve</button><button onClick={() => reviewMusic('releases', item._id, item.status === 'takedown_pending' ? 'removed' : 'rejected')} className="rounded-lg bg-slate-200 px-3 py-2 text-xs font-bold text-slate-800">{item.status === 'takedown_pending' ? 'Remove' : 'Reject'}</button></div></div>)}</div></div></section>}
 
       <section className="mt-8 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:grid-cols-2 sm:p-6">
         <div><h2 className="flex items-center gap-2 text-sm font-extrabold text-slate-950"><ExternalLink className="h-4 w-4 text-blue-700" /> Official listening and downloads</h2><p className="mt-2 text-sm leading-relaxed text-slate-600">Open a search result on Audius to access its official player, artist profile, release details and any download option the rights holder has enabled.</p></div>

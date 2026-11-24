@@ -116,6 +116,7 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/weather', load: () => import('../pages/public/WeatherPage') },
   { path: '/radar-ai', load: () => import('../pages/public/RadarAiPage') },
   { path: '/radio', load: () => import('../pages/public/RadioPage') },
+  { path: '/music', load: () => import('../pages/public/MusicShowbizPage') },
   { path: '/search', load: () => import('../pages/public/SearchPage') },
   { path: '/library', load: () => import('../pages/public/MyLibraryPage') },
   { path: '/about', load: () => import('../pages/public/AboutPage') },

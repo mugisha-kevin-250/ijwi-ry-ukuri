@@ -65,6 +65,7 @@ const EditorReviewPage = lazy(() => import('../pages/editor/EditorReviewPage'))
 
 const AdminAiWriterPage = lazy(() => import('../pages/admin/AdminAiWriterPage'))
 const AdminArticlesPage = lazy(() => import('../pages/admin/AdminArticlesPage'))
+const AdminGlobalNewsPage = lazy(() => import('../pages/admin/AdminGlobalNewsPage'))
 const AdminAdsPage = lazy(() => import('../pages/admin/AdminAdsPage'))
 const AdminCategoriesPage = lazy(() => import('../pages/admin/AdminCategoriesPage'))
 const AdminLoginPage = lazy(() => import('../pages/admin/AdminLoginPage'))

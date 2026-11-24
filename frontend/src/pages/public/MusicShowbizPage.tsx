@@ -31,12 +31,12 @@ function ArtistPortal() {
   useEffect(() => {
     if (!user) return
     let active = true
-    apiClient.get('/music/artists/me').then(response => {
+    apiClient.get<any>('/music/artists/me').then(response => {
       if (!active) return
       setArtist(response.data.data?.artist || null)
       setMyReleases(response.data.data?.releases || [])
     }).catch(() => {})
-    if (user.role === 'ADMIN') apiClient.get('/music/desk/queue').then(response => {
+    if (user.role === 'ADMIN') apiClient.get<any>('/music/desk/queue').then(response => {
       if (active) setQueue(response.data.data || { artists: [], releases: [] })
     }).catch(() => {})
     return () => { active = false }
@@ -45,7 +45,7 @@ function ArtistPortal() {
   const apply = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setError(''); setStatus(''); setBusy(true)
     try {
-      const response = await apiClient.post('/music/artists/apply', {
+      const response = await apiClient.post<any>('/music/artists/apply', {
         ...artistForm,
         genres: artistForm.genres.split(',').map(value => value.trim()).filter(Boolean),
       })
@@ -59,8 +59,8 @@ function ArtistPortal() {
   const submitRelease = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setError(''); setStatus(''); setBusy(true)
     try {
-      await apiClient.post('/music/releases', releaseForm)
-      const response = await apiClient.get('/music/artists/me')
+      await apiClient.post<any>('/music/releases', releaseForm)
+      const response = await apiClient.get<any>('/music/artists/me')
       setMyReleases(response.data.data?.releases || [])
       setStatus('Release submitted for copyright and editorial review. It will appear publicly only after approval.')
       setReleaseForm({ title: '', description: '', genre: '', language: '', artworkUrl: '', listeningUrl: '', rightsBasis: 'owner', rightsEvidenceUrl: '', rightsDeclaration: false })
@@ -74,8 +74,8 @@ function ArtistPortal() {
     if (!reason?.trim()) return
     setError(''); setStatus('')
     try {
-      await apiClient.post(`/music/releases/${id}/takedown`, { reason })
-      const response = await apiClient.get('/music/artists/me')
+      await apiClient.post<any>(`/music/releases/${id}/takedown`, { reason })
+      const response = await apiClient.get<any>('/music/artists/me')
       setMyReleases(response.data.data?.releases || [])
       setStatus('Takedown request sent to the RADAR rights desk.')
     } catch (err: any) { setError(err?.response?.data?.message || 'Could not submit takedown request.') }
@@ -86,10 +86,10 @@ function ArtistPortal() {
     try {
       const path = kind === 'artists' ? `/music/desk/artists/${id}/review` : `/music/desk/releases/${id}/review`
       await apiClient.put(path, { status: decision, note: 'Reviewed in RADAR music desk' })
-      const response = await apiClient.get('/music/desk/queue')
+      const response = await apiClient.get<any>('/music/desk/queue')
       setQueue(response.data.data || { artists: [], releases: [] })
       if (kind === 'artists') {
-        const mine = await apiClient.get('/music/artists/me')
+        const mine = await apiClient.get<any>('/music/artists/me')
         setArtist(mine.data.data?.artist || null)
       }
       setStatus('Music desk decision saved.')
@@ -181,7 +181,7 @@ export default function MusicShowbizPage() {
 
   useEffect(() => {
     let active = true
-    apiClient.get('/music/releases').then(response => { if (active) setReleases(response.data.data?.releases || []) }).catch(() => {})
+    apiClient.get<any>('/music/releases').then(response => { if (active) setReleases(response.data.data?.releases || []) }).catch(() => {})
     radioAPI.getAudiusPlaylist()
       .then((tracks) => { if (active) setStation(tracks) })
       .catch(() => { if (active) setError('The RADAR station could not load right now.') })

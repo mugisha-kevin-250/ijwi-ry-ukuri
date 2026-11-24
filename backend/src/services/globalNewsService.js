@@ -91,22 +91,24 @@ async function refresh() {
     results.push(...await Promise.all(feeds.slice(i, i + 5).map(readFeed)));
   }
   let saved = 0;
+  let processed = 0;
   for (const result of results) {
     for (const item of result.items) {
       try {
-        await GlobalNewsItem.updateOne(
+        const outcome = await GlobalNewsItem.updateOne(
           { dedupeKey: keyFor(item) },
           { $setOnInsert: { ...item, dedupeKey: keyFor(item), reviewStatus: 'unreviewed', fetchedAt: new Date() } },
           { upsert: true },
         );
-        saved += 1;
+        saved += Number(outcome.upsertedCount || 0);
+        processed += 1;
       } catch (error) {
         if (error.code !== 11000) throw error;
       }
     }
   }
   await GlobalNewsItem.deleteMany({ fetchedAt: { $lt: new Date(Date.now() - MAX_AGE_DAYS * 86400000) }, reviewStatus: { $in: ['unreviewed', 'rejected'] } });
-  return { configured: feeds.length, fetched: results.reduce((n, x) => n + x.items.length, 0), saved, failed: results.filter((x) => !x.ok).length, feeds: results.map(({ feed, ok, error, items }) => ({ feed, ok, error: error || null, items: items.length })) };
+  return { configured: feeds.length, fetched: results.reduce((n, x) => n + x.items.length, 0), saved, processed, failed: results.filter((x) => !x.ok).length, feeds: results.map(({ feed, ok, error, items }) => ({ feed, ok, error: error || null, items: items.length })) };
 }
 async function list({ page = 1, limit = 20, region = '', status = '' } = {}) {
   const safePage = Math.max(1, Math.min(Number(page) || 1, 500));

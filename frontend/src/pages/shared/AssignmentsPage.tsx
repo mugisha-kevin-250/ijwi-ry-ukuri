@@ -49,7 +49,7 @@ export default function AssignmentsPage() {
       ])
       const payload: any = assignmentResponse.data?.data
       setAssignments(Array.isArray(payload?.assignments) ? payload.assignments : [])
-      const people: any[] = assigneeResponse?.data?.data?.users
+      const people: any[] = assigneeResponse ? (assigneeResponse.data as any)?.data?.users : []
       setAssignees(Array.isArray(people) ? people : [])
       if (!assignedTo && Array.isArray(people) && people[0]) setAssignedTo(people[0]._id)
     } catch (err: any) {

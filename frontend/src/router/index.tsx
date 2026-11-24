@@ -167,6 +167,7 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/mugishaimekevin/messages', load: () => import('../pages/admin/AdminMessagesPage') },
   { path: '/mugishaimekevin/mail', load: () => import('../pages/admin/AdminMailPage') },
   { path: '/mugishaimekevin/scheduler', load: () => import('../pages/admin/AdminSchedulerPage') },
+  { path: '/mugishaimekevin/global-news', load: () => import('../pages/admin/AdminGlobalNewsPage') },
   { path: '/mugishaimekevin/categories', load: () => import('../pages/admin/AdminCategoriesPage') },
   { path: '/mugishaimekevin/advertising', load: () => import('../pages/admin/AdminAdsPage') },
   { path: '/mugishaimekevin/settings', load: () => import('../pages/admin/AdminSettingsPage') },
@@ -502,6 +503,7 @@ export const router = createBrowserRouter([
           // What the clock did on its own, and the way to finish a job a failed
           // minute left half-done. Owner-only, like the mail desk it sits beside.
           { path: 'scheduler', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminSchedulerPage /></RequireDesk> },
+          { path: 'global-news', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminGlobalNewsPage /></RequireDesk> },
           // The desk that owns the sections. It used to point at the reader's
           // /categories page, which shows what exists but lets nobody change it.
           { path: 'categories', element: <RequireDesk staffDoor permissions={['manageCategories']}><AdminCategoriesPage /></RequireDesk> },

@@ -12,6 +12,7 @@ const storyMedia = require('../services/storyMedia');
 const commentState = require('../utils/commentState');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { plainText, cleanText, safeMediaUrl } = require('../utils/textFields');
+const auditLog = require('../services/auditLogService');
 
 const router = express.Router();
 
@@ -243,6 +244,19 @@ router.put('/articles/:id/disclosure', requirePermission([PERMISSIONS.correct]),
     article.updatedAt = new Date();
     await article.save();
 
+    if (note || Object.keys(changes).length || galleryWritten) {
+      await auditLog.recordSafely({
+        actor: req.user,
+        action: note ? 'article.correction_recorded' : 'article.disclosure_updated',
+        entityType: 'article',
+        entityId: article._id,
+        entityLabel: article.title,
+        summary: note ? 'A public correction was recorded on an article' : 'Article disclosure or media credits were updated',
+        details: { correction: Boolean(note), sponsored: Boolean(changes.isSponsored), galleryRowsUpdated: galleryWritten },
+        req,
+      });
+    }
+
     return successResponse(res, 200, note ? 'Correction published' : 'Story details updated', { article });
   } catch (error) {
     next(error);
@@ -271,6 +285,16 @@ router.put('/articles/:id/breaking', requirePermission([PERMISSIONS.correct, PER
 
     article.updatedAt = new Date();
     await article.save();
+    await auditLog.recordSafely({
+      actor: req.user,
+      action: result.isBreaking ? 'article.breaking_enabled' : 'article.breaking_disabled',
+      entityType: 'article',
+      entityId: article._id,
+      entityLabel: article.title,
+      summary: result.isBreaking ? 'Breaking-news flag enabled' : 'Breaking-news flag disabled',
+      details: { isBreaking: result.isBreaking },
+      req,
+    });
 
     return successResponse(res, 200, result.isBreaking ? 'Marked as breaking' : 'The breaking label is off', {
       article,

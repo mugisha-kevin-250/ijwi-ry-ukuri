@@ -157,4 +157,6 @@ Acceptance checks for the assignment release:
 - All application, submission, review and takedown actions are recorded through the existing safe audit-log service.
 - Radio's Explore Music entry now navigates within the app to /music.
 
-Limitations intentionally retained: no third-party audio is uploaded or copied; the page links to official listening providers. The download permission flag is not a public download endpoint. Formal contract/evidence file storage, legal review, artist appeals, full release-edit history and dedicated admin navigation remain future work.
+Release 4 extension: the public /music route is registered in the actual router; the dedicated /mugishaimekevin/music admin page is linked in staff navigation and protected by manageMusic. Artist profile editing, approved-release charts, rate-limited play counting, private playlists and personal listening history are implemented. Playlists can only contain approved releases.
+
+Safety and remaining work: no third-party audio is uploaded or copied; listening opens the official provider. The music desk always forces direct downloads off. The existing newsroom has story video and live broadcast functionality, but a separate podcast publishing workflow has not yet been added. Private rights-document upload/retention, evidence verification, secure licensed-audio storage/download delivery, artist appeals and a full moderation-history timeline remain outstanding.

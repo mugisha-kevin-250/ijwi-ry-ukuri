@@ -24,7 +24,7 @@ router.get('/releases', async (req, res, next) => {
   try {
     const filter = { status: 'approved' };
     if (req.query.featured === 'true') filter.featured = true;
-    const releases = await MusicRelease.find(filter).sort({ featured: -1, reviewedAt: -1 }).limit(60)
+    const releases = await MusicRelease.find(filter).select('title description genre language artworkUrl listeningUrl featured reviewedAt artist').sort({ featured: -1, reviewedAt: -1 }).limit(60)
       .populate({ path: 'artist', match: { status: 'verified' }, select: 'stageName biography country genres officialUrl' }).lean();
     return successResponse(res, 200, 'Approved RADAR music releases', { releases: releases.filter(item => item.artist) });
   } catch (error) { next(error); }

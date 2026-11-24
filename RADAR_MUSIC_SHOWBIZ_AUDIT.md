@@ -144,3 +144,17 @@ Acceptance checks for the assignment release:
 - Invalid user IDs, invalid deadlines, empty briefs and unsupported status values are rejected.
 - Assignment actions appear in the audit log.
 - Verify the new pages on narrow mobile widths and run backend tests plus frontend typecheck/build before production rollout.
+
+
+## Release 3 — Artist onboarding and rights workflow implemented
+
+- Added MongoDB artist and music-release records without changing existing radio playlist records or user accounts.
+- Authenticated readers can apply for one artist profile. Only the administrator's new manageMusic permission can verify, reject or suspend applications.
+- Verified artists can submit music metadata, artwork URLs and official listening URLs. A rights declaration and rights basis are required; a written permission/licence submission also requires a supporting evidence URL.
+- Submitted releases remain pending. Only approved releases linked to verified artists appear in the public Music & Showbiz catalogue.
+- The artist workspace displays application status, release status and lets the submitting artist request takedown.
+- The administrator queue supports artist decisions, release approval/rejection and takedown resolution.
+- All application, submission, review and takedown actions are recorded through the existing safe audit-log service.
+- Radio's Explore Music entry now navigates within the app to /music.
+
+Limitations intentionally retained: no third-party audio is uploaded or copied; the page links to official listening providers. The download permission flag is not a public download endpoint. Formal contract/evidence file storage, legal review, artist appeals, full release-edit history and dedicated admin navigation remain future work.

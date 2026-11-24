@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone, Timer, History, ClipboardList, Disc3 } from 'lucide-react'
+import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone, Timer, History, ClipboardList, Disc3, Globe2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import { can, roleLabel } from '../../utils/deskAccess'
@@ -60,6 +60,7 @@ const navigation = {
       // Beside the mail desk, for the same reason: a machine that runs on a
       // clock needs a screen that says whether it ran.
       { href: '/mugishaimekevin/scheduler', label: t('nav.admin.scheduler'), icon: Timer, permission: 'managePlatform' as const },
+      { href: '/mugishaimekevin/global-news', label: 'Global news desk', icon: Globe2, permission: 'managePlatform' as const },
       // Sections and advertising are desks of their own, and both used to be
       // missing or pointing at the reader's page instead of the admin's.
       { href: '/mugishaimekevin/categories', label: t('nav.admin.categories'), icon: FolderTree, permission: 'manageCategories' as const },

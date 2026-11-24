@@ -16,7 +16,7 @@ const statuses: AssignmentStatus[] = ['assigned', 'accepted', 'in_progress', 'su
 const reporterStatuses: AssignmentStatus[] = ['accepted', 'in_progress', 'submitted']
 
 function label(value: string) {
-  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (letter: string) => letter.toUpperCase())
 }
 function localDateTime(date: Date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)

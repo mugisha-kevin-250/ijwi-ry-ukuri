@@ -56,6 +56,7 @@ const WeatherPage = lazy(() => import('../pages/public/WeatherPage'))
 const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage'))
 
 const EditorCommentsPage = lazy(() => import('../pages/editor/EditorCommentsPage'))
+const AssignmentsPage = lazy(() => import('../pages/shared/AssignmentsPage'))
 const EditorDashboardPage = lazy(() => import('../pages/editor/EditorDashboardPage'))
 const EditorQueuePage = lazy(() => import('../pages/editor/EditorQueuePage'))
 const EditorReviewPage = lazy(() => import('../pages/editor/EditorReviewPage'))
@@ -132,12 +133,14 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/:section', load: () => import('../pages/public/SectionPage') },
   { path: '/:section/:sub', load: () => import('../pages/public/SectionPage') },
   { path: '/writer/dashboard', load: () => import('../pages/writer/WriterDashboardPage') },
+  { path: '/writer/assignments', load: () => import('../pages/shared/AssignmentsPage') },
   { path: '/writer/articles', load: () => import('../pages/writer/WriterArticlesPage') },
   { path: '/writer/articles/new', load: () => import('../pages/writer/WriterArticleEditorPage') },
   { path: '/writer/articles/:id/edit', load: () => import('../pages/writer/WriterArticleEditorPage') },
   { path: '/writer/earnings', load: () => import('../pages/writer/WriterEarningsPage') },
   { path: '/writer/profile', load: () => import('../pages/public/UserProfilePage') },
   { path: '/editor/dashboard', load: () => import('../pages/editor/EditorDashboardPage') },
+  { path: '/editor/assignments', load: () => import('../pages/shared/AssignmentsPage') },
   { path: '/editor/pending', load: () => import('../pages/editor/EditorQueuePage') },
   { path: '/editor/comments', load: () => import('../pages/editor/EditorCommentsPage') },
   { path: '/editor/articles/:id', load: () => import('../pages/editor/EditorReviewPage') },
@@ -428,6 +431,7 @@ export const router = createBrowserRouter([
         element: <WriterLayout variant="writer" />,
         children: [
           { index: true, element: <Navigate to="dashboard" replace /> },
+          { path: 'assignments', element: <RequireDesk permissions={['writeStories']}><AssignmentsPage /></RequireDesk> },
           { path: 'dashboard', element: <RequireWrite><WriterDashboardPage /></RequireWrite> },
           { path: 'articles', element: <RequireWrite><WriterArticlesPage /></RequireWrite> },
           { path: 'articles/new', element: <RequireWrite><WriterArticleEditorPage /></RequireWrite> },
@@ -445,6 +449,7 @@ export const router = createBrowserRouter([
           // API asks for on /api/editor/*, so the queue opens for a news editor
           // and an ad manager is sent to the desk that is theirs.
           { path: 'dashboard', element: <RequireDesk permissions={['review']}><EditorDashboardPage /></RequireDesk> },
+          { path: 'assignments', element: <RequireDesk permissions={['review', 'writeStories']}><AssignmentsPage /></RequireDesk> },
           { path: 'pending', element: <RequireDesk permissions={['review']}><EditorQueuePage /></RequireDesk> },
           // Comments are their own door: the person who answers readers is not
           // always the person who approves stories, and the social desk holds

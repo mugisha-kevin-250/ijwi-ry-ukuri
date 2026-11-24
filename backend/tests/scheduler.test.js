@@ -10,6 +10,8 @@ const Category = require('../src/models/Category');
 const SchedulerRun = require('../src/models/SchedulerRun');
 const scheduler = require('../src/jobs/scheduler');
 const schedulerLog = require('../src/services/schedulerLog');
+const schedulerLock = require('../src/services/schedulerLock');
+const SchedulerLock = require('../src/models/SchedulerLock');
 const liveScoreService = require('../src/services/liveScoreService');
 const { connectDatabase, disconnectDatabase } = require('../src/config/database');
 
@@ -62,6 +64,27 @@ async function timedStory(title) {
     scheduledAt: new Date(Date.now() - 60 * 1000),
   });
 }
+
+test('MongoDB scheduler leases prevent cross-instance overlap and recover expired owners', async () => {
+  await SchedulerLock.deleteMany({ job: 'lease-test' });
+  const first = await schedulerLock.acquire('lease-test');
+  assert.ok(first?.owner, 'the first process claims the job');
+
+  const competing = await schedulerLock.acquire('lease-test');
+  assert.equal(competing, null, 'a second process cannot claim an active lease');
+
+  assert.equal(await schedulerLock.renew(first), true, 'the owner can extend its own lease');
+  await SchedulerLock.updateOne(
+    { job: 'lease-test', owner: first.owner },
+    { $set: { leaseUntil: new Date(Date.now() - 1000) } },
+  );
+
+  const recovered = await schedulerLock.acquire('lease-test');
+  assert.ok(recovered?.owner);
+  assert.notEqual(recovered.owner, first.owner, 'an expired lease can be recovered');
+  assert.equal(await schedulerLock.release(first), false, 'an old owner cannot release a new owner lease');
+  assert.equal(await schedulerLock.release(recovered), true);
+});
 
 test('the scheduler desk lists its jobs and says whether the clock is running here', async () => {
   const response = await request(app)

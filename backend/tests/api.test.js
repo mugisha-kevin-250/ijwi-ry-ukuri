@@ -261,6 +261,20 @@ test('article approval and publish', async () => {
 
 // An author who has not been looked at yet can pull their story out of the
 // queue; once an editor signs it, the desk owns it and the take-back is refused.
+test('newsroom audit log records article workflow decisions and is staff-only', async () => {
+  const staffView = await request(app)
+    .get('/api/admin/audit-logs')
+    .set('Authorization', `Bearer ${editorToken}`);
+  assert.equal(staffView.status, 200);
+  assert.ok(staffView.body.data.total >= 3);
+  assert.ok(staffView.body.data.items.some((item) => item.action === 'article.status_changed' && item.entityLabel === 'Story For Review'));
+
+  const writerView = await request(app)
+    .get('/api/admin/audit-logs')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(writerView.status, 403);
+});
+
 test('an author takes a story back only while nobody has reviewed it', async () => {
   const category = await Category.findOne({ slug: 'general' });
   const created = await request(app)

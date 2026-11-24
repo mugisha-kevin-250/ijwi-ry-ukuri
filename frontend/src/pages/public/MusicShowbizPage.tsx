@@ -24,6 +24,8 @@ function ArtistPortal() {
   const [queue, setQueue] = useState<{ artists: any[]; releases: any[] }>({ artists: [], releases: [] })
   const [artistForm, setArtistForm] = useState({ stageName: '', biography: '', country: '', genres: '', officialUrl: '' })
   const [releaseForm, setReleaseForm] = useState({ title: '', description: '', genre: '', language: '', artworkUrl: '', listeningUrl: '', rightsBasis: 'owner', rightsEvidenceUrl: '', rightsDeclaration: false })
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [profileForm, setProfileForm] = useState({ stageName: '', biography: '', country: '', genres: '', officialUrl: '' })
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -33,7 +35,9 @@ function ArtistPortal() {
     let active = true
     apiClient.get<any>('/music/artists/me').then(response => {
       if (!active) return
-      setArtist(response.data.data?.artist || null)
+      const currentArtist = response.data.data?.artist || null
+      setArtist(currentArtist)
+      if (currentArtist) setProfileForm({ stageName: currentArtist.stageName || '', biography: currentArtist.biography || '', country: currentArtist.country || '', genres: (currentArtist.genres || []).join(', '), officialUrl: currentArtist.officialUrl || '' })
       setMyReleases(response.data.data?.releases || [])
     }).catch(() => {})
     if (user.role === 'ADMIN') apiClient.get<any>('/music/desk/queue').then(response => {
@@ -54,6 +58,17 @@ function ArtistPortal() {
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Could not submit artist application.')
     } finally { setBusy(false) }
+  }
+
+  const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setError(''); setStatus(''); setBusy(true)
+    try {
+      const response = await apiClient.patch<any>('/music/artists/me', { ...profileForm, genres: profileForm.genres.split(',').map(value => value.trim()).filter(Boolean) })
+      setArtist(response.data.data?.artist || artist)
+      setEditingProfile(false)
+      setStatus('Artist profile updated.')
+    } catch (err: any) { setError(err?.response?.data?.message || 'Could not update artist profile.') }
+    finally { setBusy(false) }
   }
 
   const submitRelease = async (event: FormEvent<HTMLFormElement>) => {
@@ -118,6 +133,15 @@ function ArtistPortal() {
         <div className="rounded-xl bg-slate-50 p-4">
           <p className="text-sm font-bold text-slate-900">{artist.stageName}</p>
           <p className="mt-1 text-xs text-slate-600">Artist profile status: <span className="font-bold capitalize">{artist.status}</span></p>
+          <button type="button" onClick={() => setEditingProfile(value => !value)} className="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700">{editingProfile ? 'Close profile editor' : 'Edit artist profile'}</button>
+          {editingProfile && <form onSubmit={saveProfile} className="mt-3 grid gap-3 sm:grid-cols-2">
+            <input required maxLength={100} placeholder="Artist / stage name" value={profileForm.stageName} onChange={e => setProfileForm({ ...profileForm, stageName: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input placeholder="Country" value={profileForm.country} onChange={e => setProfileForm({ ...profileForm, country: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input placeholder="Genres, comma separated" value={profileForm.genres} onChange={e => setProfileForm({ ...profileForm, genres: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2" />
+            <input placeholder="Official profile URL" value={profileForm.officialUrl} onChange={e => setProfileForm({ ...profileForm, officialUrl: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2" />
+            <textarea placeholder="Biography" value={profileForm.biography} onChange={e => setProfileForm({ ...profileForm, biography: e.target.value })} className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2" />
+            <button disabled={busy} className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50 sm:col-span-2">{busy ? 'Saving…' : 'Save artist profile'}</button>
+          </form>}
           {artist.status === 'verified' && (
             <form onSubmit={submitRelease} className="mt-5 grid gap-3 sm:grid-cols-2">
               <h3 className="font-bold sm:col-span-2">Submit a release</h3>

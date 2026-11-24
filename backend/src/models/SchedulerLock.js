@@ -8,6 +8,4 @@ const schedulerLockSchema = new mongoose.Schema({
   leaseUntil: { type: Date, required: true },
 }, { timestamps: true });
 
-schedulerLockSchema.index({ job: 1 }, { unique: true });
-
 module.exports = mongoose.model('SchedulerLock', schedulerLockSchema);

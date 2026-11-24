@@ -20,6 +20,8 @@ const env = require('../src/config/env');
 const User = require('../src/models/User');
 const Comment = require('../src/models/Comment');
 const Article = require('../src/models/Article');
+const NewsroomAssignment = require('../src/models/NewsroomAssignment');
+const AuditLog = require('../src/models/AuditLog');
 const Category = require('../src/models/Category');
 const { connectDatabase, disconnectDatabase } = require('../src/config/database');
 const { PERMISSIONS, roleCan, isStaffRole } = require('../src/config/permissions');
@@ -300,4 +302,67 @@ test('the signed-in payload carries the permissions rather than a guess', async 
   const forged = jwt.sign({ id: social.user._id, role: 'ADMIN' }, env.JWT_SECRET, { expiresIn: '7d' });
   const claimed = await request(app).get('/api/editor/articles').set('Authorization', `Bearer ${forged}`);
   assert.equal(claimed.status, 403, 'a token printed its way onto the review desk');
+});
+
+
+test('assignment desk enforces reporter ownership and records the workflow', async () => {
+  const editor = await makeStaff('assignmenteditor', 'NEWS_EDITOR');
+  const writer = await makeStaff('assignmentwriter', 'WRITER');
+  const otherWriter = await makeStaff('assignmentother', 'WRITER');
+  const reader = await makeStaff('assignmentreader', 'READER');
+  const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  const created = await request(app).post('/api/assignments')
+    .set('Authorization', `Bearer ${editor.token}`)
+    .send({
+      title: 'Cover the district education meeting',
+      brief: 'Interview the organizers, verify the agenda and file a balanced report.',
+      desk: 'Education',
+      priority: 'high',
+      assignedTo: String(writer.user._id),
+      dueAt,
+    });
+  assert.equal(created.status, 201, `editor could not create assignment: ${JSON.stringify(created.body)}`);
+  const assignmentId = created.body.data.assignment._id;
+
+  const writerList = await request(app).get('/api/assignments')
+    .set('Authorization', `Bearer ${writer.token}`);
+  assert.equal(writerList.status, 200);
+  assert.equal(writerList.body.data.assignments.length, 1);
+  assert.equal(writerList.body.data.assignments[0]._id, assignmentId);
+
+  const otherList = await request(app).get('/api/assignments')
+    .set('Authorization', `Bearer ${otherWriter.token}`);
+  assert.equal(otherList.status, 200);
+  assert.equal(otherList.body.data.assignments.length, 0, 'another writer saw an assignment not assigned to them');
+
+  const readerList = await request(app).get('/api/assignments')
+    .set('Authorization', `Bearer ${reader.token}`);
+  assert.equal(readerList.status, 403, 'a reader opened the assignments desk');
+
+  const writerCreate = await request(app).post('/api/assignments')
+    .set('Authorization', `Bearer ${writer.token}`)
+    .send({ title: 'Self-assigned', brief: 'Try to bypass the editor.', assignedTo: String(writer.user._id), dueAt });
+  assert.equal(writerCreate.status, 403, 'a writer created an assignment');
+
+  for (const status of ['accepted', 'in_progress', 'submitted']) {
+    const changed = await request(app).put(`/api/assignments/${assignmentId}/status`)
+      .set('Authorization', `Bearer ${writer.token}`).send({ status });
+    assert.equal(changed.status, 200, `writer could not set ${status}: ${JSON.stringify(changed.body)}`);
+  }
+
+  const otherUpdate = await request(app).put(`/api/assignments/${assignmentId}/status`)
+    .set('Authorization', `Bearer ${otherWriter.token}`).send({ status: 'accepted' });
+  assert.equal(otherUpdate.status, 403, 'a different writer updated somebody else’s assignment');
+
+  const approved = await request(app).put(`/api/assignments/${assignmentId}/status`)
+    .set('Authorization', `Bearer ${editor.token}`).send({ status: 'approved' });
+  assert.equal(approved.status, 200, 'the editor could not approve submitted work');
+
+  const stored = await NewsroomAssignment.findById(assignmentId).lean();
+  assert.equal(stored.status, 'approved');
+  assert.deepEqual(stored.events.map(item => item.to), ['assigned', 'accepted', 'in_progress', 'submitted', 'approved']);
+
+  const audit = await AuditLog.find({ entityType: 'assignment', entityId: stored._id }).sort({ createdAt: 1 }).lean();
+  assert.ok(audit.length >= 2, 'assignment creation and status changes were not written to the audit log');
 });

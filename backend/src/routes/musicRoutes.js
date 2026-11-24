@@ -268,7 +268,7 @@ router.put('/desk/releases/:id/review', protect, async (req, res, next) => {
     release.reviewNote = cleanText(req.body?.note, { maxLength: 1000 });
     release.featured = status === 'approved' && req.body?.featured === true;
     // Direct downloads remain disabled unless the rights desk records affirmative permission.
-    release.downloadAllowed = status === 'approved' && req.body?.downloadAllowed === true && ['owner', 'written_permission', 'licensed'].includes(release.rightsBasis);
+    release.downloadAllowed = false; // No RADAR-hosted audio or private rights-document store exists yet; never enable direct downloads from a checkbox.
     await release.save();
     await auditLog.recordSafely({ actor: req.user, action: 'music.release_reviewed', entityType: 'music_release', entityId: release._id, entityLabel: release.title, summary: 'Music release rights decision recorded', details: { status, featured: release.featured, downloadAllowed: release.downloadAllowed }, req });
     return successResponse(res, 200, 'Release review saved', { release });

@@ -56,6 +56,8 @@ module.exports = {
   // What readers are searching for right now, read from Google's own feed on the
   // server. No secret is involved and nothing is sent to the browser.
   TREND_GEOS: process.env.TREND_GEOS || '',
+  // Operator-managed, licensed/permissioned RSS feeds. JSON array of {url,name,region,language}.
+  GLOBAL_NEWS_FEEDS: process.env.GLOBAL_NEWS_FEEDS || '[]',
   TREND_CACHE_MINUTES: Number(process.env.TREND_CACHE_MINUTES || 15),
   TREND_TIMEOUT_MS: Number(process.env.TREND_TIMEOUT_MS || 15000),
   RATE_PER_1000_VIEWS: Number(process.env.RATE_PER_1000_VIEWS || 5000),

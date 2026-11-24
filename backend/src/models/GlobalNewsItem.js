@@ -1,0 +1,23 @@
+const mongoose = require('mongoose');
+
+// A feed entry is a newsroom lead, never an automatically published RADAR article.
+// Keep publisher attribution and the original link; editors must independently verify it.
+const globalNewsItemSchema = new mongoose.Schema({
+  dedupeKey: { type: String, required: true, unique: true, index: true },
+  title: { type: String, required: true, trim: true, maxlength: 300 },
+  link: { type: String, required: true, trim: true, maxlength: 1200 },
+  sourceName: { type: String, required: true, trim: true, maxlength: 120 },
+  sourceUrl: { type: String, required: true, trim: true, maxlength: 1200 },
+  region: { type: String, default: 'WORLD', uppercase: true, trim: true, maxlength: 12 },
+  language: { type: String, default: 'en', lowercase: true, trim: true, maxlength: 12 },
+  publishedAt: Date,
+  fetchedAt: { type: Date, default: Date.now },
+  reviewStatus: { type: String, enum: ['unreviewed', 'reviewing', 'verified', 'rejected'], default: 'unreviewed', index: true },
+  reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  reviewedAt: Date,
+  editorNote: { type: String, maxlength: 2000, default: '' },
+}, { timestamps: true });
+globalNewsItemSchema.index({ region: 1, publishedAt: -1 });
+globalNewsItemSchema.index({ reviewStatus: 1, fetchedAt: -1 });
+globalNewsItemSchema.index({ title: 'text', sourceName: 'text' });
+module.exports = mongoose.model('GlobalNewsItem', globalNewsItemSchema);

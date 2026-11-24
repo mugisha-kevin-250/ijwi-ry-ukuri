@@ -572,3 +572,39 @@ body > .skiptranslate {
 body {
   top: 0 !important;
 }
+
+
+/* RADAR phone-first resilience layer. Keep existing page-specific layouts intact,
+   while preventing common content and controls from forcing horizontal scrolling. */
+html, body, #app { min-height: 100%; max-width: 100%; }
+body { overflow-x: clip; }
+img, video, canvas, svg { max-width: 100%; }
+button, input, select, textarea { font: inherit; }
+button, [role="button"], a { -webkit-tap-highlight-color: transparent; }
+input, select, textarea { min-width: 0; }
+:focus-visible { outline: 3px solid var(--color-brand); outline-offset: 2px; }
+.prose-content, .prose-content * { overflow-wrap: anywhere; }
+.prose-content pre { max-width: 100%; }
+.prose-content table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.container-custom { width: 100%; }
+@media (max-width: 767px) {
+  :root { --header-h: 132px; }
+  .container-custom { padding-left: 1rem; padding-right: 1rem; }
+  main { min-width: 0; }
+  button, [role="button"], input[type="submit"], input[type="button"] { min-height: 42px; }
+  input, select, textarea { font-size: 16px !important; }
+  .prose-content { font-size: 1rem; line-height: 1.75; }
+  .prose-content p { margin-top: 1rem; margin-bottom: 1rem; }
+  .prose-content iframe, .prose-content embed { min-height: 190px; }
+}
+@media (max-width: 480px) {
+  :root { --header-h: 116px; }
+  .container-custom { padding-left: .875rem; padding-right: .875rem; }
+  .prose-content h1 { font-size: 1.45rem; }
+  .prose-content h2 { font-size: 1.25rem; }
+  .prose-content h3 { font-size: 1.1rem; }
+  .prose-content th, .prose-content td { padding: .35rem .45rem; font-size: .75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

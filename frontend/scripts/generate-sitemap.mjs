@@ -329,6 +329,7 @@ async function main() {
     xml: urlset([
       urlEntry(`${SITE_URL}/`, today, '1.0', 'daily'),
       urlEntry(`${SITE_URL}/articles`, today, '0.9', 'hourly'),
+      urlEntry(`${SITE_URL}/global-news`, today, '0.8', 'hourly'),
       urlEntry(`${SITE_URL}/categories`, today, '0.7', 'daily'),
       // The authors directory. It is the page that answers "who writes here",
       // and it changes whenever a byline publishes, so daily rather than yearly.
@@ -423,7 +424,7 @@ ${written
     `${articles.length} articles, ${categories.length} categories, ${sectionHrefs.length} section pages, ${authors.size} writers, ` +
       // Home, News, Categories, Authors, TV, the scores desk and Search - the seven
       // addresses the site publishes that are not a story, a section or a policy page.
-      `${7 + publisherPages.length} static pages, ${news.count} stories in the News sitemap, ` +
+      `${8 + publisherPages.length} static pages, ${news.count} stories in the News sitemap, ` +
       `${images.count} pictures in the image sitemap, ` +
       `${Math.min(newest.length, 30)} stories in the feed`
   )

@@ -31,6 +31,7 @@ import ArticleDetailPage from '../pages/public/ArticleDetailPage'
 const AboutPage = lazy(() => import('../pages/public/AboutPage'))
 const AdvertisingPage = lazy(() => import('../pages/public/AdvertisingPage'))
 const ArticleListPage = lazy(() => import('../pages/public/ArticleListPage'))
+const GlobalNewsPage = lazy(() => import('../pages/public/GlobalNewsPage'))
 const AuthPage = lazy(() => import('../pages/public/AuthPage'))
 const AuthorsPage = lazy(() => import('../pages/public/AuthorsPage'))
 const CategoriesPage = lazy(() => import('../pages/public/CategoriesPage'))
@@ -64,6 +65,7 @@ const EditorReviewPage = lazy(() => import('../pages/editor/EditorReviewPage'))
 
 const AdminAiWriterPage = lazy(() => import('../pages/admin/AdminAiWriterPage'))
 const AdminArticlesPage = lazy(() => import('../pages/admin/AdminArticlesPage'))
+const AdminGlobalNewsPage = lazy(() => import('../pages/admin/AdminGlobalNewsPage'))
 const AdminAdsPage = lazy(() => import('../pages/admin/AdminAdsPage'))
 const AdminCategoriesPage = lazy(() => import('../pages/admin/AdminCategoriesPage'))
 const AdminLoginPage = lazy(() => import('../pages/admin/AdminLoginPage'))
@@ -109,6 +111,7 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/register', load: () => import('../pages/public/AuthPage') },
   { path: '/forgot-password', load: () => import('../pages/public/PasswordRecoveryPage') },
   { path: '/articles', load: () => import('../pages/public/ArticleListPage') },
+  { path: '/global-news', load: () => import('../pages/public/GlobalNewsPage') },
   { path: '/article/:slug', load: () => import('../pages/public/ArticleDetailPage') },
   { path: '/categories', load: () => import('../pages/public/CategoriesPage') },
   { path: '/category/:slug', load: () => import('../pages/public/CategoryPage') },
@@ -164,6 +167,7 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/mugishaimekevin/messages', load: () => import('../pages/admin/AdminMessagesPage') },
   { path: '/mugishaimekevin/mail', load: () => import('../pages/admin/AdminMailPage') },
   { path: '/mugishaimekevin/scheduler', load: () => import('../pages/admin/AdminSchedulerPage') },
+  { path: '/mugishaimekevin/global-news', load: () => import('../pages/admin/AdminGlobalNewsPage') },
   { path: '/mugishaimekevin/categories', load: () => import('../pages/admin/AdminCategoriesPage') },
   { path: '/mugishaimekevin/advertising', load: () => import('../pages/admin/AdminAdsPage') },
   { path: '/mugishaimekevin/settings', load: () => import('../pages/admin/AdminSettingsPage') },
@@ -389,6 +393,7 @@ export const router = createBrowserRouter([
           // has to stay standing on its own in a bookmark or a mail.
           { path: 'forgot-password', element: <PasswordRecoveryPage /> },
           { path: 'articles', element: <ArticleListPage /> },
+          { path: 'global-news', element: <GlobalNewsPage /> },
           { path: 'article/:slug', element: <ArticleDetailPage /> },
           { path: 'categories', element: <CategoriesPage /> },
           // The authors directory. A static name, so it is matched before the
@@ -498,6 +503,7 @@ export const router = createBrowserRouter([
           // What the clock did on its own, and the way to finish a job a failed
           // minute left half-done. Owner-only, like the mail desk it sits beside.
           { path: 'scheduler', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminSchedulerPage /></RequireDesk> },
+          { path: 'global-news', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminGlobalNewsPage /></RequireDesk> },
           // The desk that owns the sections. It used to point at the reader's
           // /categories page, which shows what exists but lets nobody change it.
           { path: 'categories', element: <RequireDesk staffDoor permissions={['manageCategories']}><AdminCategoriesPage /></RequireDesk> },

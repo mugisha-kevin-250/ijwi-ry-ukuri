@@ -20,7 +20,7 @@ Production frontend: https://www.radartimes.2bd.net
 
 ## Current implementation update — 2026-11-24
 
-- [x] First newsroom activity-log slice: append-only MongoDB audit records for article workflow status transitions, staff-only paginated/searchable API, and an admin Activity log screen.
+- [x] Newsroom activity-log foundation: append-only MongoDB records for article workflow transitions, corrections/disclosures, breaking-news decisions and staff account access changes; staff-only paginated/searchable API and admin Activity log screen.
 - [ ] Extend audit coverage to assignments, corrections/disclosures, staff permission changes, moderation and operational actions. The first slice is not a complete compliance audit trail.
 - [ ] Add assignment ownership, due dates, priority and desk-level queues before claiming Release 2 complete.
 
@@ -28,7 +28,7 @@ Production frontend: https://www.radartimes.2bd.net
 - [ ] Story assignments with journalist, desk, deadline, priority and status.
 - [ ] Dedicated IN_REVIEW and CHANGES_REQUESTED transitions with editor feedback.
 - [ ] Reviewer allocation and assignment history.
-- [ ] Searchable audit events for assignment, review, publish, correction, archive and permission changes.
+- [ ] Complete searchable audit coverage for assignment, source-verification, moderation, ad/payout and operational changes (the first slice now records article workflow transitions, corrections/disclosures, breaking flags and staff account access changes; see `AUDIT_LOG.md`).
 - [ ] Editorial calendar, overdue queue, source verification and public correction notices.
 
 ## Release 3 — Journalist and newsroom management

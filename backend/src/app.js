@@ -364,6 +364,9 @@ app.use('/api/live', liveRoutes);
 // catch-all public story routes.
 app.use('/api/radio/audius', audiusLimiter);
 app.use('/api/radio', radioRoutes);
+// Public play-count writes are rate-limited separately so one client cannot inflate charts.
+const musicListenLimiter = rateLimit({ ...byClientIp, windowMs: 60 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, message: tooMany('Too many music listen events from this address. Please try again later.') });
+app.post('/api/music/releases/:id/listen', musicListenLimiter);
 app.use('/api/music', musicRoutes);
 app.use('/api/newsletter', newsletterRoutes);
 app.use('/uploads', express.static(env.UPLOAD_DIR));

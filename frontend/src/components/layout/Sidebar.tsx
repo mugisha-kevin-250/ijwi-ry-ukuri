@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone, Timer } from 'lucide-react'
+import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone, Timer, History } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import { can, roleLabel } from '../../utils/deskAccess'
@@ -45,6 +45,7 @@ const navigation = {
       { href: '/mugishaimekevin/users', label: t('nav.admin.users'), icon: Users, permission: 'viewNewsroomDesk' as const },
       { href: '/mugishaimekevin/writers', label: t('nav.admin.writers'), icon: PenTool, permission: 'manageUsers' as const },
       { href: '/mugishaimekevin/articles', label: t('nav.admin.news'), icon: List, permission: 'viewNewsroomDesk' as const },
+      { href: '/mugishaimekevin/audit-log', label: 'Activity log', icon: History, permission: 'viewNewsroomDesk' as const },
       // The moderation desk is the same screen the editors use: one queue, and
       // every role that answers readers reaches it from here.
       { href: '/editor/comments', label: t('nav.editor.comments'), icon: MessageSquare, permission: 'moderateComments' as const },

@@ -141,7 +141,7 @@ router.get('/artists/me', protect, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.patch('/artists/me', protect, async (req, res, next) => {
+router.put('/artists/me', protect, async (req, res, next) => {
   try {
     const artist = await MusicArtist.findOne({ user: req.user._id });
     if (!artist) return errorResponse(res, 404, 'Artist profile not found');

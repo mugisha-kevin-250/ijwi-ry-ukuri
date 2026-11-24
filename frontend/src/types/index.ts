@@ -35,6 +35,7 @@ export type PermissionName =
   | 'manageAds'
   | 'manageSeo'
   | 'manageBroadcast'
+  | 'manageMusic'
   | 'runAiWriter'
   | 'managePlatform'
 

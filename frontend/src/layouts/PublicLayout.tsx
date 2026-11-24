@@ -17,14 +17,15 @@ export default function PublicLayout() {
   const { languageVersion } = useI18n()
 
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 pb-16 md:pb-0">
+    <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:font-bold focus:text-blue-800 focus:shadow-lg">Skip to main content</a>
       <Header variant="public" />
       {/*
         The header is fixed, and it is as tall as the advert above the section
         links makes it, so the offset comes from the measurement the Header
         publishes rather than a number written down here.
       */}
-      <main className="flex-1 pt-[var(--header-h)]">
+      <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 pt-[var(--header-h)]">
         {/* A page arrives in its own piece of JavaScript, and only when a reader
             asks for it. The boundary sits here, under the header and above the
             footer, so the chrome - and a bulletin already being spoken - is

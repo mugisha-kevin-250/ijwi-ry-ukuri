@@ -142,6 +142,17 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
     return () => window.removeEventListener('scroll', onScroll)
   }, [variant])
 
+  // Escape closes the phone menu without requiring a pointer or a second tab
+  // through every section link. The listener exists only while the menu is open.
+  useEffect(() => {
+    if (!isMenuOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMenuOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [isMenuOpen])
+
   // Publish the height the fixed rows take up, so the page under the header can
   // start below it without anyone keeping a magic number in two places. It runs on
   // mount and whenever the bar changes - a campaign arriving in the advert strip,
@@ -375,7 +386,7 @@ export default function Header({ variant = 'public', sidebarCollapsed = false }:
               className="md:hidden p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-expanded={isMenuOpen}
               aria-controls="mobile-menu"
-              aria-label="Toggle menu"
+              aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             >
               {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>

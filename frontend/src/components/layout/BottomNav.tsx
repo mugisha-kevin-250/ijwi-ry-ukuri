@@ -24,19 +24,19 @@ export default function BottomNav() {
   const accountHref = user?._id ? `/user/${user._id}` : '/writer/profile'
 
   return (
-    <nav translate="no" className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white md:hidden">
-      <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
-        <Link to="/" className={`flex flex-col items-center gap-1 text-xs ${isActive('/') ? 'text-blue-700' : 'text-slate-600'}`}>
+    <nav translate="no" aria-label="Primary navigation" className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
+      <div className="mx-auto flex min-h-16 max-w-md items-center justify-around px-2 py-2">
+        <Link to="/" aria-current={isActive('/') ? 'page' : undefined} className={`flex flex-col items-center gap-1 text-xs ${isActive('/') ? 'text-blue-700' : 'text-slate-600'}`}>
           <Home className="h-5 w-5" />
           <span>{t('nav.home')}</span>
         </Link>
-        <Link to="/articles" className={`flex flex-col items-center gap-1 text-xs ${isActive('/articles') ? 'text-blue-700' : 'text-slate-600'}`}>
+        <Link to="/articles" aria-current={isActive('/articles') ? 'page' : undefined} className={`flex flex-col items-center gap-1 text-xs ${isActive('/articles') ? 'text-blue-700' : 'text-slate-600'}`}>
           <List className="h-5 w-5" />
           <span>{t('nav.articles')}</span>
         </Link>
         {/* Writing happens in the writer dashboard, so the phone bar carries the
             sections instead of a publish button. */}
-        <Link to="/categories" className={`flex flex-col items-center gap-1 text-xs ${isActive('/categories') ? 'text-blue-700' : 'text-slate-600'}`}>
+        <Link to="/categories" aria-current={isActive('/categories') ? 'page' : undefined} className={`flex flex-col items-center gap-1 text-xs ${isActive('/categories') ? 'text-blue-700' : 'text-slate-600'}`}>
           <LayoutGrid className="h-5 w-5" />
           <span>{t('nav.categories')}</span>
         </Link>
@@ -44,6 +44,7 @@ export default function BottomNav() {
             a "Profile" that would land a visitor on a page they cannot see. */}
         <Link
           to={user ? accountHref : '/login'}
+          aria-current={isActive(accountHref) || isActive('/login') ? 'page' : undefined}
           className={`flex flex-col items-center gap-1 text-xs ${isActive(accountHref) || isActive('/login') ? 'text-blue-700' : 'text-slate-600'}`}
         >
           <User className="h-5 w-5" />

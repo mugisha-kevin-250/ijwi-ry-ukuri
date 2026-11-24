@@ -17,7 +17,6 @@ import AdminLayout from '../layouts/AdminLayout'
 import PublicLayout from '../layouts/PublicLayout'
 import WriterLayout from '../layouts/WriterLayout'
 import HomePage from '../pages/public/HomePage'
-import ArticleDetailPage from '../pages/public/ArticleDetailPage'
 //
 // Everything below this line is downloaded only when a reader asks for it.
 //
@@ -28,6 +27,7 @@ import ArticleDetailPage from '../pages/public/ArticleDetailPage'
 // own screens never downloads the charts, the article form or the live-video
 // socket client that those screens are built from.
 //
+const ArticleDetailPage = lazy(() => import('../pages/public/ArticleDetailPage'))
 const AboutPage = lazy(() => import('../pages/public/AboutPage'))
 const AdvertisingPage = lazy(() => import('../pages/public/AdvertisingPage'))
 const ArticleListPage = lazy(() => import('../pages/public/ArticleListPage'))

@@ -608,3 +608,57 @@ input, select, textarea { min-width: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+/* Final mobile viewport and fixed-control refinements. */
+:root {
+  --mobile-bottom-nav-h: calc(4rem + env(safe-area-inset-bottom));
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-width: 320px;
+}
+
+@media (max-width: 767px) {
+  /* Keep toast messages clear of the fixed reader navigation and audio bar. */
+  .Toastify__toast-container {
+    left: 1rem;
+    right: 1rem;
+    bottom: calc(var(--mobile-bottom-nav-h) + 0.75rem);
+    width: auto;
+  }
+
+  .prose-content blockquote {
+    margin-inline: 0;
+  }
+
+  .prose-content pre {
+    max-width: 100%;
+    font-size: 0.8125rem;
+  }
+
+  /* Wide newsroom charts and tables remain readable by scrolling inside their
+     own region instead of widening the entire page. */
+  main :where(table) {
+    max-width: 100%;
+  }
+
+  main :where(img, video, iframe, canvas) {
+    max-width: 100%;
+  }
+
+  [role='dialog'] {
+    max-width: calc(100vw - 1rem);
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  a, button, [role='button'] {
+    touch-action: manipulation;
+  }
+}

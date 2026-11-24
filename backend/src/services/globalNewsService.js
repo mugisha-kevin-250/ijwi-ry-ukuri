@@ -110,7 +110,7 @@ async function refresh() {
   await GlobalNewsItem.deleteMany({ fetchedAt: { $lt: new Date(Date.now() - MAX_AGE_DAYS * 86400000) }, reviewStatus: { $in: ['unreviewed', 'rejected'] } });
   return { configured: feeds.length, fetched: results.reduce((n, x) => n + x.items.length, 0), saved, processed, failed: results.filter((x) => !x.ok).length, feeds: results.map(({ feed, ok, error, items }) => ({ feed, ok, error: error || null, items: items.length })) };
 }
-async function list({ page = 1, limit = 20, region = '', status = '' } = {}) {
+async function list({ page = 1, limit = 20, region = '', status = '', includeReviewStatus = false } = {}) {
   const safePage = Math.max(1, Math.min(Number(page) || 1, 500));
   const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
   const filter = {};
@@ -118,7 +118,7 @@ async function list({ page = 1, limit = 20, region = '', status = '' } = {}) {
   if (['unreviewed', 'reviewing', 'verified', 'rejected'].includes(status)) filter.reviewStatus = status;
   const [items, total] = await Promise.all([
     GlobalNewsItem.find(filter).sort({ publishedAt: -1, fetchedAt: -1 }).skip((safePage - 1) * safeLimit).limit(safeLimit)
-      .select('title link sourceName sourceUrl region language publishedAt fetchedAt reviewStatus').lean(),
+      .select(includeReviewStatus ? 'title link sourceName sourceUrl region language publishedAt fetchedAt reviewStatus' : 'title link sourceName sourceUrl region language publishedAt fetchedAt').lean(),
     GlobalNewsItem.countDocuments(filter),
   ]);
   return { items, page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) };

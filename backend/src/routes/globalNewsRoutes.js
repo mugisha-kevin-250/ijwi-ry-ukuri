@@ -15,7 +15,7 @@ router.get('/', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/status', protect, requirePermission(PERMISSIONS.managePlatform), async (req, res, next) => {
+router.get('/queue', protect, requirePermission(PERMISSIONS.managePlatform), async (req, res, next) => {\n  try {\n    const result = await service.list({ page: req.query.page, limit: req.query.limit, status: 'unreviewed', includeReviewStatus: true });\n    res.json({ success: true, ...result });\n  } catch (error) { next(error); }\n});\n\nrouter.get('/status', protect, requirePermission(PERMISSIONS.managePlatform), async (req, res, next) => {
   try { res.json({ success: true, ...(await service.status()) }); } catch (error) { next(error); }
 });
 router.post('/refresh', protect, requirePermission(PERMISSIONS.managePlatform), async (req, res, next) => {

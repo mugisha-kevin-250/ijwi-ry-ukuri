@@ -33,6 +33,20 @@ test.after(async () => {
   await disconnectDatabase();
 });
 
+test('liveness and readiness health checks distinguish process from database health', async () => {
+  const live = await request(app).get('/api/health/live');
+  assert.equal(live.status, 200);
+  assert.equal(live.body.status, 'alive');
+
+  const ready = await request(app).get('/api/health/ready');
+  assert.equal(ready.status, 200);
+  assert.equal(ready.body.database, true);
+
+  const legacy = await request(app).get('/api/health');
+  assert.equal(legacy.status, 200);
+  assert.equal(legacy.body.database.connected, true);
+});
+
 test('register', async () => {
   const response = await request(app)
     .post('/api/auth/register')

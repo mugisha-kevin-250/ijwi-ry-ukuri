@@ -8,6 +8,7 @@ const schedulerLog = require('../services/schedulerLog');
 const breakingNews = require('../utils/breakingNews');
 const env = require('../config/env');
 const globalNewsService = require('../services/globalNewsService');
+const schedulerLock = require('../services/schedulerLock');
 
 // Work the lifecycle has to finish on its own, because no person is standing
 // at the server at 00:00 on Monday. Before this file existed node-cron was an
@@ -128,14 +129,53 @@ async function runJob(name, { trigger = 'cron' } = {}) {
     return schedulerLog.skipped({
       job: name,
       trigger,
-      reason: 'the previous pass has not finished',
+      reason: 'the previous pass has not finished in this process',
     });
   }
 
   inFlight.add(name);
+  let lock;
+  let heartbeat;
   try {
+    try {
+      lock = await schedulerLock.acquire(name);
+    } catch (error) {
+      const message = String(error?.message || error).slice(0, 400);
+      await schedulerLog.record({ job: name, status: 'failed', trigger, error: `distributed lock unavailable: ${message}` });
+      console.error(`Scheduler ${name} could not claim its distributed lock: ${message}`);
+      return { status: 'failed', error: 'The shared scheduler lock could not be acquired.' };
+    }
+
+    if (!lock) {
+      return schedulerLog.skipped({
+        job: name,
+        trigger,
+        reason: 'another backend instance owns this scheduled job',
+      });
+    }
+
+    // Keep the lease alive while a long-running pass is active. If the process
+    // dies, renewals stop and another instance may recover the job after expiry.
+    const renewEvery = Math.max(15_000, Math.floor(schedulerLock.leaseDuration() / 3));
+    heartbeat = setInterval(() => {
+      schedulerLock.renew(lock).then((owned) => {
+        if (!owned) console.error(`Scheduler ${name} lost its distributed lease while running.`);
+      }).catch((error) => {
+        console.error(`Scheduler ${name} lease renewal failed: ${String(error?.message || error).slice(0, 200)}`);
+      });
+    }, renewEvery);
+    if (typeof heartbeat.unref === 'function') heartbeat.unref();
+
     return await schedulerLog.track({ job: name, trigger, fn: job.run });
   } finally {
+    if (heartbeat) clearInterval(heartbeat);
+    if (lock) {
+      try {
+        await schedulerLock.release(lock);
+      } catch (error) {
+        console.error(`Scheduler ${name} lock release failed: ${String(error?.message || error).slice(0, 200)}`);
+      }
+    }
     inFlight.delete(name);
   }
 }

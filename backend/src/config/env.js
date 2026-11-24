@@ -113,6 +113,9 @@ module.exports = {
   // up for them. Onwards unless the operator turns it off - a second instance
   // sharing one database should set this to false so pay is not computed twice.
   ENABLE_SCHEDULER: process.env.ENABLE_SCHEDULER !== 'false',
+  // MongoDB-backed scheduler lease. Long jobs renew this lease while running;
+  // a crashed process releases it automatically when the lease expires.
+  SCHEDULER_LOCK_LEASE_MS: Number(process.env.SCHEDULER_LOCK_LEASE_MS || 600000),
   // Which zone "Monday just after midnight" means. Kigali time is the newsroom.
   SCHEDULER_TZ: process.env.SCHEDULER_TZ || 'Africa/Kigali',
   // Which clock the radio timetable is written on. Kept separate from the pay

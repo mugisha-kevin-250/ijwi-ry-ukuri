@@ -31,6 +31,7 @@ import ArticleDetailPage from '../pages/public/ArticleDetailPage'
 const AboutPage = lazy(() => import('../pages/public/AboutPage'))
 const AdvertisingPage = lazy(() => import('../pages/public/AdvertisingPage'))
 const ArticleListPage = lazy(() => import('../pages/public/ArticleListPage'))
+const GlobalNewsPage = lazy(() => import('../pages/public/GlobalNewsPage'))
 const AuthPage = lazy(() => import('../pages/public/AuthPage'))
 const AuthorsPage = lazy(() => import('../pages/public/AuthorsPage'))
 const CategoriesPage = lazy(() => import('../pages/public/CategoriesPage'))
@@ -109,6 +110,7 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/register', load: () => import('../pages/public/AuthPage') },
   { path: '/forgot-password', load: () => import('../pages/public/PasswordRecoveryPage') },
   { path: '/articles', load: () => import('../pages/public/ArticleListPage') },
+  { path: '/global-news', load: () => import('../pages/public/GlobalNewsPage') },
   { path: '/article/:slug', load: () => import('../pages/public/ArticleDetailPage') },
   { path: '/categories', load: () => import('../pages/public/CategoriesPage') },
   { path: '/category/:slug', load: () => import('../pages/public/CategoryPage') },
@@ -389,6 +391,7 @@ export const router = createBrowserRouter([
           // has to stay standing on its own in a bookmark or a mail.
           { path: 'forgot-password', element: <PasswordRecoveryPage /> },
           { path: 'articles', element: <ArticleListPage /> },
+          { path: 'global-news', element: <GlobalNewsPage /> },
           { path: 'article/:slug', element: <ArticleDetailPage /> },
           { path: 'categories', element: <CategoriesPage /> },
           // The authors directory. A static name, so it is matched before the

@@ -188,6 +188,65 @@ function ArtistPortal() {
 }
 
 /** A public music discovery desk. Full catalogue listening and artist-enabled downloads stay on Audius. */
+
+function MusicChartsAndPlaylists() {
+  const { user } = useAuth()
+  const [charts, setCharts] = useState<any[]>([])
+  const [playlists, setPlaylists] = useState<any[]>([])
+  const [name, setName] = useState('')
+  const [notice, setNotice] = useState('')
+  const load = async () => {
+    const response = await apiClient.get<any>('/music/charts')
+    setCharts(response.data.data?.releases || [])
+  }
+  useEffect(() => {
+    let active = true
+    apiClient.get<any>('/music/charts').then(response => { if (active) setCharts(response.data.data?.releases || []) }).catch(() => {})
+    if (user) apiClient.get<any>('/music/playlists/me').then(response => { if (active) setPlaylists(response.data.data?.playlists || []) }).catch(() => {})
+    return () => { active = false }
+  }, [user])
+  const create = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!name.trim()) return
+    try {
+      const response = await apiClient.post<any>('/music/playlists', { name: name.trim() })
+      setPlaylists(items => [response.data.data.playlist, ...items])
+      setName('')
+      setNotice('Playlist created.')
+    } catch (err: any) { setNotice(err?.response?.data?.message || 'Could not create playlist.') }
+  }
+  const add = async (playlistId: string, releaseId: string) => {
+    const playlist = playlists.find(item => item._id === playlistId)
+    const ids = [...new Set([...(playlist?.releases || []).map((item: any) => item._id), releaseId])]
+    try {
+      const response = await apiClient.put<any>('/music/playlists/' + playlistId + '/tracks', { releaseIds: ids })
+      setPlaylists(items => items.map(item => item._id === playlistId ? response.data.data.playlist : item))
+      setNotice('Track saved to playlist.')
+    } catch (err: any) { setNotice(err?.response?.data?.message || 'Could not save track.') }
+  }
+  const listen = async (id: string) => {
+    try {
+      await apiClient.post<any>('/music/releases/' + id + '/listen')
+      if (user) await apiClient.post<any>('/music/history/' + id)
+      await load()
+    } catch { /* The provider link still works if analytics are unavailable. */ }
+  }
+  return <section className="mt-9 space-y-5">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <p className="text-xs font-bold uppercase tracking-widest text-fuchsia-700">Community listening</p>
+      <h2 className="mt-1 text-xl font-extrabold text-slate-950">RADAR music charts</h2>
+      <p className="mt-1 text-sm text-slate-500">Top approved releases ranked by listens recorded on RADAR.</p>
+      {charts.length === 0 ? <p className="mt-4 text-sm text-slate-500">Charts will appear as approved releases receive listens.</p> : <ol className="mt-4 grid gap-3 sm:grid-cols-2">{charts.slice(0, 10).map((item, index) => <li key={item._id} className="flex items-center gap-3 rounded-xl border p-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-black">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{item.title}</p><p className="text-xs text-slate-500">{item.artist?.stageName || 'RADAR artist'} · {item.plays || 0} listens</p></div><a href={item.listeningUrl} target="_blank" rel="noopener noreferrer" onClick={() => void listen(item._id)} className="text-xs font-bold text-blue-700 underline">Listen</a>{user && playlists.length > 0 && <select aria-label="Save to playlist" defaultValue="" onChange={event => { if (event.target.value) void add(event.target.value, item._id) }} className="max-w-28 rounded-lg border px-2 py-1 text-xs"><option value="">+ Playlist</option>{playlists.map(playlist => <option key={playlist._id} value={playlist._id}>{playlist.name}</option>)}</select>}</li>)}</ol>}
+    </div>
+    {user && <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <h2 className="text-lg font-extrabold">Your music playlists</h2>
+      <form onSubmit={create} className="mt-3 flex flex-wrap gap-2"><input value={name} onChange={event => setName(event.target.value)} placeholder="New playlist name" maxLength={80} className="min-h-10 flex-1 rounded-lg border border-slate-300 px-3 text-sm"/><button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">Create playlist</button></form>
+      {notice && <p role="status" className="mt-2 text-xs text-slate-600">{notice}</p>}
+      {playlists.length === 0 ? <p className="mt-3 text-sm text-slate-500">Save approved releases to your own playlists.</p> : <div className="mt-4 grid gap-3 sm:grid-cols-2">{playlists.map(playlist => <article key={playlist._id} className="rounded-xl border p-3"><h3 className="font-bold">{playlist.name}</h3><p className="text-xs text-slate-500">{playlist.releases?.length || 0} tracks</p>{playlist.releases?.map((track: any) => <p key={track._id} className="mt-2 truncate text-sm">{track.title} · {track.artist?.stageName || 'Artist'}</p>)}</article>)}</div>}
+    </div>}
+  </section>
+}
+
 export default function MusicShowbizPage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<AudiusTrack[]>([])
@@ -304,6 +363,7 @@ export default function MusicShowbizPage() {
         <div className="mb-4"><p className="text-xs font-bold uppercase tracking-widest text-fuchsia-700">RADAR approved</p><h2 id="radar-approved-releases" className="mt-1 text-xl font-extrabold text-slate-950">Artists and releases</h2><p className="mt-1 text-sm text-slate-500">Music submitted by artists and reviewed by the RADAR rights desk.</p></div>
         {releases.length === 0 ? <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No RADAR-approved artist releases have been published yet.</p> : <ul className="grid gap-3 sm:grid-cols-2">{releases.map(release => <li key={release._id} className="flex min-w-0 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">{release.artworkUrl ? <img src={release.artworkUrl} alt="" loading="lazy" className="h-16 w-16 rounded-xl object-cover" /> : <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-fuchsia-50 text-fuchsia-700"><Music2 className="h-6 w-6" /></span>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-950">{release.title}</p><p className="text-xs text-slate-500">{release.artist?.stageName || 'RADAR artist'} · {release.genre || 'Music'}</p><a href={release.listeningUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline">Listen on official provider <ArrowUpRight className="h-3 w-3" /></a></div></li>)}</ul>}
       </section>
+      <MusicChartsAndPlaylists />
       <ArtistPortal />
 
       <section className="mt-8 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:grid-cols-2 sm:p-6">

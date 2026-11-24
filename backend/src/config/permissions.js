@@ -45,6 +45,8 @@ const PERMISSIONS = {
   manageSeo: 'manageSeo',
   // Going on air: the TV/broadcast controls.
   manageBroadcast: 'manageBroadcast',
+  // Artist verification, release approval and music-rights decisions.
+  manageMusic: 'manageMusic',
   runAiWriter: 'runAiWriter',
   // The machinery: mail desk, job runner, radio timetable, deleting records.
   managePlatform: 'managePlatform',

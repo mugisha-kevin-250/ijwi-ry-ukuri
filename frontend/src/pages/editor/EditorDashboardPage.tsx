@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Inbox, PenTool, RefreshCw, Settings2 } from 'lucide-react'
+import { ClipboardList, Inbox, PenTool, RefreshCw, Settings2 } from 'lucide-react'
 import { editorAPI } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 
@@ -130,6 +130,11 @@ export default function EditorDashboardPage() {
           <PenTool className="h-5 w-5 text-blue-600" />
           <p className="mt-2 text-sm font-bold text-slate-900">{t('nav.writer.myArticles')}</p>
           <p className="text-xs text-slate-500">{t('editor.dashboard.myStoriesHint')}</p>
+        </Link>
+        <Link to="/editor/assignments" className="rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300">
+          <ClipboardList className="h-5 w-5 text-blue-600" />
+          <p className="mt-2 text-sm font-bold text-slate-900">Reporter assignments</p>
+          <p className="text-xs text-slate-500">Create briefs, assign reporters and track deadlines.</p>
         </Link>
       </div>
 

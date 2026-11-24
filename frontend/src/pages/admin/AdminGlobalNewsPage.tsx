@@ -18,7 +18,7 @@ export default function AdminGlobalNewsPage() {
     try {
       const [s, list] = await Promise.all([
         apiClient.get<any>('/global-news/status'),
-        apiClient.get<any>('/global-news', { page: 1, limit: 50, status: 'unreviewed' }),
+        apiClient.get<any>('/global-news/queue', { page: 1, limit: 50 }),
       ])
       setStatus(s.data as Status)
       setItems((list.data as any).items || [])

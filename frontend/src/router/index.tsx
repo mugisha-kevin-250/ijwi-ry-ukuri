@@ -71,6 +71,7 @@ const AdminCategoriesPage = lazy(() => import('../pages/admin/AdminCategoriesPag
 const AdminLoginPage = lazy(() => import('../pages/admin/AdminLoginPage'))
 const AdminMailPage = lazy(() => import('../pages/admin/AdminMailPage'))
 const AdminSchedulerPage = lazy(() => import('../pages/admin/AdminSchedulerPage'))
+const AdminSystemHealthPage = lazy(() => import('../pages/admin/AdminSystemHealthPage'))
 const AdminMessagesPage = lazy(() => import('../pages/admin/AdminMessagesPage'))
 const AdminAuditLogPage = lazy(() => import('../pages/admin/AdminAuditLogPage'))
 const AdminPayoutsPage = lazy(() => import('../pages/admin/AdminPayoutsPage'))
@@ -167,6 +168,7 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/mugishaimekevin/messages', load: () => import('../pages/admin/AdminMessagesPage') },
   { path: '/mugishaimekevin/mail', load: () => import('../pages/admin/AdminMailPage') },
   { path: '/mugishaimekevin/scheduler', load: () => import('../pages/admin/AdminSchedulerPage') },
+  { path: '/mugishaimekevin/system-health', load: () => import('../pages/admin/AdminSystemHealthPage') },
   { path: '/mugishaimekevin/global-news', load: () => import('../pages/admin/AdminGlobalNewsPage') },
   { path: '/mugishaimekevin/categories', load: () => import('../pages/admin/AdminCategoriesPage') },
   { path: '/mugishaimekevin/advertising', load: () => import('../pages/admin/AdminAdsPage') },
@@ -503,6 +505,7 @@ export const router = createBrowserRouter([
           // What the clock did on its own, and the way to finish a job a failed
           // minute left half-done. Owner-only, like the mail desk it sits beside.
           { path: 'scheduler', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminSchedulerPage /></RequireDesk> },
+          { path: 'system-health', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminSystemHealthPage /></RequireDesk> },
           { path: 'global-news', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminGlobalNewsPage /></RequireDesk> },
           // The desk that owns the sections. It used to point at the reader's
           // /categories page, which shows what exists but lets nobody change it.

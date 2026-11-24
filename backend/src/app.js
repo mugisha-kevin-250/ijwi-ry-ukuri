@@ -342,10 +342,12 @@ app.use('/api/weather', weatherLimiter, weatherRoutes);
 // story routes for the same reason the weather desk is: /api/ai has to be
 // answered here, with its own ceiling, before the story endpoints see the path.
 app.use('/api/ai', readerAiLimiter, aiRoutes);
+// Assignment paths must be mounted before the public story router, whose
+// catch-all article routes would otherwise consume /api/assignments.
+app.use('/api/assignments', assignmentRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/writers', writerRoutes);
 app.use('/api/editor', editorRoutes);
-app.use('/api/assignments', assignmentRoutes);
 app.use('/api/users', userRoutes);
 // A separate, permission-gated activity endpoint keeps the immutable audit
 // trail independent from the admin router's existing feature surface.

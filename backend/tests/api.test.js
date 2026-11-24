@@ -57,6 +57,12 @@ test('public article access', async () => {
   assert.equal(response.status, 200);
 });
 
+test('Audius stream proxy refuses tracks outside the curated station playlist', async () => {
+  const response = await request(app).get('/api/radio/audius/stream/not-in-station-123');
+  assert.equal(response.status, 404);
+  assert.match(response.body.message, /not part of the RADAR radio playlist/i);
+});
+
 test('writer registration', async () => {
   const response = await request(app)
     .post('/api/writers/apply')

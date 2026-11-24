@@ -20,6 +20,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const pushRoutes = require('./routes/pushRoutes');
 const liveRoutes = require('./routes/liveRoutes');
 const radioRoutes = require('./routes/radioRoutes');
+const musicRoutes = require('./routes/musicRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const translateRoutes = require('./routes/translateRoutes');
 const scoreRoutes = require('./routes/scoreRoutes');
@@ -363,6 +364,7 @@ app.use('/api/live', liveRoutes);
 // catch-all public story routes.
 app.use('/api/radio/audius', audiusLimiter);
 app.use('/api/radio', radioRoutes);
+app.use('/api/music', musicRoutes);
 app.use('/api/newsletter', newsletterRoutes);
 app.use('/uploads', express.static(env.UPLOAD_DIR));
 // Render's disk is wiped on redeploy, so anything the cache lost is read back

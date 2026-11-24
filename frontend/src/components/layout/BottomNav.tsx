@@ -24,8 +24,8 @@ export default function BottomNav() {
   const accountHref = user?._id ? `/user/${user._id}` : '/writer/profile'
 
   return (
-    <nav translate="no" className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white md:hidden">
-      <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
+    <nav translate="no" className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
+      <div className="mx-auto flex min-h-16 max-w-md items-center justify-around px-2 py-2">
         <Link to="/" className={`flex flex-col items-center gap-1 text-xs ${isActive('/') ? 'text-blue-700' : 'text-slate-600'}`}>
           <Home className="h-5 w-5" />
           <span>{t('nav.home')}</span>

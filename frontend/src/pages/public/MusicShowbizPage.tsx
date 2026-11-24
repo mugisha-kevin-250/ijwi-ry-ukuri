@@ -193,6 +193,7 @@ function MusicChartsAndPlaylists() {
   const { user } = useAuth()
   const [charts, setCharts] = useState<any[]>([])
   const [playlists, setPlaylists] = useState<any[]>([])
+  const [history, setHistory] = useState<any[]>([])
   const [name, setName] = useState('')
   const [notice, setNotice] = useState('')
   const load = async () => {
@@ -202,7 +203,10 @@ function MusicChartsAndPlaylists() {
   useEffect(() => {
     let active = true
     apiClient.get<any>('/music/charts').then(response => { if (active) setCharts(response.data.data?.releases || []) }).catch(() => {})
-    if (user) apiClient.get<any>('/music/playlists/me').then(response => { if (active) setPlaylists(response.data.data?.playlists || []) }).catch(() => {})
+    if (user) {
+      apiClient.get<any>('/music/playlists/me').then(response => { if (active) setPlaylists(response.data.data?.playlists || []) }).catch(() => {})
+      apiClient.get<any>('/music/history/me').then(response => { if (active) setHistory(response.data.data?.history || []) }).catch(() => {})
+    }
     return () => { active = false }
   }, [user])
   const create = async (event: FormEvent<HTMLFormElement>) => {
@@ -241,7 +245,7 @@ function MusicChartsAndPlaylists() {
     {user && <div className="rounded-2xl border border-slate-200 bg-white p-5">
       <h2 className="text-lg font-extrabold">Your music playlists</h2>
       <form onSubmit={create} className="mt-3 flex flex-wrap gap-2"><input value={name} onChange={event => setName(event.target.value)} placeholder="New playlist name" maxLength={80} className="min-h-10 flex-1 rounded-lg border border-slate-300 px-3 text-sm"/><button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">Create playlist</button></form>
-      {notice && <p role="status" className="mt-2 text-xs text-slate-600">{notice}</p>}
+      {notice && <p role="status" className="mt-2 text-xs text-slate-600">{notice}</p>}{history.length > 0 && <div className="mt-4 border-t pt-3"><h3 className="text-sm font-bold">Recently listened</h3><ul className="mt-2 space-y-1">{history.slice(0, 8).map((item: any) => <li key={item._id} className="truncate text-xs text-slate-600">{item.release?.title} · {item.release?.artist?.stageName || 'Artist'} · {new Date(item.listenedAt).toLocaleString()}</li>)}</ul></div>}
       {playlists.length === 0 ? <p className="mt-3 text-sm text-slate-500">Save approved releases to your own playlists.</p> : <div className="mt-4 grid gap-3 sm:grid-cols-2">{playlists.map(playlist => <article key={playlist._id} className="rounded-xl border p-3"><h3 className="font-bold">{playlist.name}</h3><p className="text-xs text-slate-500">{playlist.releases?.length || 0} tracks</p>{playlist.releases?.map((track: any) => <p key={track._id} className="mt-2 truncate text-sm">{track.title} · {track.artist?.stageName || 'Artist'}</p>)}</article>)}</div>}
     </div>}
   </section>

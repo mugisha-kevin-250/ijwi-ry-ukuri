@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone, Timer, History } from 'lucide-react'
+import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone, Timer, History, ClipboardList } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import { can, roleLabel } from '../../utils/deskAccess'
@@ -27,12 +27,14 @@ const navigation = {
     writer: [
       { href: '/writer/dashboard', label: t('nav.writer.dashboard'), icon: LayoutDashboard, permission: 'writeStories' as const },
       { href: '/writer/articles', label: t('nav.writer.myArticles'), icon: PenTool, permission: 'writeStories' as const },
+      { href: '/writer/assignments', label: 'My assignments', icon: ClipboardList, permission: 'writeStories' as const },
       { href: '/writer/earnings', label: t('nav.writer.earnings'), icon: DollarSign, permission: 'writeStories' as const },
       { href: '/writer/profile', label: t('nav.writer.profile'), icon: User, permission: 'writeStories' as const },
     ],
     editor: [
       { href: '/editor/dashboard', label: t('nav.editor.dashboard'), icon: LayoutDashboard, permission: 'review' as const },
       { href: '/editor/pending', label: t('nav.editor.pending'), icon: List, permission: 'review' as const },
+      { href: '/editor/assignments', label: 'Assignments', icon: ClipboardList, permission: 'review' as const },
       { href: '/editor/comments', label: t('nav.editor.comments'), icon: MessageSquare, permission: 'moderateComments' as const },
       // Editors write stories too, and their own shelf is a different thing
       // from the queue of everyone else's.

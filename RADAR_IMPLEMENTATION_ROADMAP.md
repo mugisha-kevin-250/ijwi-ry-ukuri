@@ -26,17 +26,20 @@ Production frontend: https://www.radartimes.2bd.net
 
 - [x] Newsroom activity-log foundation: append-only MongoDB records for article workflow transitions, corrections/disclosures, breaking-news decisions and staff account access changes; staff-only paginated/searchable API and admin Activity log screen.
 - [ ] Extend audit coverage to assignments, corrections/disclosures, staff permission changes, moderation and operational actions. The first slice is not a complete compliance audit trail.
-- [ ] Add assignment ownership, due dates, priority and desk-level queues before claiming Release 2 complete.
+- [x] Add assignment ownership, due dates, priority and desk-level queues. See `RADAR_MUSIC_SHOWBIZ_AUDIT.md` for the implementation and security boundaries.
 
 ## Release 2 — Editorial operations
-- [ ] Story assignments with journalist, desk, deadline, priority and status.
+- [x] Story assignments with journalist, desk, deadline, priority and status.
+- [x] Dedicated reporter workspace for assigned work and progress updates; editor workspace for creating and tracking assignments.
+- [x] Assignment creation, updates and status changes recorded in the existing append-only audit log.
 - [ ] Dedicated IN_REVIEW and CHANGES_REQUESTED transitions with editor feedback.
-- [ ] Reviewer allocation and assignment history.
+- [x] Reporter allocation and assignment event history stored with each assignment.
 - [ ] Complete searchable audit coverage for assignment, source-verification, moderation, ad/payout and operational changes (the first slice now records article workflow transitions, corrections/disclosures, breaking flags and staff account access changes; see `AUDIT_LOG.md`).
 - [ ] Editorial calendar, overdue queue, source verification and public correction notices.
 
 ## Release 3 — Journalist and newsroom management
 - [ ] Verified journalist profiles, beats, biographies and credentials.
+- [ ] Music artist onboarding, verification, licence evidence and takedown workflow (planned as the next implementation batch).
 - [ ] Desk/department directory and staff status.
 - [ ] Role-specific dashboards for managing editor, news editor, journalist, SEO and advertising teams.
 - [ ] Performance reports built from existing article and engagement records.

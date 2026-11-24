@@ -125,3 +125,26 @@ Authorization: Bearer <admin-token>
 - Duplicate refreshes are prevented by the valid-view service.
 - Reward calculation uses PlatformSetting values instead of hard-coded numbers.
 - The system is designed to be extended to real email notifications and payout orchestration.
+
+## Global News Intelligence
+
+The global-news desk ingests **headline metadata** from operator-configured RSS/Atom feeds. It does not scrape full publisher articles, automatically publish stories, or claim that an incoming feed item is verified reporting.
+
+Configure `GLOBAL_NEWS_FEEDS` in the backend environment (Render), as a JSON array. Example shape:
+
+```json
+[
+  { "url": "https://news-provider.example/rss.xml", "name": "Provider name", "region": "GB", "language": "en" },
+  { "url": "https://another-provider.example/feed", "name": "Another provider", "region": "WORLD", "language": "en" }
+]
+```
+
+Use only feeds whose provider terms and licensing permit automated retrieval and the intended display of headlines/metadata. Replace the example domains with sources the newsroom is authorized to use. The ingestion job runs every 10 minutes when the scheduler is enabled; an ADMIN can also refresh it from **Admin Portal → Global news desk** or the scheduler desk.
+
+- `GET /api/global-news` — public paginated headline metadata and publisher links.
+- `GET /api/global-news/queue` — ADMIN-only unreviewed lead queue.
+- `GET /api/global-news/status` — ADMIN-only ingestion status.
+- `POST /api/global-news/refresh` — ADMIN-only feed refresh.
+- `POST /api/global-news/:id/review` — ADMIN-only editorial lead decision.
+
+A `verified` decision records that an editor checked the lead; it does not create or publish a RADAR article. Reporters must corroborate claims, contact sources where appropriate, and produce original reporting. A configured feed list is not a guarantee of complete worldwide coverage.

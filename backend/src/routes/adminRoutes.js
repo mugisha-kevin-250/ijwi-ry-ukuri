@@ -925,6 +925,24 @@ router.post('/radio/bulletin/refresh', requirePermission([PERMISSIONS.managePlat
   }
 });
 
+
+/** Add a public Audius catalogue track to the station playlist. */
+router.post('/radio/audius/tracks', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
+  try {
+    const trackId = String(req.body.trackId || '').trim();
+    if (!trackId) return errorResponse(res, 400, 'Audius track ID is required');
+    const result = await require('../services/audiusService').addStationTrack(trackId, req.user._id);
+    if (result.error) return errorResponse(res, 400, result.error);
+    return successResponse(res, 201, 'Track added to RADAR radio', { track: result.track });
+  } catch (error) { next(error); }
+});
+router.delete('/radio/audius/tracks/:id', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
+  try {
+    const removed = await require('../services/audiusService').removeStationTrack(req.params.id);
+    if (!removed) return errorResponse(res, 404, 'Station track not found');
+    return successResponse(res, 200, 'Track removed from RADAR radio', {});
+  } catch (error) { next(error); }
+});
 /**
  * The section desk.
  *

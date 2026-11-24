@@ -118,6 +118,8 @@ module.exports = {
   // accounting week, the other is when the newsreader starts talking. The
   // timetable document can override this per station.
   RADIO_TZ: process.env.RADIO_TZ || 'Africa/Kigali',
+  // Optional Audius read-only API key; kept on the server, never sent to clients.
+  AUDIUS_API_KEY: process.env.AUDIUS_API_KEY || '',
   // Live football scores. There is no key, no account and no quota here: ESPN
   // publishes its scoreboard, results and tables as plain JSON, and OUR server is
   // the only thing that ever asks for it. A reader talks to RADAR and never to a

@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { CalendarClock, ClipboardList, RefreshCw, Send, UserRound } from 'lucide-react'
 import { apiClient } from '../../services/apiClient'
 import { useAuth } from '../../context/AuthContext'
@@ -47,9 +47,9 @@ export default function AssignmentsPage() {
         apiClient.get('/assignments'),
         manager ? apiClient.get('/assignments/assignees') : Promise.resolve(null),
       ])
-      const payload = assignmentResponse.data?.data
+      const payload: any = assignmentResponse.data?.data
       setAssignments(Array.isArray(payload?.assignments) ? payload.assignments : [])
-      const people = assigneeResponse?.data?.data?.users
+      const people: any[] = assigneeResponse?.data?.data?.users
       setAssignees(Array.isArray(people) ? people : [])
       if (!assignedTo && Array.isArray(people) && people[0]) setAssignedTo(people[0]._id)
     } catch (err: any) {

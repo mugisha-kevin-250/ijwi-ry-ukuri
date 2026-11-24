@@ -21,7 +21,7 @@ router.get('/queue', protect, requirePermission(PERMISSIONS.managePlatform), asy
 router.post('/refresh', protect, requirePermission(PERMISSIONS.managePlatform), async (req, res, next) => {
   try { res.json({ success: true, result: await service.refresh() }); } catch (error) { next(error); }
 });
-router.patch('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform), async (req, res, next) => {
+router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform), async (req, res, next) => {
   try {
     const status = String(req.body.status || '');
     if (!['unreviewed', 'reviewing', 'verified', 'rejected'].includes(status)) {

@@ -15,8 +15,12 @@ Production frontend: https://www.radartimes.2bd.net
 - [x] Audius catalogue search and an admin-curated playlist integrated into the existing radio settings.
 - [x] Store Audius IDs and metadata in MongoDB; proxy playback through Express, preserving byte-range requests.
 - [x] Keep existing scheduled news bulletins and browser speech playback intact.
+- [x] Add a separate responsive /music Music & Showbiz discovery page with catalogue search and official provider hand-off.
+- [x] Add animated, reduced-motion-aware Music & Showbiz entry point from /radio.
+- [x] Keep curated RADAR tracks playable in-page while catalogue search results link to official artist listening pages.
 - [ ] Configure optional AUDIUS_API_KEY in Render for higher rate limits.
 - [ ] Verify playback on desktop/mobile and confirm selected tracks remain available.
+- [ ] Build artist rights/licence records and an approval/takedown workflow before hosting or distributing third-party downloads.
 
 ## Current implementation update — 2026-11-24
 

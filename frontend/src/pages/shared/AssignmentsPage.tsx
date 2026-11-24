@@ -143,7 +143,7 @@ export default function AssignmentsPage() {
           <div className="grid gap-3 lg:grid-cols-2">
             {assignments.map(assignment => {
               const overdue = new Date(assignment.dueAt).getTime() < Date.now() && !['submitted', 'approved', 'cancelled'].includes(assignment.status)
-              const canUpdate = manager || (assignment.assignedTo?._id === user?._id && reporterStatuses.includes(assignment.status) === false && !['submitted', 'approved', 'cancelled'].includes(assignment.status))
+              const canUpdate = manager || (assignment.assignedTo?._id === user?._id && ['assigned', 'accepted', 'in_progress', 'changes_requested'].includes(assignment.status))
               return <article key={assignment._id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${priorityTone[assignment.priority] || priorityTone.normal}`}>{label(assignment.priority)} priority</span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">{label(assignment.status)}</span>{overdue && <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-bold text-rose-800">Overdue</span>}</div>
                 <h3 className="mt-3 break-words text-base font-extrabold text-slate-950">{assignment.title}</h3>

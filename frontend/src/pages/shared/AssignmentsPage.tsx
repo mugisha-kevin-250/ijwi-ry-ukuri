@@ -159,7 +159,7 @@ export default function AssignmentsPage() {
                 {canUpdate && <div className="mt-4 flex flex-wrap items-center gap-2">
                   <label className="text-xs font-semibold text-slate-600" htmlFor={`status-${assignment._id}`}>Update status</label>
                   <select id={`status-${assignment._id}`} value={assignment.status} onChange={e => void changeStatus(assignment, e.target.value as AssignmentStatus)} className="min-h-10 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-sm">
-                    {(manager ? statuses : reporterStatuses).map(status => <option key={status} value={status}>{label(status)}</option>)}
+                    {(manager ? statuses : [...new Set([assignment.status, ...reporterStatuses])]).map(status => <option key={status} value={status}>{label(status)}</option>)}
                   </select>
                 </div>}
               </article>

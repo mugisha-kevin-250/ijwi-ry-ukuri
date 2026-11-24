@@ -2,6 +2,7 @@ const Article = require('../models/Article');
 const notificationService = require('./notificationService');
 const lifecycle = require('../utils/articleLifecycle');
 const { isStaffRole } = require('../config/permissions');
+const auditLog = require('./auditLogService');
 
 // Every state change in the product goes through here, so the rules in
 // utils/articleLifecycle cannot be skipped by a route that forgot to check them.
@@ -46,6 +47,16 @@ async function moveStory({ article, to, by, note = '' }) {
   }
 
   await article.save();
+
+  await auditLog.recordSafely({
+    actor: by,
+    action: 'article.status_changed',
+    entityType: 'article',
+    entityId: article._id,
+    entityLabel: article.title,
+    summary: `Article status changed from ${from} to ${to}`,
+    details: { from, to, note: String(note || '').slice(0, 500) },
+  });
 
   // A reader-facing story that is now live has to reach its followers, and a
   // decision about someone's draft has to reach them too. Neither is allowed to

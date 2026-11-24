@@ -18,6 +18,12 @@ Production frontend: https://www.radartimes.2bd.net
 - [ ] Configure optional AUDIUS_API_KEY in Render for higher rate limits.
 - [ ] Verify playback on desktop/mobile and confirm selected tracks remain available.
 
+## Current implementation update — 2026-11-24
+
+- [x] First newsroom activity-log slice: append-only MongoDB audit records for article workflow status transitions, staff-only paginated/searchable API, and an admin Activity log screen.
+- [ ] Extend audit coverage to assignments, corrections/disclosures, staff permission changes, moderation and operational actions. The first slice is not a complete compliance audit trail.
+- [ ] Add assignment ownership, due dates, priority and desk-level queues before claiming Release 2 complete.
+
 ## Release 2 — Editorial operations
 - [ ] Story assignments with journalist, desk, deadline, priority and status.
 - [ ] Dedicated IN_REVIEW and CHANGES_REQUESTED transitions with editor feedback.

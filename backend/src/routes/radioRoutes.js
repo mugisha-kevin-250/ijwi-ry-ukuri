@@ -38,6 +38,8 @@ router.get('/audius/stream/:trackId', async (req, res, next) => {
   try {
     const trackId = String(req.params.trackId || '');
     if (!/^[a-zA-Z0-9_-]{3,100}$/.test(trackId)) return res.status(400).json({ success: false, message: 'Invalid Audius track ID' });
+    // Only relay tracks explicitly selected by an administrator for the station.
+    if (!(await audiusService.isActiveStationTrack(trackId))) return res.status(404).json({ success: false, message: 'This track is not part of the RADAR radio playlist' });
     const upstream = await audiusService.openStream(trackId, { range: req.headers.range });
     if ((!upstream.ok && upstream.status !== 206) || !upstream.body) return res.status(upstream.status === 404 ? 404 : 502).json({ success: false, message: 'Audius could not provide this track stream' });
     res.status(upstream.status);

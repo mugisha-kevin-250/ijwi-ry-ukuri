@@ -925,6 +925,18 @@ function toAdminAd(raw: unknown): AdminAdRecord {
   }
 }
 
+export interface AuditLogRecord {
+  _id: string
+  action: string
+  entityType: string
+  entityId: string | null
+  entityLabel: string
+  summary: string
+  details?: { from?: string; to?: string; note?: string; [key: string]: unknown }
+  createdAt: string
+  actor?: { fullName?: string; username?: string; role?: string } | null
+}
+
 export interface ContactInbox {
   messages: ContactMessageRecord[]
   total: number
@@ -1025,6 +1037,11 @@ export interface SchedulerDesk {
 }
 
 export const adminAPI = {
+  getAuditLogs: async (params: { page?: number; search?: string } = {}): Promise<{ items: AuditLogRecord[]; total: number; page: number; totalPages: number }> => {
+    const response = await apiClient.get('/admin/audit-logs', { page: params.page || 1, limit: 25, search: params.search || '' })
+    const payload = (response.data.data || {}) as Partial<{ items: AuditLogRecord[]; total: number; page: number; totalPages: number }>
+    return { items: Array.isArray(payload.items) ? payload.items : [], total: Number(payload.total || 0), page: Number(payload.page || 1), totalPages: Number(payload.totalPages || 1) }
+  },
   getDashboard: () =>
     apiClient.get<AdminDashboardStats>('/admin/dashboard'),
 

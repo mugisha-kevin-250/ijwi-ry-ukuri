@@ -12,7 +12,7 @@ import {
   WifiOff,
 } from 'lucide-react'
 import type { Article, Live } from '../../types'
-import { liveAPI, publicAPI, radioAPI, type RadioTimetable } from '../../services/api'
+import { liveAPI, publicAPI, radioAPI, type AudiusTrack, type RadioTimetable } from '../../services/api'
 import { useI18n } from '../../context/I18nContext'
 import { useSeo } from '../../utils/useSeo'
 import { useAnnouncer } from '../../utils/useAnnouncer'
@@ -58,6 +58,8 @@ export default function RadioPage() {
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [live, setLive] = useState<Live | null>(null)
+  const [stationTracks, setStationTracks] = useState<AudiusTrack[]>([])
+  const [stationError, setStationError] = useState('')
   const [now, setNow] = useState(() => Date.now())
 
   useSeo({
@@ -96,6 +98,14 @@ export default function RadioPage() {
       window.clearInterval(tick)
     }
   }, [readTimetable])
+
+  useEffect(() => {
+    let active = true
+    radioAPI.getAudiusPlaylist()
+      .then((tracks) => { if (active) setStationTracks(tracks) })
+      .catch(() => { if (active) setStationError('The music playlist is temporarily unavailable.') })
+    return () => { active = false }
+  }, [])
 
   // The same desk shows whether a human being is on air with a camera right now.
   useEffect(() => {
@@ -315,6 +325,26 @@ export default function RadioPage() {
             </Link>
           </p>
         )}
+      </section>
+
+      <section aria-labelledby="audius-station-heading" className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 id="audius-station-heading" className="flex items-center gap-2 text-base font-bold text-slate-900"><Headphones className="h-4 w-4 text-emerald-600" aria-hidden="true" /> RADAR Music Radio</h2>
+            <p className="mt-1 text-sm text-slate-500">Music selected by the newsroom from the Audius catalogue.</p>
+          </div>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase text-emerald-700">Audius</span>
+        </div>
+        {stationError && <p role="status" className="mt-3 text-sm text-amber-700">{stationError}</p>}
+        {!stationError && stationTracks.length === 0 && <p className="mt-3 text-sm text-slate-500">The newsroom has not added music to the station yet.</p>}
+        {stationTracks.length > 0 && <ol className="mt-4 space-y-3">
+          {stationTracks.map((track) => <li key={track.audiusId} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-3 sm:flex-row sm:items-center">
+            {track.artwork ? <img src={track.artwork} alt="" loading="lazy" className="h-14 w-14 rounded-lg object-cover" /> : <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-slate-100"><Headphones className="h-6 w-6 text-slate-400" /></span>}
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-900">{track.title}</p><p className="truncate text-xs text-slate-500">{track.artist}</p></div>
+            <audio controls preload="none" className="w-full max-w-sm" src={radioAPI.getAudiusStreamUrl(track.audiusId)}>Your browser does not support audio playback.</audio>
+          </li>)}
+        </ol>}
+        <p className="mt-3 text-[11px] text-slate-400">Tracks stream from Audius. Availability and playback rights remain subject to the original track and Audius terms.</p>
       </section>
 
       <section aria-labelledby="radio-list-heading" className="mt-6">

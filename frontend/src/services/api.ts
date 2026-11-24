@@ -1,4 +1,4 @@
-import { apiClient, serverMessage } from './apiClient'
+import { API_BASE_URL, apiClient, serverMessage } from './apiClient'
 import type { AdminDashboardStats, Article, ArticleSource, AuthResponse, Category, Comment, DashboardStats, Live, LiveComment, User } from '../types'
 
 interface ArticleQuery {
@@ -1299,6 +1299,12 @@ export const adminAPI = {
     }
   },
 
+  addAudiusStationTrack: async (trackId: string): Promise<AudiusTrack> => {
+    const response = await apiClient.post<{ track: AudiusTrack }>('/admin/radio/audius/tracks', { trackId })
+    return response.data.data.track
+  },
+  removeAudiusStationTrack: (id: string) =>
+    apiClient.delete(`/admin/radio/audius/tracks/${encodeURIComponent(id)}`),
   /** What Google reports people searching, read by the server. */
   getTrends: async (refresh = false): Promise<TrendRadar> => {
     const response = await apiClient.get('/admin/trends', refresh ? { refresh: '1' } : undefined)
@@ -1575,6 +1581,17 @@ export const liveAPI = {
 }
 
 /** One programme in the radio timetable. */
+export interface AudiusTrack {
+  _id?: string
+  audiusId: string
+  title: string
+  artist: string
+  artwork: string
+  duration: number
+  permalink: string
+  addedAt?: string
+}
+
 export interface RadioSlot {
   _id: string
   name: string
@@ -1661,6 +1678,16 @@ export const radioAPI = {
       bulletin: normaliseEdition(payload?.bulletin) ?? undefined,
     }
   },
+  searchAudiusTracks: async (query: string): Promise<AudiusTrack[]> => {
+    const response = await apiClient.get<{ tracks?: AudiusTrack[] }>('/radio/audius/search', { q: query })
+    return Array.isArray(response.data?.data?.tracks) ? response.data.data.tracks : []
+  },
+  getAudiusPlaylist: async (): Promise<AudiusTrack[]> => {
+    const response = await apiClient.get<{ tracks?: AudiusTrack[] }>('/radio/audius/playlist')
+    return Array.isArray(response.data?.data?.tracks) ? response.data.data.tracks : []
+  },
+  getAudiusStreamUrl: (trackId: string): string =>
+    `${API_BASE_URL.replace(/\/$/, '')}/radio/audius/stream/${encodeURIComponent(trackId)}`,
 }
 
 /**

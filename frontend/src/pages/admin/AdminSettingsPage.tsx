@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { pushAPI } from '../../services/api'
 import { disablePushNotifications, enablePushNotifications, isSubscribedToPush, pushSupported } from '../../pwa/pushNotifications'
 import RadioTimetablePanel from '../../components/admin/RadioTimetablePanel'
+import AudiusRadioPanel from '../../components/admin/AudiusRadioPanel'
 
 const MIN_PASSWORD = 8
 
@@ -260,6 +261,7 @@ export default function AdminSettingsPage() {
       </div>
 
       <RadioTimetablePanel />
+      <AudiusRadioPanel />
 
       <NewsAlertsPanel />
 

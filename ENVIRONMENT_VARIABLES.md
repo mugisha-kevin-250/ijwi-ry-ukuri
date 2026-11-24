@@ -131,6 +131,16 @@ Console restricted to the Cloud Translation API, then restart.
 `TRANSLATE_TIMEOUT_MS`, `TRANSLATE_CHUNK_CHARS` and `TRANSLATE_MAX_CHARS` are
 fine at their defaults.
 
+### Audius radio catalogue
+
+The radio page can play public tracks selected by an administrator from Audius. The backend stores Audius IDs and display metadata in MongoDB; audio is proxied by Express so credentials are not exposed in the browser.
+
+| Variable | Default | What it does | Without it |
+| --- | --- | --- | --- |
+| `AUDIUS_API_KEY` | empty | Optional read-only key sent by the backend as `x-api-key`. Obtain it from [Audius API plans](https://api.audius.co/plans). | Search and streaming use the unauthenticated read-only API and may have lower rate limits. |
+
+Set this in the Render backend environment only. It is not a Vite variable and must never be added to `frontend/.env.production`.
+
 ### Live scores
 
 The scores desk at `/live-sports` is served entirely by this API. A reader never

@@ -33,6 +33,7 @@ const JOB_LABELS: Record<string, string> = {
   breaking: 'Expire the breaking flags',
   radio: 'Assemble the bulletin',
   scores: 'Warm the scores page',
+  'global-news': 'Refresh global news feeds',
   'weekly-pay': 'Close the pay week',
 }
 

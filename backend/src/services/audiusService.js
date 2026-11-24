@@ -44,6 +44,12 @@ async function addStationTrack(trackId, addedBy) {
   return { track: saved.toObject(), alreadyAdded: false };
 }
 async function listStationTracks() { return RadioStationTrack.find({ active: true }).sort({ sortOrder: 1, createdAt: 1 }).lean(); }
+// The stream proxy is intentionally limited to tracks the newsroom has added
+// to its own station. Without this check it would be an unrestricted public
+// proxy for arbitrary Audius IDs and could be abused to relay third-party audio.
+async function isActiveStationTrack(trackId) {
+  return Boolean(await RadioStationTrack.exists({ audiusId: String(trackId), active: true }));
+}
 async function removeStationTrack(id) {
   return Boolean(await RadioStationTrack.findOneAndUpdate({ audiusId: String(id) }, { $set: { active: false } }, { new: true }));
 }
@@ -55,4 +61,4 @@ async function openStream(trackId, { range } = {}) {
   // No short timeout: the response body stays open while a listener is playing.
   return fetch(`${API_BASE}/tracks/${encodeURIComponent(trackId)}/stream?app_name=${APP_NAME}`, { headers, redirect: 'follow' });
 }
-module.exports = { search, fetchTrack, addStationTrack, listStationTracks, removeStationTrack, openStream };
+module.exports = { search, fetchTrack, addStationTrack, listStationTracks, isActiveStationTrack, removeStationTrack, openStream };

@@ -68,6 +68,7 @@ const AdminLoginPage = lazy(() => import('../pages/admin/AdminLoginPage'))
 const AdminMailPage = lazy(() => import('../pages/admin/AdminMailPage'))
 const AdminSchedulerPage = lazy(() => import('../pages/admin/AdminSchedulerPage'))
 const AdminMessagesPage = lazy(() => import('../pages/admin/AdminMessagesPage'))
+const AdminAuditLogPage = lazy(() => import('../pages/admin/AdminAuditLogPage'))
 const AdminPayoutsPage = lazy(() => import('../pages/admin/AdminPayoutsPage'))
 const AdminSettingsPage = lazy(() => import('../pages/admin/AdminSettingsPage'))
 const AdminUserDetailPage = lazy(() => import('../pages/admin/AdminUserDetailPage'))
@@ -480,6 +481,7 @@ export const router = createBrowserRouter([
           { path: 'ai-writer', element: <RequireDesk staffDoor permissions={['runAiWriter']}><AdminAiWriterPage /></RequireDesk> },
           { path: 'payouts', element: <RequireDesk staffDoor permissions={['managePayouts']}><AdminPayoutsPage /></RequireDesk> },
           { path: 'messages', element: <RequireDesk staffDoor permissions={['moderateMessages']}><AdminMessagesPage /></RequireDesk> },
+          { path: 'audit-log', element: <RequireDesk staffDoor permissions={['viewNewsroomDesk']}><AdminAuditLogPage /></RequireDesk> },
           // The relay that mails codes, confirmations and alerts is a separate
           // question from the messages readers send us, so it has its own desk.
           { path: 'mail', element: <RequireDesk staffDoor permissions={['managePlatform']}><AdminMailPage /></RequireDesk> },

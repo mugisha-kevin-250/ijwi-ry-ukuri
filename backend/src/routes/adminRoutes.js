@@ -24,6 +24,7 @@ const trendService = require('../services/trendService');
 const mailer = require('../services/mailerService');
 const scheduler = require('../jobs/scheduler');
 const schedulerLog = require('../services/schedulerLog');
+const auditLog = require('../services/auditLogService');
 const generateSlug = require('../utils/generateSlug');
 const lifecycle = require('../utils/articleLifecycle');
 const workflow = require('../services/articleWorkflow');
@@ -215,8 +216,28 @@ router.put('/users/:id', requirePermission([PERMISSIONS.manageUsers]), async (re
     }
     if (!Object.keys(allowed).length) return errorResponse(res, 400, 'Nothing to update');
 
+    const previous = await User.findById(req.params.id).select('fullName username role isActive writerStatus').lean();
+    if (!previous) return errorResponse(res, 404, 'User not found');
     const user = await User.findByIdAndUpdate(req.params.id, { $set: allowed }, { new: true, runValidators: true }).lean();
     if (!user) return errorResponse(res, 404, 'User not found');
+    const changes = {};
+    for (const field of ['role', 'isActive', 'writerStatus']) {
+      if (allowed[field] !== undefined && allowed[field] !== previous[field]) {
+        changes[field] = { from: previous[field], to: allowed[field] };
+      }
+    }
+    if (Object.keys(changes).length) {
+      await auditLog.recordSafely({
+        actor: req.user,
+        action: 'user.access_changed',
+        entityType: 'user',
+        entityId: user._id,
+        entityLabel: user.fullName || user.username,
+        summary: 'Staff account access or writer status changed',
+        details: changes,
+        req,
+      });
+    }
     return successResponse(res, 200, 'User updated', { user });
   } catch (error) {
     next(error);

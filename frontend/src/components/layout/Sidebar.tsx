@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone, Timer, History, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, PenTool, DollarSign, User, List, Settings, Users, Sparkles, ChevronLeft, ChevronRight, Inbox, Mail, MessageSquare, FolderTree, Megaphone, Timer, History, ClipboardList, Disc3 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import { can, roleLabel } from '../../utils/deskAccess'
@@ -65,6 +65,7 @@ const navigation = {
       { href: '/mugishaimekevin/categories', label: t('nav.admin.categories'), icon: FolderTree, permission: 'manageCategories' as const },
       { href: '/mugishaimekevin/advertising', label: t('nav.admin.advertising'), icon: Megaphone, permission: 'manageAds' as const },
       { href: '/mugishaimekevin/settings', label: t('nav.admin.settings'), icon: Settings, permission: 'manageSettings' as const },
+      { href: '/mugishaimekevin/music', label: 'Music management', icon: Disc3, permission: 'manageMusic' as const },
     ],
   }
 

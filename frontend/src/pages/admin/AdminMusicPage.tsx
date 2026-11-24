@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ExternalLink, Music2, RefreshCw, ShieldCheck, Users, Disc3 } from 'lucide-react'
+import { ExternalLink, RefreshCw, ShieldCheck, Users, Disc3 } from 'lucide-react'
 import apiClient from '../../services/apiClient'
 
 type Artist = { _id: string; stageName: string; status: string; biography?: string; country?: string; genres?: string[]; officialUrl?: string; reviewNote?: string; user?: { email?: string; username?: string } }

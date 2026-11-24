@@ -68,12 +68,15 @@ router.post('/releases', protect, async (req, res, next) => {
     if (!['owner', 'written_permission', 'licensed'].includes(rightsBasis)) return errorResponse(res, 400, 'Choose how you have the rights to submit this release');
     if (req.body?.rightsDeclaration !== true) return errorResponse(res, 400, 'You must confirm the rights declaration');
     const artworkUrl = cleanUrl(req.body?.artworkUrl);
+    const rightsEvidenceUrl = cleanUrl(req.body?.rightsEvidenceUrl);
+    if (['written_permission', 'licensed'].includes(rightsBasis) && !rightsEvidenceUrl) return errorResponse(res, 400, 'Provide a URL to the written permission or licence evidence');
+    if (req.body?.rightsEvidenceUrl && !rightsEvidenceUrl) return errorResponse(res, 400, 'Rights evidence URL must be a valid HTTP or HTTPS URL');
     if (req.body?.artworkUrl && !artworkUrl) return errorResponse(res, 400, 'Artwork URL must be a valid HTTP or HTTPS URL');
     const release = await MusicRelease.create({
       artist: artist._id, submittedBy: req.user._id, title,
       description: cleanText(req.body?.description, { maxLength: 1500 }),
       genre: cleanText(req.body?.genre, { maxLength: 60 }), language: cleanText(req.body?.language, { maxLength: 40 }),
-      artworkUrl, listeningUrl, rightsBasis, rightsDeclaration: true,
+      artworkUrl, listeningUrl, rightsBasis, rightsDeclaration: true, rightsEvidenceUrl,
       // Download permission is never granted by an artist checkbox; the rights desk must approve it.
       downloadAllowed: false,
     });
@@ -133,7 +136,10 @@ router.put('/desk/releases/:id/review', protect, async (req, res, next) => {
     if (!['approved', 'rejected', 'removed'].includes(status)) return errorResponse(res, 400, 'Invalid release decision');
     const release = await MusicRelease.findById(req.params.id);
     if (!release) return errorResponse(res, 404, 'Release not found');
-    if (status === 'approved' && release.status === 'takedown_pending') return errorResponse(res, 409, 'A takedown request must be resolved as removed or rejected, not re-approved');
+    if (status === 'approved') {
+      const artist = await MusicArtist.findById(release.artist).select('status');
+      if (!artist || artist.status !== 'verified') return errorResponse(res, 409, 'The artist must be verified before a release can be approved');
+    }
     release.status = status;
     release.reviewedBy = req.user._id;
     release.reviewedAt = new Date();

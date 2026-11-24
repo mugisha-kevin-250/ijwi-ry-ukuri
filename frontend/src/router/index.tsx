@@ -47,6 +47,7 @@ const PasswordRecoveryPage = lazy(() => import('../pages/public/PasswordRecovery
 const PrivacyPage = lazy(() => import('../pages/public/PrivacyPage'))
 const RadarAiPage = lazy(() => import('../pages/public/RadarAiPage'))
 const RadioPage = lazy(() => import('../pages/public/RadioPage'))
+const MusicShowbizPage = lazy(() => import('../pages/public/MusicShowbizPage'))
 const SearchPage = lazy(() => import('../pages/public/SearchPage'))
 const SectionPage = lazy(() => import('../pages/public/SectionPage'))
 const TermsPage = lazy(() => import('../pages/public/TermsPage'))
@@ -72,6 +73,7 @@ const AdminMessagesPage = lazy(() => import('../pages/admin/AdminMessagesPage'))
 const AdminAuditLogPage = lazy(() => import('../pages/admin/AdminAuditLogPage'))
 const AdminPayoutsPage = lazy(() => import('../pages/admin/AdminPayoutsPage'))
 const AdminSettingsPage = lazy(() => import('../pages/admin/AdminSettingsPage'))
+const AdminMusicPage = lazy(() => import('../pages/admin/AdminMusicPage'))
 const AdminUserDetailPage = lazy(() => import('../pages/admin/AdminUserDetailPage'))
 const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
 const AdminWritersPage = lazy(() => import('../pages/admin/AdminWritersPage'))
@@ -118,6 +120,7 @@ const PAGE_LOADERS: { path: string; load: () => Promise<unknown> }[] = [
   { path: '/radar-ai', load: () => import('../pages/public/RadarAiPage') },
   { path: '/radio', load: () => import('../pages/public/RadioPage') },
   { path: '/music', load: () => import('../pages/public/MusicShowbizPage') },
+  { path: '/mugishaimekevin/music', load: () => import('../pages/admin/AdminMusicPage') },
   { path: '/search', load: () => import('../pages/public/SearchPage') },
   { path: '/library', load: () => import('../pages/public/MyLibraryPage') },
   { path: '/about', load: () => import('../pages/public/AboutPage') },
@@ -409,6 +412,7 @@ export const router = createBrowserRouter([
           { path: 'radar-ai', element: <RadarAiPage /> },
           // RADAR Audio: the stories read aloud. A page, not a fake station.
           { path: 'radio', element: <RadioPage /> },
+          { path: 'music', element: <DelayedPage><MusicShowbizPage /></DelayedPage> },
           { path: 'category/:slug', element: <CategorySectionRoute /> },
           { path: 'search', element: <SearchPage /> },
           { path: 'library', element: <MyLibraryPage /> },
@@ -501,6 +505,7 @@ export const router = createBrowserRouter([
           // /advertising page, which only explains what is for sale.
           { path: 'advertising', element: <RequireDesk staffDoor permissions={['manageAds']}><AdminAdsPage /></RequireDesk> },
           { path: 'settings', element: <RequireDesk staffDoor permissions={['manageSettings']}><AdminSettingsPage /></RequireDesk> },
+          { path: 'music', element: <RequireDesk staffDoor permissions={['manageMusic']}><AdminMusicPage /></RequireDesk> },
         ],
       },
       // The admin sign-in sits outside every layout, so it is the one route that

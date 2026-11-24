@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -297,7 +298,7 @@ if (env.NODE_ENV !== 'production') {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerJsdoc(swaggerOptions)));
 }
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health/live', (req, res) => {\n  res.status(200).json({ success: true, status: 'alive' });\n});\n\n// Readiness is deliberately separate from liveness: a process can be alive\n// while MongoDB is unavailable, and a load balancer must not send it work then.\napp.get('/api/health/ready', async (req, res) => {\n  try {\n    if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {\n      return res.status(503).json({ success: false, status: 'not_ready', database: false });\n    }\n    await mongoose.connection.db.admin().ping({ maxTimeMS: 2000 });\n    return res.status(200).json({ success: true, status: 'ready', database: true });\n  } catch (error) {\n    return res.status(503).json({ success: false, status: 'not_ready', database: false });\n  }\n});\n\napp.get('/api/health', (req, res) => {
   // Which desks this server can actually run. Every value here is a boolean or
   // the NAME of a variable that is missing - never a key, a password or an
   // address - because this route answers without a login. It exists so an
@@ -313,7 +314,7 @@ app.get('/api/health', (req, res) => {
     // the fix that was just pushed is the code that is answering - the
     // difference between waiting for a redeploy and finding a real bug.
     commit: String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').slice(0, 40) || null,
-    wired: {
+    database: { connected: mongoose.connection.readyState === 1 },\n    wired: {
       email: mailState.configured,
       // The variable to set, when email is false: SMTP_HOST or MAIL_FROM_EMAIL.
       emailReason: mailState.reason || null,

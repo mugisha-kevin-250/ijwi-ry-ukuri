@@ -25,6 +25,7 @@ const newsletterRoutes = require('./routes/newsletterRoutes');
 const translateRoutes = require('./routes/translateRoutes');
 const scoreRoutes = require('./routes/scoreRoutes');
 const weatherRoutes = require('./routes/weatherRoutes');
+const globalNewsRoutes = require('./routes/globalNewsRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const uploadStore = require('./services/uploadStore');
 const clientIp = require('./utils/clientIp');
@@ -339,6 +340,8 @@ app.use('/api/scores', scoresLimiter, scoreRoutes);
 // Same reason as the scores page, and the same place: mounted ahead of the
 // catch-all public story routes so /api/weather is answered here.
 app.use('/api/weather', weatherLimiter, weatherRoutes);
+// Global feed metadata is public; refresh and diagnostics remain protected inside the router.
+app.use('/api/global-news', globalNewsRoutes);
 // RADAR AI is a public feature, and it is mounted ahead of the catch-all public
 // story routes for the same reason the weather desk is: /api/ai has to be
 // answered here, with its own ceiling, before the story endpoints see the path.

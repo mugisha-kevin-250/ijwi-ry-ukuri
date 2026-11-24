@@ -7,6 +7,7 @@ const liveScoreService = require('../services/liveScoreService');
 const schedulerLog = require('../services/schedulerLog');
 const breakingNews = require('../utils/breakingNews');
 const env = require('../config/env');
+const globalNewsService = require('../services/globalNewsService');
 
 // Work the lifecycle has to finish on its own, because no person is standing
 // at the server at 00:00 on Monday. Before this file existed node-cron was an
@@ -92,6 +93,12 @@ const JOBS = {
       return { refreshed: pass.refreshed, failed: pass.failed, watched: pass.watched };
     },
   },
+  'global-news': {
+    manual: true,
+    every: '*/10 * * * *',
+    summary: 'Refresh configured international RSS feeds and deduplicate story leads.',
+    run: () => globalNewsService.refresh(),
+  },
   'weekly-pay': {
     manual: false,
     every: '10 0 * * 1',
@@ -148,7 +155,7 @@ function startScheduler() {
     cron.schedule(job.every, () => runJob(name), options);
   }
 
-  console.log('Scheduler started: story publishing and the breaking expiry every 5 minutes, the radio bulletin and the live scores on the minute, weekly pay on Mondays.');
+  console.log('Scheduler started: story publishing and the breaking expiry every 5 minutes, the radio bulletin and live scores on the minute, global news every 10 minutes, weekly pay on Mondays.');
   return { runJob, JOBS };
 }
 

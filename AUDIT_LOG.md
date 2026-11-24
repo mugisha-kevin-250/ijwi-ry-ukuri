@@ -9,6 +9,8 @@ The first release writes append-only MongoDB records for:
 - correction notices and article disclosure/media-credit changes;
 - source-verification decisions;
 - enabling and disabling the breaking-news flag;
+- music artist applications and administrator verification decisions;
+- music release submissions, rights review decisions and takedown requests;
 - staff account role, activation and writer-status changes.
 
 Each entry stores the actor (when known), action key, affected record type and ID, a short label and summary, timestamp, and a deliberately small set of event-specific details. Request IP and user-agent are captured for routes that provide request context.

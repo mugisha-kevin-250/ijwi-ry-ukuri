@@ -327,6 +327,21 @@ export default function RadioPage() {
         )}
       </section>
 
+      <section aria-labelledby="radar-music-showbiz-heading" className="group relative mt-6 overflow-hidden rounded-2xl border border-fuchsia-200 bg-gradient-to-r from-slate-950 via-indigo-950 to-fuchsia-950 p-5 text-white shadow-lg sm:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-12 h-40 w-40 rounded-full bg-fuchsia-500/25 blur-3xl motion-safe:animate-pulse" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-fuchsia-200"><Headphones className="h-4 w-4" /> RADAR entertainment</p>
+            <h2 id="radar-music-showbiz-heading" className="mt-2 text-xl font-extrabold sm:text-2xl">RADAR Music &amp; Showbiz</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-300">Search songs and artists, discover new sounds, stream the RADAR playlist and open official artist pages for music information and available downloads.</p>
+          </div>
+          <a href="/music" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-fuchsia-500 px-5 py-3 text-sm font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-fuchsia-400 motion-reduce:transform-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 animate-pulse rounded-full bg-white motion-reduce:animate-none" /> Explore Music</span>
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </a>
+        </div>
+      </section>
+
       <section aria-labelledby="audius-station-heading" className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>

@@ -63,7 +63,7 @@ function ArtistPortal() {
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setError(''); setStatus(''); setBusy(true)
     try {
-      const response = await apiClient.patch<any>('/music/artists/me', { ...profileForm, genres: profileForm.genres.split(',').map(value => value.trim()).filter(Boolean) })
+      const response = await apiClient.put<any>('/music/artists/me', { ...profileForm, genres: profileForm.genres.split(',').map(value => value.trim()).filter(Boolean) })
       setArtist(response.data.data?.artist || artist)
       setEditingProfile(false)
       setStatus('Artist profile updated.')

@@ -231,7 +231,11 @@ function MusicChartsAndPlaylists() {
   const listen = async (id: string) => {
     try {
       await apiClient.post<any>('/music/releases/' + id + '/listen')
-      if (user) await apiClient.post<any>('/music/history/' + id)
+      if (user) {
+        await apiClient.post<any>('/music/history/' + id)
+        const historyResponse = await apiClient.get<any>('/music/history/me')
+        setHistory(historyResponse.data.data?.history || [])
+      }
       await load()
     } catch { /* The provider link still works if analytics are unavailable. */ }
   }

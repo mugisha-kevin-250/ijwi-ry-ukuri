@@ -335,10 +335,10 @@ export default function RadioPage() {
             <h2 id="radar-music-showbiz-heading" className="mt-2 text-xl font-extrabold sm:text-2xl">RADAR Music &amp; Showbiz</h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-300">Search songs and artists, discover new sounds, stream the RADAR playlist and open official artist pages for music information and available downloads.</p>
           </div>
-          <a href="/music" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-fuchsia-500 px-5 py-3 text-sm font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-fuchsia-400 motion-reduce:transform-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+          <Link to="/music" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-fuchsia-500 px-5 py-3 text-sm font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-fuchsia-400 motion-reduce:transform-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 animate-pulse rounded-full bg-white motion-reduce:animate-none" /> Explore Music</span>
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </a>
+          </Link>
         </div>
       </section>
 

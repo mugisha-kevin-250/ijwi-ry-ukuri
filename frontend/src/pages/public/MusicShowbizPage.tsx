@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowUpRight, Disc3, ExternalLink, Headphones, Music2, Search, Sparkles } from 'lucide-react'
 import { radioAPI, type AudiusTrack } from '../../services/api'
@@ -9,7 +9,7 @@ function durationLabel(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
 }
 
-function AudiusLink({ track, children }: { track: AudiusTrack; children: React.ReactNode }) {
+function AudiusLink({ track, children }: { track: AudiusTrack; children: ReactNode }) {
   const href = track.permalink || `https://audius.co/search/${encodeURIComponent(track.title)}`
   return <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">{children}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></a>
 }

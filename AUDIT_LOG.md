@@ -7,6 +7,7 @@ The Activity log is available in the admin portal at `/mugishaimekevin/audit-log
 The first release writes append-only MongoDB records for:
 - article workflow state transitions (submission, approval, rejection, publication, archive and withdrawal when they pass through the shared workflow service);
 - correction notices and article disclosure/media-credit changes;
+- source-verification decisions;
 - enabling and disabling the breaking-news flag;
 - staff account role, activation and writer-status changes.
 
@@ -22,4 +23,4 @@ Each entry stores the actor (when known), action key, affected record type and I
 
 ## Remaining work
 
-Assignments, deadline changes, source-verification decisions, comment moderation, ad/payout changes, mail/scheduler operations, and full export/retention controls still need event coverage. The Activity log is an operational accountability feature, not a substitute for immutable external backups or a formal regulatory audit system.
+Assignments and deadline changes, comment moderation, ad/payout changes, mail/scheduler operations, and full export/retention controls still need event coverage. The Activity log is an operational accountability feature, not a substitute for immutable external backups or a formal regulatory audit system.

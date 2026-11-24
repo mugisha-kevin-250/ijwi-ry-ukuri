@@ -88,6 +88,12 @@ Firebase Hosting deploys the frontend only. The Express API and MongoDB models r
 - [x] Radio's Explore Music link uses in-app navigation to /music.
 - [ ] Evidence document storage, formal contract review and immutable evidence retention.
 - [ ] Direct download hosting and delivery; remains disabled until legal rights, storage, security and audit controls are completed.
-- [ ] Dedicated admin navigation page, artist profile editing, appeals and moderation history.
+- [x] Dedicated music administration dashboard with artist/release catalogue, review decisions and status filters.
+- [x] Music-management navigation and route gated by the manageMusic permission in both frontend and backend.
+- [x] Artist profile editing for the signed-in artist.
+- [x] Public music charts based on RADAR-approved release listen counts, with per-IP rate limiting.
+- [x] Private account playlists and listening history; playlists accept approved releases only.
+- [ ] Artist appeals, immutable release moderation history and richer release editing.
+- [ ] Dedicated podcast publishing workflow; existing newsroom video and live-broadcast features remain separate.
 
-Safety boundary: artist submissions are external listening links, not uploaded audio. A rights declaration is an assertion, not proof of ownership. RADAR review is required before public listing; the current system does not copy third-party audio or offer a direct download endpoint.
+Safety boundary: artist submissions are external listening links, not uploaded audio. A rights declaration and evidence URL are not proof of ownership. RADAR review is required before public listing. Direct downloads are deliberately forced off until private rights-document storage, verification and a secure audio file store exist.

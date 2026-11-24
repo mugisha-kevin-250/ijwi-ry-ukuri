@@ -88,7 +88,7 @@ const navigation = {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 w-16 bg-[#071d31] text-white transition-all duration-300 ${
+      className={`fixed inset-y-0 left-0 z-40 hidden w-16 flex-col bg-[#071d31] text-white transition-all duration-300 md:flex ${
         isCollapsed ? 'md:w-16' : 'md:w-64'
       }`}
       aria-label={`${labels[variant]} navigation`}

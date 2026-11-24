@@ -26,5 +26,6 @@ module.exports = {
   RadioBulletin: require('./RadioBulletin'),
   RadioStationTrack: require('./RadioStationTrack'),
   Ad: require('./Ad'),
-  WeatherReport: require('./WeatherReport')
+  WeatherReport: require('./WeatherReport'),
+  AuditLog: require('./AuditLog')
 };

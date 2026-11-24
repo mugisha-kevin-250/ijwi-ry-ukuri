@@ -344,6 +344,16 @@ router.put('/articles/:id/sources/:sourceId', requirePermission([PERMISSIONS.cor
 
     const article = await Article.findById(req.params.id)
       .select('+sources.reviewedBy +sources.reviewNote');
+    await auditLog.recordSafely({
+      actor: req.user,
+      action: 'article.source_verification_changed',
+      entityType: 'article',
+      entityId: article._id,
+      entityLabel: article.title,
+      summary: `Article source marked ${status}`,
+      details: { sourceId: req.params.sourceId, verificationStatus: status },
+      req,
+    });
     return successResponse(res, 200, `Source ${status}`, {
       sources: article.sources,
       reviewedBy: { _id: req.user._id, fullName: req.user.fullName, role: req.user.role },

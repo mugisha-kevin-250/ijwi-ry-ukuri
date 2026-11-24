@@ -10,6 +10,10 @@
     "cleanUrls": true,
     "rewrites": [
       {
+        "source": "/music",
+        "destination": "/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

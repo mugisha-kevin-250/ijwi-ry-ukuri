@@ -73,3 +73,21 @@ Production frontend: https://www.radartimes.2bd.net
 
 ## Deployment boundary
 Firebase Hosting deploys the frontend only. The Express API and MongoDB models run on Render/Atlas. A frontend deployment cannot deploy backend changes. Backend changes require the existing Render auto-deploy or a manual Render deploy. Verify each host independently.
+
+
+## Release 3 — Music artist onboarding and rights review (2026-11-24)
+
+- [x] Authenticated artist applications and one profile per account.
+- [x] Administrator-only artist verification, rejection and suspension.
+- [x] Verified artists can submit releases with official listening links, metadata and artwork URLs.
+- [x] Required rights declaration and rights-basis record; permission/licence submissions must include an evidence URL.
+- [x] New releases remain pending until an administrator approves them.
+- [x] Public Music & Showbiz catalogue shows only approved releases from verified artists.
+- [x] Artist takedown requests and administrator resolution.
+- [x] Audit events for artist applications, release submissions, review decisions and takedown requests.
+- [x] Radio's Explore Music link uses in-app navigation to /music.
+- [ ] Evidence document storage, formal contract review and immutable evidence retention.
+- [ ] Direct download hosting and delivery; remains disabled until legal rights, storage, security and audit controls are completed.
+- [ ] Dedicated admin navigation page, artist profile editing, appeals and moderation history.
+
+Safety boundary: artist submissions are external listening links, not uploaded audio. A rights declaration is an assertion, not proof of ownership. RADAR review is required before public listing; the current system does not copy third-party audio or offer a direct download endpoint.

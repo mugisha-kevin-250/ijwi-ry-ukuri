@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Activity, RefreshCw, Search } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import type { AuditLogRecord } from '../../services/api'
@@ -35,7 +35,7 @@ export default function AdminAuditLogPage() {
 
   useEffect(() => { void load() }, [load])
 
-  const submitSearch = (event: React.FormEvent) => {
+  const submitSearch = (event: FormEvent) => {
     event.preventDefault()
     setPage(1)
     setQuery(search.trim())

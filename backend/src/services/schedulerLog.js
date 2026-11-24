@@ -128,6 +128,8 @@ async function desk(limit = 40) {
     // several instances, or with ENABLE_SCHEDULER turned off, saying so is the
     // difference between "the jobs are failing" and "this box never runs them".
     running: Boolean(env.ENABLE_SCHEDULER),
+    coordination: 'shared MongoDB lease locks',
+    leaseMs: Number(env.SCHEDULER_LOCK_LEASE_MS || 600000),
     timezone: env.SCHEDULER_TZ || 'server',
     keepDays: KEEP_DAYS,
   };

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowRight, Mic, RotateCcw, Send, Sparkles, Volume2, VolumeX } from 'lucide-react'
+import { ArrowRight, Mic, MicOff, RotateCcw, Send, Sparkles } from 'lucide-react'
 import { aiAPI, type AiAnswer, type AiAskTurn, type AiStatus } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
@@ -188,6 +188,10 @@ export default function RadarAiPage() {
           ...current,
           { id: nextId(), role: 'assistant', text: result.error, failure: true },
         ])
+        // A voice chat that fails in silence is a reader talking to a wall, so
+        // the desk says what went wrong out loud and then hands the microphone
+        // back - the same way it hands it back after an answer.
+        if (voice.chatOn) voice.say(result.error)
       } else {
         setEntries((current) => [
           ...current,
@@ -383,16 +387,24 @@ export default function RadarAiPage() {
             aria-label={t('ai.pagePlaceholder')}
             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 sm:text-sm"
           />
-          {/* What the microphone is doing has to be visible while it does it:
-              a dictated sentence appears as it is heard, and a refusal or a
-              dead end says so instead of leaving the reader talking to a still
-              page. */}
-          {voice.listening && (
-            <p className="mt-2 flex items-center gap-2 text-xs font-bold text-blue-700" role="status" aria-live="polite">
-              <span className="ai-mic-pulse h-2.5 w-2.5 rounded-full bg-blue-600" aria-hidden="true" />
-              {voice.heard || t('ai.hearing')}
-            </p>
-          )}
+          {/* What the microphone is doing has to be visible while it does it,
+              and the line below is where it is said. */}
+          <div className="mt-2 flex items-center gap-2" role="status" aria-live="polite">
+            {(voice.chatOn || voice.listening || voice.speaking) && (
+              <span className="ai-mic-pulse h-2.5 w-2.5 shrink-0 rounded-full bg-blue-600" aria-hidden="true" />
+            )}
+            <span className="text-xs font-bold text-blue-700">
+              {voice.heard
+                ? voice.heard
+                : voice.speaking
+                  ? t('ai.voiceSpeaking')
+                  : voice.listening
+                    ? t('ai.hearing')
+                    : busy
+                      ? t('ai.thinking')
+                      : t('ai.voiceWaiting')}
+            </span>
+          </div>
           {voice.micError && (
             <p className="mt-2 text-xs text-amber-800" role="status">
               {voice.micError === 'denied' ? t('ai.micDenied') : t('ai.micFailed')}
@@ -401,46 +413,23 @@ export default function RadarAiPage() {
           <div className="mt-2 flex items-center justify-between gap-3">
             <p className="text-[11px] text-slate-500">{t('ai.enterToSend')}</p>
             <div className="flex items-center gap-2">
-              {voice.voiceSupported && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (voice.voiceOn) {
-                      voice.setVoiceOn(false)
-                      voice.stopSpeaking()
-                    } else {
-                      voice.setVoiceOn(true)
-                    }
-                  }}
-                  aria-pressed={voice.voiceOn}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-bold transition ${
-                    voice.voiceOn
-                      ? 'border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {voice.voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                  <span className="hidden sm:inline">{t('ai.speakAnswers')}</span>
-                </button>
-              )}
               {voice.micSupported && (
                 <button
                   type="button"
-                  onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}
-                  disabled={busy}
-                  aria-pressed={voice.listening}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold transition disabled:opacity-50 ${
-                    voice.listening ? 'bg-blue-800 text-white' : 'border border-blue-200 bg-white text-blue-800 hover:bg-blue-50'
+                  onClick={voice.toggleChat}
+                  aria-pressed={voice.chatOn}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-bold text-white shadow-sm transition ${
+                    voice.chatOn ? 'bg-blue-800 ring-2 ring-blue-200' : 'bg-blue-600 hover:bg-blue-700'
                   }`}
                 >
-                  <Mic className="h-4 w-4" />
-                  {voice.listening ? t('ai.listening') : t('ai.speak')}
+                  {voice.chatOn ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  {voice.chatOn ? t('ai.voiceStop') : t('ai.voiceChat')}
                 </button>
               )}
               <button
                 type="submit"
                 disabled={busy || !draft.trim()}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-blue-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-800 disabled:opacity-50"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-800 transition hover:bg-blue-50 disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
                 {t('ai.send')}

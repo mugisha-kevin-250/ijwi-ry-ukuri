@@ -49,6 +49,28 @@ function voiceFor(language: string) {
   return 'en-US'
 }
 
+/**
+ * The voice the desk answers with.
+ *
+ * Devices ship a handful of named voices and label them by who recorded them,
+ * and a reader who presses a microphone expects a person on the other end, not
+ * the flattest tone the operating system can make. So the desk asks for a
+ * woman's voice by the names the platforms actually use, in the reader's
+ * language if one exists and in English if not - and if the device has none of
+ * those, it takes whatever it was given rather than saying nothing.
+ */
+const FEMALE_VOICES =
+  /(female|woman|samantha|karen|zira|aria|jenny|moira|tessa|fiona|victoria|catherine|hazel|susan|linda|heera|swara|kalika|lekha|amira|penelope|angela|elena|carmen|lucia|martha|paulina|salli|joanna|kendra|amy|emma|olivia|google\s*(us\s*)?english)/i
+const PREFERRED_LAST = /(male|man|david|mark|james|fred|george|rishi|alex|daniel|tom|oliver|arthur|thomas|google indiaspeak)/i
+
+function pickVoice(lang: string, voices: SpeechSynthesisVoice[]) {
+  const inLanguage = voices.filter((voice) => String(voice.lang || '').toLowerCase().startsWith(lang.toLowerCase()))
+  const pool = inLanguage.length ? inLanguage : voices
+  const female = pool.filter((voice) => FEMALE_VOICES.test(voice.name))
+  const rest = pool.filter((voice) => !PREFERRED_LAST.test(voice.name))
+  return female[0] || rest[0] || pool[0] || null
+}
+
 const WEATHER_WORDS = ['weather', 'forecast', 'temperature', 'rain', 'rainy', 'snow', 'hot', 'cold', 'umbrella', 'degrees', 'windy', 'humid']
 
 /** Whether a question means the sky over the reader, and so needs the device's permission. */
@@ -59,6 +81,8 @@ export function asksForSky(question: string) {
 
 export function useVoiceDesk({ language, onQuestion }: { language: string; onQuestion: (text: string) => void }) {
   const [listening, setListening] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
+  const [chatOn, setChatOn] = useState(false)
   const [heard, setHeard] = useState('')
   const [micError, setMicError] = useState('')
   const [near, setNear] = useState('')
@@ -69,6 +93,19 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
   const recognition = useRef<Recognition | null>(null)
   const onAsk = useRef(onQuestion)
   onAsk.current = onQuestion
+  // The conversation has to outlive the render that started it: an answer that
+  // finishes speaking two seconds later has to know whether the reader is still
+  // in the voice chat, and hand the microphone back to them if they are.
+  const chatRef = useRef(chatOn)
+  chatRef.current = chatOn
+  const speakRef = useRef(voiceOn)
+  speakRef.current = voiceOn
+  const listenRef = useRef<() => void>(() => {})
+  // Whether this page is still on screen. A sentence cancelled by navigation
+  // still reports its ending, and a desk that hands the microphone back to a
+  // page that no longer exists starts a listener nobody can see or stop.
+  const alive = useRef(true)
+  const voices = useRef<SpeechSynthesisVoice[]>([])
 
   const micSupported = useRef(Boolean(recognitionCtor())).current
   const voiceSupported = useRef(typeof window !== 'undefined' && 'speechSynthesis' in window).current
@@ -77,14 +114,28 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
     if (typeof window !== 'undefined') window.localStorage.setItem('radar-ai-speak', voiceOn ? 'on' : 'off')
   }, [voiceOn])
 
+  useEffect(() => {
+    if (!voiceSupported) return
+    const load = () => {
+      voices.current = window.speechSynthesis.getVoices()
+    }
+    load()
+    // Most browsers hand over an empty list until the voices arrive a tick
+    // later, and a desk that never re-checks them answers in the flat default.
+    window.speechSynthesis.addEventListener('voiceschanged', load)
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', load)
+  }, [voiceSupported])
+
   // Leaving the page mid-sentence must not leave a voice talking over the news.
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      chatRef.current = false
       recognition.current?.abort()
       if (voiceSupported) window.speechSynthesis.cancel()
-    },
-    [voiceSupported],
-  )
+    }
+  }, [voiceSupported])
 
   const stopListening = useCallback(() => {
     recognition.current?.stop()
@@ -115,14 +166,18 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
       setHeard(text.trim())
     }
     rec.onerror = (event) => {
-      setMicError(event?.error === 'not-allowed' || event?.error === 'service-not-allowed' ? 'denied' : 'failed')
+      const denied = event?.error === 'not-allowed' || event?.error === 'service-not-allowed'
+      setMicError(denied ? 'denied' : event?.error === 'no-speech' ? '' : 'failed')
       setListening(false)
+      // A microphone the reader will not open, or a browser that needs one
+      // they have not allowed, cannot carry a conversation: the chat ends
+      // rather than pulsing at them forever.
+      if (denied || event?.error === 'service-not-allowed') setChatOn(false)
     }
     rec.onend = () => {
       setListening(false)
       setHeard('')
       const question = said.trim()
-      setMicError('')
       // The dictation is the question: a reader who pressed a microphone and
       // said a sentence should not have to press anything else to ask it.
       if (question) onAsk.current(question)
@@ -139,23 +194,86 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
     }
   }, [language, voiceSupported])
 
+  /**
+   * The answer, said out loud in a woman's voice.
+   *
+   * Two things happen when the sentence ends, and only one of them is obvious:
+   * the button stops pulsing, and - if this is a voice chat - the microphone
+   * comes back on. That second half is what makes it a conversation instead of
+   * a walkie-talkie: the reader says a thing, hears the desk say a thing, and
+   * is already holding the floor again for the follow-up they were about to
+   * ask. A device that cannot speak, or an answer that was never spoken, hands
+   * the microphone back immediately for the same reason.
+   */
   const say = useCallback(
     (text: string) => {
-      if (!voiceSupported || !voiceOn) return
       const clean = String(text || '').trim()
-      if (!clean) return
+      const handBack = () => {
+        if (alive.current && chatRef.current) listenRef.current()
+      }
+      if (!voiceSupported || !clean) {
+        handBack()
+        return
+      }
+      if (!speakRef.current) return
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(clean.slice(0, 1200))
-      utterance.lang = voiceFor(language)
+      const lang = voiceFor(language)
+      const chosen = pickVoice(lang, voices.current)
+      if (chosen) {
+        utterance.voice = chosen
+        utterance.lang = chosen.lang || lang
+      } else {
+        utterance.lang = lang
+      }
       utterance.rate = 1.02
+      // A little above the device's own pitch, which is how a person hears the
+      // difference between a voice reading a sentence and a voice speaking it.
+      utterance.pitch = 1.1
+      utterance.onstart = () => setSpeaking(true)
+      utterance.onend = () => {
+        setSpeaking(false)
+        handBack()
+      }
+      utterance.onerror = () => {
+        setSpeaking(false)
+        handBack()
+      }
+      setSpeaking(true)
       window.speechSynthesis.speak(utterance)
     },
-    [language, voiceOn, voiceSupported],
+    [language, voiceSupported],
   )
 
   const stopSpeaking = useCallback(() => {
     if (voiceSupported) window.speechSynthesis.cancel()
+    setSpeaking(false)
   }, [voiceSupported])
+
+  listenRef.current = startListening
+
+  /**
+   * Open or close the voice chat with one press.
+   *
+   * Starting it is the same as speaking a question, and ending it is the point:
+   * the microphone stops listening, nothing more is read out, and the reader is
+   * left with the page they can type in again. Turning it off mid-sentence also
+   * stops the sentence - a control that only silences the next answer is not a
+   * way to end a conversation.
+   */
+  const toggleChat = useCallback(() => {
+    if (chatRef.current) {
+      chatRef.current = false
+      setChatOn(false)
+      setListening(false)
+      setHeard('')
+      recognition.current?.abort()
+      stopSpeaking()
+      return
+    }
+    setChatOn(true)
+    startListening()
+  }, [startListening, stopSpeaking])
 
   /**
    * The reader's own place, asked for once and only when a question needs it.
@@ -198,10 +316,13 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
     micSupported,
     voiceSupported,
     listening,
+    speaking,
     heard,
     micError,
     startListening,
     stopListening,
+    chatOn,
+    toggleChat,
     voiceOn,
     setVoiceOn,
     say,

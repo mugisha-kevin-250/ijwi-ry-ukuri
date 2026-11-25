@@ -59,7 +59,16 @@ router.get('/status', (req, res) => {
     // stops arriving is explained by the page rather than by silence.
     maxQuestionChars: MAX_QUESTION,
     turnsKept: MAX_TURNS_KEPT,
-    questionsPerHour: READER_AI_QUESTIONS_PER_HOUR
+    questionsPerHour: READER_AI_QUESTIONS_PER_HOUR,
+    // The desk's own account of its last bad minute, so "why did it not answer"
+    // is readable from here rather than only from Render's logs: the failure
+    // code, the status Google returned, which model it came from and how many
+    // tries it took. Also the model names this server was given, because a key
+    // pointed at a retired model fails every question the same way and looks
+    // from outside exactly like a broken feature. No key and no reader text.
+    models: { primary: geminiService.activeModel(), fallback: geminiService.fallbackModel() },
+    searchGrounding: geminiService.searchGroundingEnabled(),
+    lastFailure: geminiService.lastFailureInfo()
   });
 });
 

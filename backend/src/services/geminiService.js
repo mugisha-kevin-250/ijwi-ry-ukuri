@@ -38,6 +38,35 @@ function isBusyMoment(error) {
   return error.code === 'AI_REQUEST_FAILED' && BUSY_STATUS.has(Number(error.status));
 }
 
+/**
+ * A failure about the model's name rather than about the question or the key.
+ *
+ * A retired name comes back 404 "no longer available to new users", which is
+ * not the kind of thing a second second fixes - but it is exactly the kind of
+ * thing a different name fixes. This matters most when the server was handed a
+ * name by its environment: the queue is then asked to carry on to the fallback
+ * instead of returning "rephrase your question" to a reader whose question was
+ * fine and whose newsroom is simply pointed at a model that no longer exists.
+ */
+function isUnknownModel(error) {
+  if (!error) return false;
+  if (Number(error.status) === 404) return true;
+  return /not found|no longer available|unsupported|invalid `?model|model name/i.test(String(error?.message || ''));
+}
+
+/**
+ * Google saying no to the request shape, not to the question.
+ *
+ * A 400 comes back in well under a second - it is an answer about the call, not
+ * a model thinking - so it is safe to spend another attempt on. The newsroom's
+ * only 400-shaped habit is asking for the web-search tool on a model or a plan
+ * that does not carry it, which fails every question in the mode that asked for
+ * it and looks, from the reader's side, like a desk that refuses to speak.
+ */
+function isToolRefusal(error) {
+  return String(error?.code || '') === 'AI_REQUEST_FAILED' && Number(error?.status) === 400;
+}
+
 function modelsToTry(primary) {
   const wanted = String(primary || activeModel());
   const fallback = FALLBACK_MODEL && FALLBACK_MODEL !== wanted ? FALLBACK_MODEL : '';
@@ -52,8 +81,47 @@ function isConfigured() {
   return Boolean(env.GEMINI_API_KEY);
 }
 
+/**
+ * The last way a call to Google failed, kept in memory for the status route.
+ *
+ * A reader's "it did not answer" and an owner's "why" are the same event seen
+ * from two ends of a log they cannot both open, and Render's logs are not the
+ * only place to look. So the code, the HTTP status, the model it came from and
+ * how many tries it took are held here - never the key, never the reader's
+ * question, never the model's own words - and `/api/ai/status` prints them for
+ * whoever is asked to explain a failure.
+ */
+let lastFailure = null;
+
+function noteFailure(error, attemptCount) {
+  // The route's one-line log reads the same number off the error it is holding,
+  // so both places report the same try count rather than one of them guessing.
+  if (error && typeof error === 'object') error.attempts = Number(attemptCount || 1);
+  lastFailure = {
+    at: new Date().toISOString(),
+    code: String(error?.code || 'UNKNOWN'),
+    status: Number(error?.status || 0) || null,
+    model: String(error?.model || '') || null,
+    attempts: Number(attemptCount || 1)
+  };
+  return lastFailure;
+}
+
+function lastFailureInfo() {
+  return lastFailure;
+}
+
+/** The two names the reader's question is put to, and whether the web is read. */
+function fallbackModel() {
+  return FALLBACK_MODEL;
+}
+
+function searchGroundingEnabled() {
+  return Boolean(env.GEMINI_GROUND_SEARCH);
+}
+
 function activeModel() {
-  return env.GEMINI_MODEL || DEFAULT_MODEL;
+  return String(env.GEMINI_MODEL || '').trim() || DEFAULT_MODEL;
 }
 
 /**
@@ -115,11 +183,14 @@ async function callGeminiDetailed({
       // a bad minute. A key Google does not accept, an answer its safety read
       // refused and a quota that is spent are true of every model on the key,
       // and re-asking them spends the reader's time to say the same thing.
-      if (!isBusyMoment(error)) throw error;
+      if (!isBusyMoment(error) && !isUnknownModel(error)) {
+        noteFailure(error, attempt + 1);
+        throw error;
+      }
     }
   }
 
-  lastError.attempts = queue.length;
+  noteFailure(lastError, queue.length);
   throw lastError;
 }
 
@@ -533,7 +604,7 @@ async function askReader({ question, history = [], story = null, headlines = [],
   // who made this site, and gets the live sky when the question asked for it.
   const systemInstruction = readerInstruction({ mode, story, headlines, guide, weather }).filter(Boolean).join('\n\n');
 
-  const answer = await callGeminiDetailed({
+  const deskCall = (useSearchGrounding) => callGeminiDetailed({
     contents,
     systemInstruction,
     temperature: 0.4,
@@ -546,8 +617,23 @@ async function askReader({ question, history = [], story = null, headlines = [],
     retryPauseMs: READER_RETRY_PAUSE_MS,
     // Only a question the newsroom cannot answer from its own files goes
     // looking, and only when the owner has thrown the switch.
-    useSearchGrounding: mode === 'research' && env.GEMINI_GROUND_SEARCH
+    useSearchGrounding
   });
+
+  const wantsTheWeb = mode === 'research' && Boolean(env.GEMINI_GROUND_SEARCH);
+  let answer;
+  try {
+    answer = await deskCall(wantsTheWeb);
+  } catch (error) {
+    // Asking the web is an extra tool on a request that is otherwise the same.
+    // When Google turns that request down with a 400 - the answer it gives to a
+    // model or a plan that does not carry the tool - the question was never
+    // read, so it is put again without the tool rather than reported to the
+    // reader as a question they should rephrase. Any other failure keeps its
+    // own sentence; a refusal on the merits is not retried.
+    if (!wantsTheWeb || !isToolRefusal(error)) throw error;
+    answer = await deskCall(false);
+  }
 
   return { answer: answer.text, model: answer.model, generatedAt: new Date().toISOString() };
 }
@@ -808,4 +894,4 @@ async function adCreative({ advertiser, offer, link, placement, tone, mustInclud
   return creative;
 }
 
-module.exports = { isConfigured, activeModel, writeStory, chat, askReader, photoLinks, radioScript, adCreative };
+module.exports = { isConfigured, activeModel, fallbackModel, searchGroundingEnabled, lastFailureInfo, writeStory, chat, askReader, photoLinks, radioScript, adCreative };

@@ -67,6 +67,36 @@ function isToolRefusal(error) {
   return String(error?.code || '') === 'AI_REQUEST_FAILED' && Number(error?.status) === 400;
 }
 
+/**
+ * Whether the next name in the queue is worth trying.
+ *
+ * A 400 "invalid argument" is Google's sentence about the request, and models
+ * disagree about what a request may contain: one name's generation config is
+ * another's rejection. Because a 400 comes back in under a second, walking the
+ * queue costs a reader almost nothing and is the difference between an answer
+ * and a shrug. A refusal on the merits (AI_BLOCKED) is not in this list on
+ * purpose - a second model would only refuse it again.
+ */
+function isWorthAskingAgain(error) {
+  return isBusyMoment(error) || isUnknownModel(error) || isToolRefusal(error);
+}
+
+/**
+ * Google's own words about the call, cleaned enough to print.
+ *
+ * The code and the status say which kind of failure this was; the sentence the
+ * upstream sent says which field it objected to, and that is the difference
+ * between fixing this and guessing at it. So it is held here - compressed,
+ * capped, with every long opaque run replaced so no credential could ride out
+ * of it, and never containing a reader's question, which is not part of an
+ * error the upstream returns about a request shape.
+ */
+function describeFailure(error) {
+  const raw = String(error?.message || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return null;
+  return raw.replace(/[A-Za-z0-9_+\-/]{24,}/g, '[redacted]').slice(0, 160);
+}
+
 function modelsToTry(primary) {
   const wanted = String(primary || activeModel());
   const fallback = FALLBACK_MODEL && FALLBACK_MODEL !== wanted ? FALLBACK_MODEL : '';
@@ -102,6 +132,7 @@ function noteFailure(error, attemptCount) {
     code: String(error?.code || 'UNKNOWN'),
     status: Number(error?.status || 0) || null,
     model: String(error?.model || '') || null,
+    detail: describeFailure(error),
     attempts: Number(attemptCount || 1)
   };
   return lastFailure;
@@ -179,11 +210,11 @@ async function callGeminiDetailed({
       return { text, model, attempts: attempt + 1 };
     } catch (error) {
       lastError = error;
-      // The rest of the queue is only worth walking for a model that is having
-      // a bad minute. A key Google does not accept, an answer its safety read
-      // refused and a quota that is spent are true of every model on the key,
-      // and re-asking them spends the reader's time to say the same thing.
-      if (!isBusyMoment(error) && !isUnknownModel(error)) {
+      // The rest of the queue is only worth walking for a failure another name
+      // or another second can clear. A key Google does not accept and an answer
+      // its safety read refused are true of every model on the key, and
+      // re-asking them spends the reader's time to say the same thing.
+      if (!isWorthAskingAgain(error)) {
         noteFailure(error, attempt + 1);
         throw error;
       }

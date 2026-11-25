@@ -2622,6 +2622,8 @@ export const aiAPI = {
     question: string
     slug?: string
     topic?: string
+    /** "lat,lon" or a place name, sent only when the question is about the weather. */
+    near?: string
     history?: AiAskTurn[]
   }): Promise<AiAnswer | { error: string }> => {
     try {
@@ -2629,6 +2631,7 @@ export const aiAPI = {
         q: input.question,
         slug: input.slug || undefined,
         topic: input.topic || undefined,
+        near: input.near || undefined,
         history: (input.history || []).slice(-8),
       })
       const payload = (response.data?.data || {}) as Record<string, unknown>

@@ -147,6 +147,68 @@ function asksForOurNews(question) {
   return (aboutNews && (aboutUs || ofTheMoment)) || (aboutUs && ofTheMoment);
 }
 
+/**
+ * The sky over the reader.
+ *
+ * A reader who asks "how is the weather" is asking a question with a real answer
+ * that this site already knows how to fetch: the weather desk calls the same
+ * source the /weather page uses, through the same key, and caches by place. So
+ * the desk reads it rather than letting the model guess at a climate, and hands
+ * over the measurement with the place it belongs to named in it - if the answer
+ * is for Kigali because that is what the site defaults to, the model is told to
+ * say Kigali instead of pretending it found the reader.
+ *
+ * The device can hand over coordinates when the reader allowed it, which is the
+ * one form that needs no guessing; otherwise the place is whatever the question
+ * named, and failing that the site's default city.
+ */
+const WEATHER_WORDS = ['weather', 'forecast', 'temperature', 'rain', 'rainy', 'snow', 'humid', 'windy', 'sunny', 'cloudy', 'degrees', 'hot', 'cold', 'umbrella'];
+const PLACE_STOP = new Set(['the', 'a', 'an', 'this', 'that', 'town', 'city', 'country', 'area', 'place', 'here', 'there', 'today', 'tomorrow', 'right', 'now', 'outside']);
+
+function wantsWeather(question) {
+  const text = String(question || '').toLowerCase();
+  return WEATHER_WORDS.some((word) => text.includes(word));
+}
+
+/** "What is the weather in Huye" is a question about Huye. */
+function placeInQuestion(question) {
+  const match = /\b(?:in|at|for|of|near|around)\s+([A-Za-zÀ-ÿ'., -]{2,40})/i.exec(String(question || ''));
+  if (!match) return '';
+  const words = match[1].toLowerCase().split(/[\s,]+/).filter((w) => w && !PLACE_STOP.has(w) && w.length > 1);
+  return words.slice(0, 3).join(' ').trim();
+}
+
+function weatherBrief(report) {
+  const loc = report?.location || {};
+  const cur = report?.current || {};
+  const place = [loc.name, loc.region, loc.country].filter(Boolean).join(', ');
+  if (!place && cur.tempC === undefined) return '';
+  return [
+    'THE WEATHER MEASURED JUST NOW BY THIS SITE\'S WEATHER DESK',
+    `Place: ${place || 'not named by the source'}`,
+    loc.localtime ? `Local time there: ${loc.localtime}` : '',
+    `Now: ${cur.condition || 'unclear'}, ${cur.tempC}°C (feels like ${cur.feelsC}°C), humidity ${cur.humidity}%, wind ${cur.windKph} km/h ${cur.windDir || ''}, chance of rain ${cur.chanceOfRain}%`,
+    `Reading taken: ${cur.lastUpdated || (report.fetchedAt ? new Date(report.fetchedAt).toISOString() : 'recently')}`,
+    'This is a live measurement, not reporting. Answer the reader with it, but name the place it belongs to: if that place is not where the reader is, say which city the reading is for rather than claiming to know them.'
+  ].filter(Boolean).join('\n');
+}
+
+/** The live reading for a question, or an empty string when there is no weather in it. */
+async function weatherFor({ question, near }) {
+  if (!wantsWeather(question) && !String(near || '').trim()) return '';
+  const wanted = [String(near || '').trim(), placeInQuestion(question)].find(Boolean);
+  try {
+    const weather = require('./weatherService');
+    const result = await weather.report({ q: wanted });
+    if (!result?.ok || !result.report) return '';
+    return weatherBrief(result.report);
+  } catch {
+    // The weather source is a separate service from the newsroom's files, and
+    // its bad minute is no reason to withhold an answer the desk can give.
+    return '';
+  }
+}
+
 function pickMode({ question, story, headlines }) {
   if (isSiteQuestion(question)) return 'site';
   if (story || matchesAHeadline(question, headlines) || asksForOurNews(question)) return 'news';
@@ -165,7 +227,7 @@ function pickMode({ question, story, headlines }) {
  * The answer comes back with the desk that wrote it, because "where did this
  * come from" is part of the answer, and the page has to say it.
  */
-async function ask({ question, history = [], slug, topic } = {}) {
+async function ask({ question, history = [], slug, topic, near } = {}) {
   const gemini = require('./geminiService');
   const headlines = await recentHeadlines();
 
@@ -178,14 +240,17 @@ async function ask({ question, history = [], slug, topic } = {}) {
   }
 
   const mode = pickMode({ question, story, headlines });
-
+  // The sky is read only when the question or the device asks for it, and its
+  // failure costs this answer nothing - see weatherFor.
+  const weather = await weatherFor({ question, near });
   const result = await gemini.askReader({
     question,
     history,
     story: mode === 'site' ? null : story,
     headlines,
     mode,
-    guide: GUIDE
+    guide: GUIDE,
+    weather
   });
 
   return {

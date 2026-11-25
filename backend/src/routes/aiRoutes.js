@@ -95,8 +95,12 @@ router.post('/ask', async (req, res, next) => {
 
     const slug = plainText(req.body?.slug, { maxLength: 200 });
     const topic = plainText(req.body?.topic, { maxLength: 120 });
+    // Where the reader's device said it is, if they allowed it: a pair of
+    // coordinates or a place name, never an address they did not offer. It is
+    // only ever handed to the weather desk to look up the sky over that place.
+    const near = String(req.body?.near || '').trim().slice(0, 60);
 
-    const result = await aiReaderService.ask({ question, history, slug, topic });
+    const result = await aiReaderService.ask({ question, history, slug, topic, near });
     return successResponse(res, 200, 'RADAR AI', result);
   } catch (error) {
     // The model's own failures are newsroom information, not stack traces: the

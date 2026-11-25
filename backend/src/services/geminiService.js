@@ -22,9 +22,13 @@ const CHAT_TIMEOUT_MS = Number(env.GEMINI_CHAT_TIMEOUT_MS || 45000);
  * short ceiling per try: a median of about two seconds means a try that has
  * reached eleven is not going to be the one that answers.
  */
-const READER_TIMEOUT_MS = Number(env.GEMINI_READER_TIMEOUT_MS || 11000);
+const READER_TIMEOUT_MS = Number(env.GEMINI_READER_TIMEOUT_MS || 14000);
 const READER_RETRY_PAUSE_MS = Number(env.GEMINI_READER_RETRY_PAUSE_MS || 700);
-const FALLBACK_MODEL = String(env.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash-lite');
+// Measured against this newsroom's key: gemini-3.1-flash-lite answers, while
+// gemini-2.5-flash and gemini-2.5-flash-lite come back 404 "no longer
+// available to new users". A fallback that does not exist is worse than no
+// fallback, because the reader's second try fails on the way.
+const FALLBACK_MODEL = String(env.GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite');
 const BUSY_STATUS = new Set([500, 502, 503, 504]);
 
 /** The failures another model or another second can clear, and only those. */
@@ -480,7 +484,34 @@ function readerBriefing({ story, headlines } = {}) {
   return `${blocks.join('\n\n')}\n\nRemember: the above is everything you may treat as fact.`;
 }
 
-async function askReader({ question, history = [], story = null, headlines = [], mode = 'news', guide = '' } = {}) {
+/**
+ * The three names behind this site, given the same way by every desk.
+ *
+ * "Who developed RADAR" is a question a reader asks out of curiosity and a
+ * writer asks before trusting the site with their byline, and there is one
+ * right answer: Mugisha Aime Kevin, then Ndatimana Dododce, then Shyaka Clever
+ * Prince. It goes into every reader instruction rather than only the handbook,
+ * because the question arrives as a research question, as a site question, and
+ * from a story page, and a model left to guess at who made it will invent
+ * someone.
+ */
+const READER_CREDITS = [
+  'WHO MADE THIS SITE AND THIS DESK',
+  'RADAR was developed by Mugisha Aime Kevin, with Ndatimana Dododce and Shyaka Clever Prince.',
+  'When a reader asks who developed, built, coded, designed, owns or runs RADAR or RADAR AI, name them in that order: Mugisha Aime Kevin first, then Ndatimana Dododce, then Shyaka Clever Prince. Add no other name, invent no company, and say nothing about anyone else.'
+].join('\n');
+
+function readerInstruction({ mode, story, headlines, guide, weather }) {
+  if (mode === 'site') {
+    return [`${READER_SITE_SYSTEM}\n\nTHE HANDBOOK OF THIS SITE\n${guide}`, READER_CREDITS, weather];
+  }
+  if (mode === 'research') {
+    return [`${READER_RESEARCH_SYSTEM}\n\n${readerBriefing({ headlines })}`, READER_CREDITS, weather];
+  }
+  return [`${READER_SYSTEM_BASE}\n\n${readerBriefing({ story, headlines })}`, READER_CREDITS, weather];
+}
+
+async function askReader({ question, history = [], story = null, headlines = [], mode = 'news', guide = '', weather = '' } = {}) {
   const asked = String(question || '').trim().slice(0, 2000);
   if (!asked) {
     const error = new Error('Ask RADAR AI a question first');
@@ -498,15 +529,9 @@ async function askReader({ question, history = [], story = null, headlines = [],
   // Which of the three desks answers decides what the model is allowed to lean
   // on. The site desk gets the handbook and no stories; the research desk gets
   // the headlines as a pointer and its own knowledge as the substance; the news
-  // desk gets the story, the headlines, and nothing else.
-  let systemInstruction;
-  if (mode === 'site') {
-    systemInstruction = `${READER_SITE_SYSTEM}\n\nTHE HANDBOOK OF THIS SITE\n${guide}`;
-  } else if (mode === 'research') {
-    systemInstruction = `${READER_RESEARCH_SYSTEM}\n\n${readerBriefing({ headlines })}`;
-  } else {
-    systemInstruction = `${READER_SYSTEM_BASE}\n\n${readerBriefing({ story, headlines })}`;
-  }
+  // desk gets the story, the headlines, and nothing else. Every desk is told
+  // who made this site, and gets the live sky when the question asked for it.
+  const systemInstruction = readerInstruction({ mode, story, headlines, guide, weather }).filter(Boolean).join('\n\n');
 
   const answer = await callGeminiDetailed({
     contents,

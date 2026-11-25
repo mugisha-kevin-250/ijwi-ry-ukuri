@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowRight, RotateCcw, Send, Sparkles } from 'lucide-react'
+import { ArrowRight, Mic, RotateCcw, Send, Sparkles, Volume2, VolumeX } from 'lucide-react'
 import { aiAPI, type AiAnswer, type AiAskTurn, type AiStatus } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import { useSeo } from '../../utils/useSeo'
 import ThinkingDots from '../../components/ai/ThinkingDots'
+import { asksForSky, useVoiceDesk } from '../../components/ai/useVoiceDesk'
 
 /**
  * The RADAR AI chat page.
@@ -61,17 +62,17 @@ const nextId = () => `radar-ai-${(entrySeq += 1)}`
  * answered the status call - whichever is later, so a fast server does not cut
  * a sentence off and a cold one does not trap the reader in the introduction.
  */
-const INTRO_FIRST_MS = 340
-const INTRO_GAP_MS = 1150
-const INTRO_HOLD_MS = 900
+const INTRO_FIRST_MS = 260
+const INTRO_GAP_MS = 560
+const INTRO_HOLD_MS = 380
 /** Free Render sleeps for 5-13 seconds; past this the page opens and says so. */
-const INTRO_CAP_MS = 9000
+const INTRO_CAP_MS = 3200
 
 const prefersStillness = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export default function RadarAiPage() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { user } = useAuth()
   const location = useLocation()
   const [status, setStatus] = useState<AiStatus | null>(null)
@@ -83,6 +84,12 @@ export default function RadarAiPage() {
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
+
+  // The microphone and the voice are the device's own, and a dictated sentence is
+  // sent as the same question the reader would have typed - so the desk behind
+  // this page does not change, only the way a reader reaches it.
+  const askRef = useRef<(text: string) => void>(() => {})
+  const voice = useVoiceDesk({ language: lang, onQuestion: (text) => askRef.current(text) })
 
   // A reader who came from a story arrives with it, and the desk keeps it for the
   // whole thread: the news answers stay grounded in the thing they just read.
@@ -169,7 +176,12 @@ export default function RadarAiPage() {
       setDraft('')
       setBusy(true)
 
-      const result = await aiAPI.ask({ question, slug: story?.slug || '', history })
+      // Only a question about the sky is worth asking the device where the
+      // reader is, and only then: the rest of the desk's answers come from the
+      // newsroom's own files and need nothing from a phone's GPS.
+      const near = asksForSky(question) ? await voice.askLocation() : ''
+
+      const result = await aiAPI.ask({ question, slug: story?.slug || '', history, near })
 
       if ('error' in result) {
         setEntries((current) => [
@@ -181,12 +193,17 @@ export default function RadarAiPage() {
           ...current,
           { id: nextId(), role: 'assistant', text: result.answer, groundedOn: result.groundedOn, kind: result.kind },
         ])
+        voice.say(result.answer)
       }
       setBusy(false)
       inputRef.current?.focus()
     },
-    [busy, entries, story],
+    [busy, entries, story, voice],
   )
+
+  useEffect(() => {
+    askRef.current = (text: string) => void ask(text)
+  }, [ask])
 
   // Tapped instead of typed, because a blank box asks more of a reader than a
   // suggested question does. With a story in hand the prompts are about it.
@@ -366,16 +383,69 @@ export default function RadarAiPage() {
             aria-label={t('ai.pagePlaceholder')}
             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 sm:text-sm"
           />
+          {/* What the microphone is doing has to be visible while it does it:
+              a dictated sentence appears as it is heard, and a refusal or a
+              dead end says so instead of leaving the reader talking to a still
+              page. */}
+          {voice.listening && (
+            <p className="mt-2 flex items-center gap-2 text-xs font-bold text-blue-700" role="status" aria-live="polite">
+              <span className="ai-mic-pulse h-2.5 w-2.5 rounded-full bg-blue-600" aria-hidden="true" />
+              {voice.heard || t('ai.hearing')}
+            </p>
+          )}
+          {voice.micError && (
+            <p className="mt-2 text-xs text-amber-800" role="status">
+              {voice.micError === 'denied' ? t('ai.micDenied') : t('ai.micFailed')}
+            </p>
+          )}
           <div className="mt-2 flex items-center justify-between gap-3">
             <p className="text-[11px] text-slate-500">{t('ai.enterToSend')}</p>
-            <button
-              type="submit"
-              disabled={busy || !draft.trim()}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-blue-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-800 disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-              {t('ai.send')}
-            </button>
+            <div className="flex items-center gap-2">
+              {voice.voiceSupported && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (voice.voiceOn) {
+                      voice.setVoiceOn(false)
+                      voice.stopSpeaking()
+                    } else {
+                      voice.setVoiceOn(true)
+                    }
+                  }}
+                  aria-pressed={voice.voiceOn}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-bold transition ${
+                    voice.voiceOn
+                      ? 'border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {voice.voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                  <span className="hidden sm:inline">{t('ai.speakAnswers')}</span>
+                </button>
+              )}
+              {voice.micSupported && (
+                <button
+                  type="button"
+                  onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}
+                  disabled={busy}
+                  aria-pressed={voice.listening}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold transition disabled:opacity-50 ${
+                    voice.listening ? 'bg-blue-800 text-white' : 'border border-blue-200 bg-white text-blue-800 hover:bg-blue-50'
+                  }`}
+                >
+                  <Mic className="h-4 w-4" />
+                  {voice.listening ? t('ai.listening') : t('ai.speak')}
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={busy || !draft.trim()}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-blue-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-800 disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+                {t('ai.send')}
+              </button>
+            </div>
           </div>
         </form>
       )}

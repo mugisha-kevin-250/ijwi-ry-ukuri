@@ -109,6 +109,32 @@ html {
   animation-delay: 0.28s;
 }
 
+/* The microphone is open: one dot keeps breathing while the reader talks, so it
+   is obvious which way round the listening is going. Motion asked for less gets
+   a steady dot, still blue, still meaning "it hears you". */
+@keyframes ai-mic-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.7);
+    opacity: 0.45;
+  }
+}
+
+.ai-mic-pulse {
+  animation: ai-mic-pulse 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-mic-pulse {
+    animation: none;
+    opacity: 0.85;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ai-thinking-dot {
     animation: none;

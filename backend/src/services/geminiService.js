@@ -170,6 +170,32 @@ function activeModel() {
 }
 
 /**
+ * The shape of the key this server was given, without the key.
+ *
+ * "The desk is not connected" is the honest sentence for the reader and the
+ * useless one for whoever has to fix it, because the difference between an old
+ * key, a key cut short in a paste and a key for another project is invisible
+ * from the outside. So the status desk prints how long the value is, whether it
+ * has the form Google's keys have, and a short fingerprint of it - a one-way
+ * digest, the same for the same key everywhere, and no use to anyone who found
+ * it. Compare a live fingerprint with the one from the working copy and the
+ * question "is this the key I think it is?" answers itself.
+ */
+function keyShape() {
+  const key = String(env.GEMINI_API_KEY || '');
+  if (!key) return null;
+  return {
+    length: key.length,
+    // Google has shipped keys in more than one shape - the older AIza form and
+    // the longer newer one - so this says only what is true of both: a real key
+    // is long, unbroken and has no room inside it. A paste that stopped halfway
+    // or swallowed a space shows up here.
+    looksComplete: key.length >= 30 && !/\s/.test(key),
+    fingerprint: require('crypto').createHash('sha256').update(key).digest('hex').slice(0, 8)
+  };
+}
+
+/**
  * One call to Gemini, whatever it is being asked for.
  *
  * Everything the newsroom wants from the model - a story, a research answer, a
@@ -997,4 +1023,4 @@ async function adCreative({ advertiser, offer, link, placement, tone, mustInclud
   return creative;
 }
 
-module.exports = { isConfigured, activeModel, fallbackModel, searchGroundingEnabled, lastFailureInfo, writeStory, chat, askReader, photoLinks, radioScript, adCreative };
+module.exports = { isConfigured, activeModel, fallbackModel, searchGroundingEnabled, lastFailureInfo, keyShape, writeStory, chat, askReader, photoLinks, radioScript, adCreative };

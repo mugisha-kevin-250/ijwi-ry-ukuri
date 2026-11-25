@@ -108,6 +108,10 @@ router.get('/status', (req, res) => {
     // from outside exactly like a broken feature. No key and no reader text.
     models: { primary: geminiService.activeModel(), fallback: geminiService.fallbackModel() },
     searchGrounding: geminiService.searchGroundingEnabled(),
+    // The key's shape, never its value: enough to tell an old key from a
+    // truncated paste from a key for another project, and nothing an eavesdropper
+    // could use.
+    keyShape: geminiService.keyShape(),
     lastFailure: geminiService.lastFailureInfo()
   });
 });

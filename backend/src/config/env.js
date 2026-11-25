@@ -7,6 +7,22 @@ dotenv.config();
 // all, so production refuses to boot without its own secret. Local development
 // keeps a fixed key so a fresh clone runs with no .env file.
 const DEV_JWT_SECRET = 'dev-secret-key';
+
+/**
+ * A pasted secret, taken exactly as it was meant to read.
+ *
+ * A dashboard puts its own quote marks around a value that is typed with them,
+ * and Google answers a quoted key with 400 "API key not valid" - the same
+ * sentence it gives to a wrong one. So the wrapping quotes come off, and the
+ * whitespace a copy-paste leaves on either end goes with them. Nothing else is
+ * changed: a key that is genuinely wrong stays wrong and still fails, because
+ * this is a repair for the shape of a paste, not for the value inside it.
+ */
+function pastedValue(raw, fallback = '') {
+  const text = String(raw === undefined || raw === null ? fallback : raw).trim();
+  const quoted = text.length > 1 && ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")));
+  return quoted ? text.slice(1, -1).trim() : text;
+}
 const isProduction = process.env.NODE_ENV === 'production';
 const jwtSecret = process.env.JWT_SECRET || (isProduction ? '' : DEV_JWT_SECRET);
 if (!jwtSecret) {
@@ -39,7 +55,7 @@ module.exports = {
   VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'https://ijwi-ry--ukuri.web.app',
   // Gemini writes the admin's story drafts. The key only ever lives here, on
   // the server; without it the AI writer stays hidden in the admin portal.
-  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+  GEMINI_API_KEY: pastedValue(process.env.GEMINI_API_KEY),
   GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-flash-lite-latest',
   GEMINI_TIMEOUT_MS: Number(process.env.GEMINI_TIMEOUT_MS || 90000),
   // A research answer is shorter than a story, so it waits for less time. The

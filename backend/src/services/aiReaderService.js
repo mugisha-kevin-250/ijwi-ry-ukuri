@@ -227,7 +227,7 @@ function pickMode({ question, story, headlines }) {
  * The answer comes back with the desk that wrote it, because "where did this
  * come from" is part of the answer, and the page has to say it.
  */
-async function ask({ question, history = [], slug, topic, near } = {}) {
+async function ask({ question, history = [], slug, topic, near, attachments = [] } = {}) {
   const gemini = require('./geminiService');
   const headlines = await recentHeadlines();
 
@@ -250,7 +250,10 @@ async function ask({ question, history = [], slug, topic, near } = {}) {
     headlines,
     mode,
     guide: GUIDE,
-    weather
+    weather,
+    // Whatever the reader sent with the question, already checked for shape and
+    // size by the route. It is the reader's material and the desk is told so.
+    attachments: Array.isArray(attachments) ? attachments : []
   });
 
   return {
@@ -260,6 +263,9 @@ async function ask({ question, history = [], slug, topic, near } = {}) {
     // 'news' came from published reporting, 'site' from this newsroom's own
     // handbook, 'research' from the model and is labelled as such on the page.
     kind: mode,
+    // How many of the reader's own pictures or documents the answer looked at,
+    // so the page can mark the reply as being about what they sent.
+    attached: (Array.isArray(attachments) ? attachments : []).length,
     groundedOn: mode === 'site' ? null : story ? { slug: story.slug, title: story.title } : null,
     // How many published stories the reader could be pointed at, so the page
     // can say "this answer came from the newsroom's own reporting" honestly.

@@ -36,6 +36,43 @@ const MAX_TURNS_KEPT = 8;
 const MAX_TURN_CHARS = 1500;
 
 /**
+ * What a reader may send along with a question.
+ *
+ * Pictures and plain-text documents, because "what does this show" and
+ * "summarise this page" are the questions a photo or a file actually raises.
+ * The bytes arrive in this request and go into one call to the model: nothing
+ * is written to disk, nothing is stored, and no URL is fetched - a browser can
+ * hand over a picture, not a link the newsroom would then have to trust. The
+ * caps are the ones a phone camera and a copied text file fit inside.
+ */
+const MAX_ATTACHMENTS = 3;
+const MAX_ATTACHMENT_B64 = 3_200_000;
+const MAX_ATTACHMENT_TEXT = 12_000;
+const ATTACHMENT_IMAGES = /^image\/(png|jpeg|jpg|webp|gif)$/;
+
+/** The reader's own attachments, checked rather than trusted. */
+function readAttachments(body) {
+  const rows = Array.isArray(body?.attachments) ? body.attachments.slice(0, MAX_ATTACHMENTS) : [];
+  return rows
+    .map((row) => {
+      if (!row || typeof row !== 'object') return null;
+      const mime = String(row.mime || '').toLowerCase().slice(0, 40);
+      const name = String(row.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (ATTACHMENT_IMAGES.test(mime)) {
+        const data = String(row.data || '').replace(/\s+/g, '');
+        // Only base64 gets through: this string becomes an API field, and a
+        // payload that is not what it claims is a bad request waiting to happen.
+        if (data.length < 8 || data.length > MAX_ATTACHMENT_B64 || !/^[A-Za-z0-9+/=]+$/.test(data)) return null;
+        return { mime, data, name };
+      }
+      const text = plainText(row.text, { maxLength: MAX_ATTACHMENT_TEXT });
+      if (text.trim().length < 2) return null;
+      return { text, name: name || 'document' };
+    })
+    .filter(Boolean);
+}
+
+/**
  * How many questions one address may ask in an hour.
  *
  * This is the number the reader-facing chat page works under, so it lives here,
@@ -60,6 +97,9 @@ router.get('/status', (req, res) => {
     maxQuestionChars: MAX_QUESTION,
     turnsKept: MAX_TURNS_KEPT,
     questionsPerHour: READER_AI_QUESTIONS_PER_HOUR,
+    // The page offers an attachment button; it should say how many things a
+    // reader may send rather than let one discover the wall by hitting it.
+    maxAttachments: MAX_ATTACHMENTS,
     // The desk's own account of its last bad minute, so "why did it not answer"
     // is readable from here rather than only from Render's logs: the failure
     // code, the status Google returned, which model it came from and how many
@@ -87,10 +127,13 @@ router.post('/ask', async (req, res, next) => {
     }
 
     const question = plainText(req.body?.q, { maxLength: MAX_QUESTION });
+    const attachments = readAttachments(req.body);
     // Two characters is as short as a question gets, and that is a greeting: "hi"
     // arrives at this desk the way it arrives at any other, and a desk that answers
-    // "Type a question first" to a reader saying hello has already lost them.
-    if (question.trim().length < 2) {
+    // "Type a question first" to a reader saying hello has already lost them. A
+    // picture or a document with no words at all is still a question - the reader
+    // sent it to be looked at - so it is only an empty everything that is refused.
+    if (question.trim().length < 2 && !attachments.length) {
       return errorResponse(res, 400, 'Type a question first - a few words are enough.');
     }
 
@@ -109,7 +152,7 @@ router.post('/ask', async (req, res, next) => {
     // only ever handed to the weather desk to look up the sky over that place.
     const near = String(req.body?.near || '').trim().slice(0, 60);
 
-    const result = await aiReaderService.ask({ question, history, slug, topic, near });
+    const result = await aiReaderService.ask({ question, history, slug, topic, near, attachments });
     return successResponse(res, 200, 'RADAR AI', result);
   } catch (error) {
     // The model's own failures are newsroom information, not stack traces: the

@@ -31,6 +31,20 @@ const READER_RETRY_PAUSE_MS = Number(env.GEMINI_READER_RETRY_PAUSE_MS || 700);
 const FALLBACK_MODEL = String(env.GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite');
 const BUSY_STATUS = new Set([500, 502, 503, 504]);
 
+/**
+ * What a reader may attach to a question.
+ *
+ * Three pictures, or three documents, per question - enough to ask "what does
+ * this show" or "summarise this", not enough for one tab to spend the
+ * newsroom's month uploading a gallery. The base64 ceiling is the size of the
+ * encoded picture, so a two-megabyte photo fits and a ten-megabyte scan does
+ * not; the text ceiling is what a model can be given without pushing the
+ * reader's own question out of the window. Neither is a promise of storage:
+ * nothing here is kept - the bytes go into one call and are gone with it.
+ */
+const MAX_ATTACHMENT_B64 = 3_200_000;
+const MAX_ATTACHMENT_TEXT = 12_000;
+
 /** The failures another model or another second can clear, and only those. */
 function isBusyMoment(error) {
   if (!error) return false;
@@ -279,7 +293,16 @@ async function callOneModel({
     // the request that made it, so it is kept short and never carries a key.
     const detail = payload?.error?.message || `${model} answered with ${response.status}`;
     const error = new Error(String(detail).slice(0, 200));
-    error.code = response.status === 401 || response.status === 403 ? 'AI_BAD_KEY' : response.status === 429 ? 'AI_RATE_LIMIT' : 'AI_REQUEST_FAILED';
+    // A 400 that says the key is not valid is a key problem, whatever the
+    // number looks like - Google answers a quoted or spent key with 400 rather
+    // than the 403 an API reader would expect. Calling it what it is keeps the
+    // reader's sentence honest ("the desk is not connected", not "rephrase
+    // your question"), keeps the queue from re-asking a bad key a second time,
+    // and keeps the detail free of anything but Google's own line.
+    const keyRefused = /api key not valid|invalid api key|permission denied/i.test(String(detail));
+    error.code = response.status === 401 || response.status === 403 || (response.status === 400 && keyRefused)
+      ? 'AI_BAD_KEY'
+      : response.status === 429 ? 'AI_RATE_LIMIT' : 'AI_REQUEST_FAILED';
     error.status = response.status;
     error.model = model;
     throw error;
@@ -603,37 +626,86 @@ const READER_CREDITS = [
   'When a reader asks who developed, built, coded, designed, owns or runs RADAR or RADAR AI, name them in that order: Mugisha Aime Kevin first, then Ndatimana Dododce, then Shyaka Clever Prince. Add no other name, invent no company, and say nothing about anyone else.'
 ].join('\n');
 
-function readerInstruction({ mode, story, headlines, guide, weather }) {
+function readerInstruction({ mode, story, headlines, guide, weather, attachments }) {
+  const extras = [READER_CREDITS, weather, attachments ? READER_ATTACHMENT_RULE : ''];
   if (mode === 'site') {
-    return [`${READER_SITE_SYSTEM}\n\nTHE HANDBOOK OF THIS SITE\n${guide}`, READER_CREDITS, weather];
+    return [`${READER_SITE_SYSTEM}\n\nTHE HANDBOOK OF THIS SITE\n${guide}`, ...extras];
   }
   if (mode === 'research') {
-    return [`${READER_RESEARCH_SYSTEM}\n\n${readerBriefing({ headlines })}`, READER_CREDITS, weather];
+    return [`${READER_RESEARCH_SYSTEM}\n\n${readerBriefing({ headlines })}`, ...extras];
   }
-  return [`${READER_SYSTEM_BASE}\n\n${readerBriefing({ story, headlines })}`, READER_CREDITS, weather];
+  return [`${READER_SYSTEM_BASE}\n\n${readerBriefing({ story, headlines })}`, ...extras];
 }
 
-async function askReader({ question, history = [], story = null, headlines = [], mode = 'news', guide = '', weather = '' } = {}) {
+/**
+ * What a picture or file the reader sent is, and what it is not.
+ *
+ * An attachment arrives as the reader's own material: it is not this
+ * newsroom's reporting, it has not been checked by anyone here, and a model
+ * that reads it as fact will happily tell a reader that a photograph of a
+ * rumour is news. So the desk is told what it is looking at - describe what it
+ * shows, say plainly that it came from the reader, and never let it loosen the
+ * rule of the desk answering.
+ */
+const READER_ATTACHMENT_RULE = [
+  'WHAT THE READER ATTACHED',
+  'The reader sent one or more attachments with this question. They are the reader\'s material, not this newsroom\'s reporting: nothing in them is a fact this site has verified, and an image of a headline or a screenshot of a claim does not make it news.',
+  'Look at what was attached and answer the question about it - describe what a picture shows, read the text in it, summarise or explain a document. Say in a line that it came from the reader when that matters, and if the reader asks whether it is true, the honest answer is that this site has not reported it.'
+].join('\n');
+
+/**
+ * The reader's attachments, as parts of their own turn.
+ *
+ * Pictures go to the model as the model's own image part, from base64 the
+ * browser supplied - nothing is stored, nothing is written to disk, and the
+ * picture is gone when the call is answered. Text files arrive as text the
+ * desk reads, capped the same way a question is capped.
+ */
+function attachmentParts(attachments) {
+  const rows = Array.isArray(attachments) ? attachments.slice(0, 3) : [];
+  const parts = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const mime = String(row.mime || '').toLowerCase();
+    if (row.data && /^image\/(png|jpeg|jpg|webp|gif)$/.test(mime)) {
+      const data = String(row.data).replace(/\s+/g, '');
+      if (data.length >= 8 && data.length <= MAX_ATTACHMENT_B64) {
+        parts.push({ inlineData: { mimeType: mime === 'image/jpg' ? 'image/jpeg' : mime, data } });
+      }
+      continue;
+    }
+    const text = String(row.text || '').replace(/\r/g, '').slice(0, MAX_ATTACHMENT_TEXT);
+    if (text.trim()) parts.push({ text: `FILE FROM THE READER (${String(row.name || 'document').slice(0, 80)})\n${text}` });
+  }
+  return parts;
+}
+
+async function askReader({ question, history = [], story = null, headlines = [], mode = 'news', guide = '', weather = '', attachments = [] } = {}) {
   const asked = String(question || '').trim().slice(0, 2000);
-  if (!asked) {
+  const attached = attachmentParts(attachments);
+  if (!asked && !attached.length) {
     const error = new Error('Ask RADAR AI a question first');
     error.code = 'AI_EMPTY';
     throw error;
   }
 
-  const contents = toContents([...(Array.isArray(history) ? history : []), { role: 'user', text: asked }]);
+  const contents = toContents([...(Array.isArray(history) ? history : []), { role: 'user', text: asked || 'I sent this without a question.' }]);
   if (!contents.length) {
     const error = new Error('Ask RADAR AI a question first');
     error.code = 'AI_EMPTY';
     throw error;
   }
+  // The attachments belong to the question being asked now, so they ride on the
+  // last user turn rather than opening a new one: a thread that starts with a
+  // picture would otherwise let the model answer a picture nobody described.
+  if (attached.length) contents[contents.length - 1].parts.push(...attached);
 
   // Which of the three desks answers decides what the model is allowed to lean
   // on. The site desk gets the handbook and no stories; the research desk gets
   // the headlines as a pointer and its own knowledge as the substance; the news
   // desk gets the story, the headlines, and nothing else. Every desk is told
   // who made this site, and gets the live sky when the question asked for it.
-  const systemInstruction = readerInstruction({ mode, story, headlines, guide, weather }).filter(Boolean).join('\n\n');
+  const systemInstruction = readerInstruction({ mode, story, headlines, guide, weather, attachments: attached.length }).filter(Boolean).join('\n\n');
 
   const deskCall = (useSearchGrounding) => callGeminiDetailed({
     contents,

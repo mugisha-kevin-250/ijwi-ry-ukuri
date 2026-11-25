@@ -184,12 +184,13 @@ function activeModel() {
 function keyShape() {
   const key = String(env.GEMINI_API_KEY || '');
   if (!key) return null;
+  const raw = String(process.env.GEMINI_API_KEY || '').trim();
   return {
     length: key.length,
-    // Google has shipped keys in more than one shape - the older AIza form and
-    // the longer newer one - so this says only what is true of both: a real key
-    // is long, unbroken and has no room inside it. A paste that stopped halfway
-    // or swallowed a space shows up here.
+    // Reported so a salvaged paste can be told from a clean one: the value
+    // typed into the dashboard was longer than the key read out of it.
+    rawLength: raw.length,
+    recovered: raw.length !== key.length,
     looksComplete: key.length >= 30 && !/\s/.test(key),
     fingerprint: require('crypto').createHash('sha256').update(key).digest('hex').slice(0, 8)
   };

@@ -23,6 +23,28 @@ function pastedValue(raw, fallback = '') {
   const quoted = text.length > 1 && ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")));
   return quoted ? text.slice(1, -1).trim() : text;
 }
+
+/**
+ * The key inside whatever was pasted as the key.
+ *
+ * A dashboard value is typed by a person, and a person sometimes pastes a
+ * whole line, two attempts one after the other, or a key with a label and a
+ * space in front of it - which Google reads as one long wrong key and answers
+ * "API key not valid". So the value is read as the longest run of characters a
+ * Google API key is actually made of, and only when the value as pasted is not
+ * already one. Nothing is invented here: a value with no such run inside it is
+ * passed through untouched and still fails, because this is a repair for the
+ * shape of a paste and not for a key that does not exist.
+ */
+function apiKeyValue(raw) {
+  const text = pastedValue(raw);
+  if (!text) return '';
+  if (/^[A-Za-z0-9_-]{25,80}$/.test(text)) return text;
+  const runs = (text.match(/AIza[A-Za-z0-9_-]{20,}|AQ\.[A-Za-z0-9_-]{20,}|[A-Za-z0-9_-]{30,}/g) || [])
+    .filter((run) => run.length >= 25 && run.length <= 80);
+  if (!runs.length) return text;
+  return runs.reduce((best, run) => (run.length > best.length ? run : best), runs[0]);
+}
 const isProduction = process.env.NODE_ENV === 'production';
 const jwtSecret = process.env.JWT_SECRET || (isProduction ? '' : DEV_JWT_SECRET);
 if (!jwtSecret) {
@@ -55,7 +77,7 @@ module.exports = {
   VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'https://ijwi-ry--ukuri.web.app',
   // Gemini writes the admin's story drafts. The key only ever lives here, on
   // the server; without it the AI writer stays hidden in the admin portal.
-  GEMINI_API_KEY: pastedValue(process.env.GEMINI_API_KEY),
+  GEMINI_API_KEY: apiKeyValue(process.env.GEMINI_API_KEY),
   GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-flash-lite-latest',
   GEMINI_TIMEOUT_MS: Number(process.env.GEMINI_TIMEOUT_MS || 90000),
   // A research answer is shorter than a story, so it waits for less time. The

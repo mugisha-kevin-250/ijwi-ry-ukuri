@@ -35,12 +35,19 @@ function pastedValue(raw, fallback = '') {
  * already one. Nothing is invented here: a value with no such run inside it is
  * passed through untouched and still fails, because this is a repair for the
  * shape of a paste and not for a key that does not exist.
+ *
+ * The run has to carry one of Google's own key prefixes, and that is not
+ * cosmetics. A newsroom dashboard is full of secrets, and a long random string
+ * is what every one of them looks like - so a value that grabbed any 30-character
+ * run could have quietly sent a mail password or an OAuth secret to Google in an
+ * Authorization header, in the shape of a repair. A paste with no prefixed key in
+ * it is left alone, fails, and says so.
  */
 function apiKeyValue(raw) {
   const text = pastedValue(raw);
   if (!text) return '';
-  if (/^[A-Za-z0-9_-]{25,80}$/.test(text)) return text;
-  const runs = (text.match(/AIza[A-Za-z0-9_-]{20,}|AQ\.[A-Za-z0-9_-]{20,}|[A-Za-z0-9_-]{30,}/g) || [])
+  if (/^(AIza[A-Za-z0-9_-]{20,}|AQ\.[A-Za-z0-9_-]{20,})$/.test(text)) return text;
+  const runs = (text.match(/AIza[A-Za-z0-9_-]{20,}|AQ\.[A-Za-z0-9_-]{20,}/g) || [])
     .filter((run) => run.length >= 25 && run.length <= 80);
   if (!runs.length) return text;
   return runs.reduce((best, run) => (run.length > best.length ? run : best), runs[0]);

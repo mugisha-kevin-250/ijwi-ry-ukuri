@@ -78,7 +78,7 @@ async function removeUnreferencedArticleImages(filenames, ownerId) {
 async function runCleanup(ownerId) {
   const before = await getUsage();
   const result = {
-    triggered: before.usedPercent > CLEANUP_TRIGGER_PERCENT,
+    triggered: before.usedPercent > CLEANUP_TRIGGER_PERCENT || before.uploadStorage.usedPercent > CLEANUP_TRIGGER_PERCENT,
     before,
     deletedStories: 0,
     deletedImages: 0,
@@ -131,12 +131,12 @@ async function runCleanup(ownerId) {
     });
 
     const current = await getUsage();
-    if (current.usedPercent <= TARGET_PERCENT) break;
+    if (current.usedPercent <= TARGET_PERCENT && current.uploadStorage.usedPercent <= TARGET_PERCENT) break;
   }
 
   result.freedImageMB = Number(result.freedImageMB.toFixed(2));
   result.after = await getUsage();
-  result.skipped = result.after.usedPercent <= TARGET_PERCENT
+  result.skipped = result.after.usedPercent <= TARGET_PERCENT && result.after.uploadStorage.usedPercent <= TARGET_PERCENT
     ? 'Cleanup reached the 55% target.'
     : candidates.length
       ? 'Eligible stories were exhausted; storage remains above target. No owner data or protected stories were touched.'

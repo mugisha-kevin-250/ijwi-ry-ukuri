@@ -707,7 +707,7 @@ export default function AdminAiWriterPage() {
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="font-bold text-slate-900">Publish AI stories without review</h2>
+                <h2 className="font-bold text-slate-900">Manual AI writer auto-publish</h2>
                 <p className="mt-1 text-xs text-slate-500">
                   {status.autoPublish
                     ? 'On: a generated story is published and announced as soon as Gemini finishes. Only use this for topics you have checked yourself.'

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Search } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
-import { writerAPI, publicAPI } from '../../services/api'
+import { writerAPI, publicAPI, type VerifiedPhoto } from '../../services/api'
 import { uploadImage } from '../../services/apiClient'
 import MediaImage from '../../components/common/MediaImage'
 import StoryVideoField from '../../components/writers/StoryVideoField'
@@ -25,6 +26,7 @@ export default function WriterArticleEditorPage() {
     // what it shows, and whose picture it is.
     imageCredit: '',
     imageCaption: '',
+    imageSourceUrl: '',
     // The clip for this story: a link the video already lives behind, or the
     // file itself. Kept as one address in the form; the server decides what the
     // reader's page is allowed to load.
@@ -35,6 +37,10 @@ export default function WriterArticleEditorPage() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [imageFileName, setImageFileName] = useState('')
+  const [commonsQuery, setCommonsQuery] = useState('')
+  const [commonsPhotos, setCommonsPhotos] = useState<VerifiedPhoto[]>([])
+  const [commonsBusy, setCommonsBusy] = useState(false)
+  const [commonsError, setCommonsError] = useState('')
   // Everything after the picture at the top. Kept apart from `form` because it
   // is a list the author adds to and takes away from, not a line they type.
   const [media, setMedia] = useState<StoryMedia[]>([])
@@ -76,6 +82,7 @@ export default function WriterArticleEditorPage() {
             featuredImage: article.featuredImage || '',
             imageCredit: article.imageCredit || '',
             imageCaption: article.imageCaption || '',
+            imageSourceUrl: article.imageSourceUrl || '',
             videoUrl: article.videoUrl || '',
             tags: (article.tags || []).join(', ')
           })
@@ -121,8 +128,24 @@ export default function WriterArticleEditorPage() {
     }
   }
 
+  const searchCommons = async () => {
+    if (commonsQuery.trim().length < 4) { setCommonsError('Enter a topic with at least four characters.'); return }
+    setCommonsBusy(true); setCommonsError('')
+    try {
+      const result = await writerAPI.searchCommonsPhotos(commonsQuery.trim())
+      setCommonsPhotos(result.photos)
+      if (!result.photos.length) setCommonsError(result.note || 'No suitable Wikimedia Commons image was found.')
+    } catch (err: any) { setCommonsError(err?.response?.data?.message || 'Wikimedia Commons could not be searched.') }
+    finally { setCommonsBusy(false) }
+  }
+
+  const chooseCommonsPhoto = (photo: VerifiedPhoto) => {
+    setForm((f: any) => ({ ...f, featuredImage: photo.url, imageCredit: photo.credit || 'Wikimedia Commons contributor', imageCaption: photo.why || f.title, imageSourceUrl: photo.pageUrl || photo.originalUrl || photo.url }))
+    setImageFileName('Wikimedia Commons')
+  }
+
   const handleRemoveImage = () => {
-    setForm((f: any) => ({ ...f, featuredImage: '' }))
+    setForm((f: any) => ({ ...f, featuredImage: '', imageSourceUrl: '', imageCredit: '', imageCaption: '' }))
     setImageFileName('')
   }
 
@@ -141,6 +164,7 @@ export default function WriterArticleEditorPage() {
         // the image they describe and are cleared when it is removed.
         imageCredit: form.featuredImage ? form.imageCredit.trim() : '',
         imageCaption: form.featuredImage ? form.imageCaption.trim() : '',
+        imageSourceUrl: form.featuredImage ? form.imageSourceUrl.trim() : '',
         videoUrl: form.videoUrl.trim(),
         // The list is sent whole every time: the author edits it in place, and
         // the server reads it as one statement of what the story carries.
@@ -258,6 +282,16 @@ export default function WriterArticleEditorPage() {
             )}
           </div>
           {uploading && <p className="mt-2 text-xs text-slate-500">{t('writer.uploading')}</p>}
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label className="mb-2 block text-xs font-bold text-slate-700">Find an image on Wikimedia Commons</label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input value={commonsQuery} onChange={(event) => setCommonsQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void searchCommons() } }} placeholder="Search a person, place or news topic" className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+              <button type="button" onClick={() => void searchCommons()} disabled={commonsBusy} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><Search className="h-3.5 w-3.5" />{commonsBusy ? 'Searching…' : 'Search Commons'}</button>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">Selecting an image fills its contributor credit and Commons file page. Check the licence before publication.</p>
+            {commonsError && <p role="status" className="mt-2 text-xs text-amber-800">{commonsError}</p>}
+            {commonsPhotos.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{commonsPhotos.map((photo) => <button type="button" key={photo.url} onClick={() => chooseCommonsPhoto(photo)} className={`overflow-hidden rounded-lg border bg-white text-left ${form.featuredImage === photo.url ? 'border-blue-600 ring-2 ring-blue-200' : 'border-slate-200'}`}><img src={photo.url} alt="" loading="lazy" className="aspect-video w-full object-cover" /><span className="block p-2 text-[10px]"><span className="block line-clamp-2 font-semibold text-slate-700">{photo.why || 'Wikimedia Commons image'}</span><span className="mt-1 block line-clamp-2 text-slate-500">{photo.credit}</span></span></button>)}</div>}
+          </div>
           {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
           {form.featuredImage && (
             <div className="mt-3 relative">

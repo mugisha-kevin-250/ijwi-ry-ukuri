@@ -3,6 +3,7 @@ const env = require('../config/env');
 const GlobalNewsItem = require('../models/GlobalNewsItem');
 const GlobalNewsSyncState = require('../models/GlobalNewsSyncState');
 const geminiService = require('./geminiService');
+const aiPhotoService = require('./aiPhotoService');
 
 const MAX_FEEDS = 80;
 const MAX_ITEMS_PER_FEED = 60;
@@ -127,18 +128,48 @@ function worldApiItem(article) {
 async function saveItems(items) {
   let saved = 0;
   let processed = 0;
-  for (const item of items) {
+  let commonsLookups = 0;
+  for (const original of items) {
+    const item = { ...original };
+    // Add Commons imagery to a bounded number of image-less leads per refresh.
+    if (!item.imageUrl && commonsLookups < 12) {
+      const existing = await GlobalNewsItem.findOne({ dedupeKey: keyFor(item) }).select('imageUrl').lean();
+      if (!existing?.imageUrl) {
+        commonsLookups += 1;
+        try {
+          const photo = (await aiPhotoService.search(item.title, { limit: 1 })).photos?.[0];
+          if (photo?.url) {
+            item.imageUrl = photo.url;
+            item.imageCredit = photo.credit || 'Wikimedia Commons contributor';
+            item.imageSourceUrl = photo.pageUrl || photo.originalUrl || '';
+            item.imageCaption = 'Illustrative image related to: ' + item.title;
+            item.imageProvider = 'Wikimedia Commons';
+          }
+        } catch (error) {
+          console.warn('[global-news] Commons fallback image unavailable:', error?.message || error);
+        }
+      }
+    }
     if (!item || !item.title || !item.link) continue;
     const dedupeKey = keyFor(item);
     try {
       const refreshFields = {};
       if (item.description) refreshFields.description = item.description;
       if (item.imageUrl) refreshFields.imageUrl = item.imageUrl;
+      if (item.imageCredit) refreshFields.imageCredit = item.imageCredit;
+      if (item.imageSourceUrl) refreshFields.imageSourceUrl = item.imageSourceUrl;
+      if (item.imageCaption) refreshFields.imageCaption = item.imageCaption;
+      if (item.imageProvider) refreshFields.imageProvider = item.imageProvider;
+      // A path cannot be updated by both $set and $setOnInsert in one Mongo
+      // operation. Existing records receive refresh fields; inserts receive the
+      // remaining source metadata, with no overlapping update paths.
+      const insertFields = { ...item };
+      Object.keys(refreshFields).forEach((field) => delete insertFields[field]);
       const outcome = await GlobalNewsItem.updateOne(
         { dedupeKey },
         {
           $set: refreshFields,
-          $setOnInsert: { ...item, dedupeKey, reviewStatus: 'unreviewed', fetchedAt: new Date() },
+          $setOnInsert: { ...insertFields, dedupeKey, reviewStatus: 'unreviewed', fetchedAt: new Date() },
         },
         { upsert: true },
       );
@@ -265,15 +296,25 @@ async function refresh() {
   };
 }
 
-async function list({ page = 1, limit = 20, region = '', status = '', includeReviewStatus = false } = {}) {
+async function list({ page = 1, limit = 20, region = '', status = '', search = '', includeReviewStatus = false } = {}) {
   const safePage = Math.max(1, Math.min(Number(page) || 1, 500));
   const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
   const filter = {};
   if (region && /^[A-Z]{2,12}$/i.test(region)) filter.region = region.toUpperCase();
   if (['unreviewed', 'reviewing', 'verified', 'rejected'].includes(status)) filter.reviewStatus = status;
+  const term = String(search || '').trim().slice(0, 120);
+  if (term) {
+    const escaped = Array.from(term, (char) => '.^$*+?()[]{}|\\'.includes(char) ? String.fromCharCode(92) + char : char).join('');
+    filter.$or = [
+      { title: { $regex: escaped, $options: 'i' } },
+      { description: { $regex: escaped, $options: 'i' } },
+      { sourceName: { $regex: escaped, $options: 'i' } },
+      { region: { $regex: escaped, $options: 'i' } },
+    ];
+  }
   const [items, total] = await Promise.all([
     GlobalNewsItem.find(filter).sort({ publishedAt: -1, fetchedAt: -1 }).skip((safePage - 1) * safeLimit).limit(safeLimit)
-      .select(includeReviewStatus ? 'title description imageUrl englishTitle englishDescription draftArticle link sourceName sourceUrl region language publishedAt fetchedAt reviewStatus' : 'title link sourceName sourceUrl region language publishedAt fetchedAt').lean(),
+      .select('title description imageUrl imageCredit imageCaption imageSourceUrl imageProvider englishTitle englishDescription draftArticle link sourceName sourceUrl region language publishedAt fetchedAt reviewStatus').lean(),
     GlobalNewsItem.countDocuments(filter),
   ]);
 

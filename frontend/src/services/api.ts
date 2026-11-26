@@ -297,6 +297,14 @@ export const writerAPI = {
   apply: (data: any) =>
     apiClient.post('/writers/apply', data),
 
+  searchCommonsPhotos: async (topic: string): Promise<PhotoSearchResult> => {
+    const response = await apiClient.post('/writers/photos/commons', { topic })
+    const payload = response.data.data as Partial<PhotoSearchResult> | undefined
+    return { photos: Array.isArray(payload?.photos) ? payload.photos : [], dropped: [], asked: 0, model: 'Wikimedia Commons', note: payload?.note || '' }
+  },
+
+  createGlobalNewsDraft: (id: string) => apiClient.post(`/writers/global-news/${id}/draft`, {}),
+
   getStatus: () =>
     apiClient.get('/writers/me/status'),
 

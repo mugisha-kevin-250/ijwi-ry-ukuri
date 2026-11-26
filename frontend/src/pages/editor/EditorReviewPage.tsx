@@ -164,7 +164,11 @@ export default function EditorReviewPage() {
     try {
       const body = note || undefined
       switch (label) {
-        case 'approve': await editorAPI.approveArticle(id, body); break
+        case 'approve':
+          // This explicit editor approval completes both legal lifecycle steps.
+          await editorAPI.approveArticle(id, body)
+          await editorAPI.publishArticle(id)
+          break
         case 'reject': await editorAPI.rejectArticle(id, body); break
         case 'correction': await editorAPI.requestCorrection(id, body); break
         case 'publish': await editorAPI.publishArticle(id); break
@@ -291,7 +295,7 @@ export default function EditorReviewPage() {
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 <Check className="h-4 w-4" />
-                {t('editor.review.approve')}
+                Approve & publish
               </button>
             )}
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const Article = require('../models/Article');
+const GlobalNewsItem = require('../models/GlobalNewsItem');
 const Category = require('../models/Category');
 const User = require('../models/User');
 const WriterProfile = require('../models/WriterProfile');
@@ -14,6 +15,8 @@ const { protect, authorize, requirePermission, can } = require('../middleware/au
 const { PERMISSIONS } = require('../config/permissions');
 const notificationService = require('../services/notificationService');
 const geminiService = require('../services/geminiService');
+const aiPhotoService = require('../services/aiPhotoService');
+const publisherArticleService = require('../services/publisherArticleService');
 const workflow = require('../services/articleWorkflow');
 const lifecycle = require('../utils/articleLifecycle');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
@@ -32,6 +35,70 @@ const storyMedia = require('../services/storyMedia');
 const revisions = require('../utils/articleRevisions');
 
 const router = express.Router();
+
+// Wikimedia Commons search for the writer's article editor.
+router.post('/photos/commons', protect, requirePermission([PERMISSIONS.writeStories]), async (req, res, next) => {
+  try {
+    const topic = plainText(req.body?.topic, { maxLength: 400 });
+    if (topic.trim().length < 4) return errorResponse(res, 400, 'Enter at least four characters describing the image');
+    const result = await aiPhotoService.search(topic, { limit: 8 });
+    return successResponse(res, 200, 'Wikimedia Commons images', { photos: result.photos || [], note: result.note || '' });
+  } catch (error) { next(error); }
+});
+
+// Create an independently editable, writer-owned RADAR draft from a global lead.
+// Writers can publish it from their own account after reviewing the text and image.
+router.post('/global-news/:id/draft', protect, requirePermission([PERMISSIONS.writeStories]), async (req, res, next) => {
+  try {
+    const lead = await GlobalNewsItem.findById(req.params.id);
+    if (!lead) return errorResponse(res, 404, 'International news lead not found');
+    if (!geminiService.isConfigured()) return errorResponse(res, 503, 'The AI writer is not connected. Ask the newsroom to configure GEMINI_API_KEY.');
+    const category = await Category.findOne({ slug: 'world', isActive: { $ne: false } });
+    if (!category) return errorResponse(res, 503, 'The World category is not available.');
+    const research = lead.sourceContent
+      ? { status: lead.extractionStatus || 'extracted', text: lead.sourceContent, title: lead.title, author: lead.sourceAuthor || '', publishedAt: lead.sourcePublishedAt || '', images: lead.sourceImages || [], wordCount: lead.sourceWordCount || 0, url: lead.link }
+      : await publisherArticleService.fetchPublisherArticle(lead.link);
+    const draft = await geminiService.writeGlobalNewsDraft({
+      title: lead.title, sourceTitle: research.title || lead.title,
+      description: research.description || lead.description, sourceContent: research.text || '',
+      sourceAuthor: research.author || '', sourcePublishedAt: research.publishedAt || '',
+      extractionStatus: research.status || 'unavailable', sourceName: lead.sourceName,
+      sourceUrl: research.url || lead.link, region: lead.region,
+    });
+    let imageUrl = (research.images || []).find((entry) => entry?.url)?.url || lead.imageUrl || '';
+    let imageCredit = imageUrl ? (lead.imageCredit || lead.sourceName || 'Original publisher') : '';
+    let imageSourceUrl = imageUrl ? (lead.imageSourceUrl || lead.link) : '';
+    let imageCaption = imageUrl ? (lead.imageCaption || 'Original publisher image; verify reuse rights before publication.') : '';
+    if (!imageUrl) {
+      const commons = await aiPhotoService.search(draft.title || lead.title, { limit: 1 }).catch(() => ({ photos: [] }));
+      const photo = commons.photos?.[0];
+      if (photo?.url) {
+        imageUrl = photo.url; imageCredit = photo.credit || 'Wikimedia Commons contributor';
+        imageSourceUrl = photo.pageUrl || photo.originalUrl || ''; imageCaption = photo.why || draft.title;
+      }
+    }
+    const sourceUrl = research.url || lead.link;
+    const article = await Article.create({
+      title: plainText(draft.title, { maxLength: 200 }),
+      slug: (generateSlug(draft.title) || 'world-news') + '-' + Date.now(),
+      summary: cleanText(draft.summary, { maxLength: 600 }),
+      metaDescription: plainText(draft.metaDescription || draft.summary, { maxLength: 200 }),
+      content: cleanText(draft.content, { maxLength: 60000 }),
+      featuredImage: safeMediaUrl(imageUrl), imageCredit: plainText(imageCredit, { maxLength: 160 }),
+      imageCaption: plainText(imageCaption, { maxLength: 240 }), imageSourceUrl: safeMediaUrl(imageSourceUrl),
+      sourceResearch: { extractionStatus: research.status || 'unavailable', sourceWordCount: research.wordCount || 0, sourceAuthor: research.author || '', sourcePublishedAt: research.publishedAt || '', extractedAt: research.extractedAt || null, originalUrl: sourceUrl, usedFullSource: Boolean(draft.research?.usedFullSource) },
+      author: req.user._id, category: category._id, tags: cleanTags(draft.tags, { max: 6 }),
+      language: 'en', country: lead.region || 'WORLD', aiGenerated: true, status: 'draft',
+      sources: [{ title: research.title || lead.title, organization: lead.sourceName, url: sourceUrl, type: 'link', accessedAt: new Date(), verificationStatus: 'pending', addedBy: req.user._id }],
+      reviewEvents: [{ from: 'new', to: 'draft', by: req.user._id, note: 'Writer-created international draft. Verify facts, source and image reuse rights before publication.', at: new Date() }],
+    });
+    return successResponse(res, 201, 'International story saved to your drafts. Review it before publishing.', { article, research: draft.research || null });
+  } catch (error) {
+    if (error.code === 'AI_NOT_CONFIGURED') return errorResponse(res, 503, error.message);
+    if (String(error.code || '').startsWith('AI_')) return errorResponse(res, 502, error.message);
+    next(error);
+  }
+});
 
 router.post('/apply', protect, async (req, res, next) => {
   try {

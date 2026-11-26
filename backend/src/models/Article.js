@@ -83,6 +83,8 @@ const articleSchema = new mongoose.Schema({
   // Readers have to be able to see which stories a machine wrote, and only the
   // admin portal can produce them.
   aiGenerated: { type: Boolean, default: false },
+  // The international lead that produced this draft; sparse uniqueness prevents retries from creating duplicates.
+  globalNewsLead: { type: mongoose.Schema.Types.ObjectId, ref: 'GlobalNewsItem', default: undefined },
   // "Breaking" is not a thing a story says about itself. It is the desk's
   // judgement that this one is worth a reader's attention right now, and it is
   // a spend: the label only means something on a page where it is rare. So it
@@ -160,6 +162,7 @@ const articleSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 articleSchema.index({ status: 1, publishedAt: -1 });
+articleSchema.index({ globalNewsLead: 1 }, { unique: true, sparse: true });
 // The options matter as much as the fields. Mongo reads a document's `language`
 // as the stemming language for its text index and refuses the write when the
 // value is one it does not know - "language override unsupported: rw" was the

@@ -279,7 +279,6 @@ async function run() {
     source:'Google Trends + RADAR Global News',
     sourceDeskUrl:SOURCE_DESK_URL,
     trendResearch,
-    storageCleanup,
     globalNews:{ fetched:Number(globalRefresh?.fetched||0), saved:Number(globalRefresh?.saved||0), failed:Number(globalRefresh?.failed||0) },
     storageCleanup,
     researched:leads.length,

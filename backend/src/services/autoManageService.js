@@ -98,7 +98,7 @@ function relatedScore(left, right) {
 
 function qualityGate(story, evidence) {
   const riskText = String(evidence?.topic || '') + ' ' + String(story?.title || '') + ' ' + String(story?.content || '');
-  if (/\b(election|electoral|vote|voting|candidate|president|minister|court|lawsuit|arrest|accused|allegation|murder|killed|death|outbreak|disease|medicine|medical|health|war|conflict|attack|terror|rape|child abuse)\b/i.test(riskText)) {
+  if (/\b(election|electoral|vote|voting|candidate|president|minister|court|lawsuit|arrest|accused|allegation|murder|killed|death|outbreak|epidemic|pandemic|disease|medicine|medical|healthcare|hospital|vaccine|clinical|war|conflict|attack|terror|rape|child abuse)\b/i.test(riskText)) {
     return 'Held: high-impact political, legal, health, violence or allegation-related reporting requires human editorial review.';
   }
   const sources = (evidence?.headlines || []).filter((item) => sourceDomain(item.url) && item.status === 'extracted' && String(item.text || '').trim().length >= MIN_SOURCE_TEXT_CHARS);
@@ -144,8 +144,11 @@ function uniqueCategoryTargets(categories) {
     const key = canonicalCategorySlug(category);
     if (!key || key === 'trending') continue;
     const current = grouped.get(key);
-    if (!current || category.slug === key) grouped.set(key, { category, ids: [category._id] });
-    else current.ids.push(category._id);
+    if (!current) grouped.set(key, { category, ids: [category._id] });
+    else {
+      current.ids.push(category._id);
+      if (category.slug === key) current.category = category;
+    }
   }
   return [...grouped.values()].sort((a,b) => Number(Boolean(b.category.parent))-Number(Boolean(a.category.parent)) || Number(a.category.order||0)-Number(b.category.order||0));
 }

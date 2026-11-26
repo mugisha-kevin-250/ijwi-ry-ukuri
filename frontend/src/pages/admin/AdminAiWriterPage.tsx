@@ -459,7 +459,7 @@ export default function AdminAiWriterPage() {
           <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">
             This mode runs on the backend, not your device. It researches current Google Trends leads, writes original stories, and automatically publishes at most one per run only when two distinct HTTPS publishers are available, the article passes length and completeness checks, and no recent duplicate is found. Weak stories stay in the review queue. Credited source images are attached when available; video is included only when a valid source video is supplied. Every run is logged. It never changes user roles, approves writer applications, or edits/deletes existing content.
           </p>
-          {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} articles created · {autoManage.lastResult?.published || 0} published · {autoManage.lastResult?.held || 0} held for safeguards.</p>}
+          {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} articles created · {autoManage.lastResult?.published || 0} published · {autoManage.lastResult?.held || 0} held for safeguards · {autoManage.lastResult?.mediaAttached || 0} media items attached.</p>}
           {autoManage.lastResult?.notes?.length ? (
             <ul className="mt-2 space-y-1 text-xs text-slate-600">
               {autoManage.lastResult.notes.slice(0, 3).map((item, index) => <li key={item.id || item.topic || index}>{item.title || item.topic || item.reason || item.error}</li>)}

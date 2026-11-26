@@ -41,13 +41,6 @@ async function setEnabled(enabled, ownerId) {
     { $set: { key: SETTING_KEY, value, description: 'RADAR autonomous research, safeguarded AI publishing, and action logging.' } },
     { upsert: true, new: true }
   );
-  // Keep the legacy AI writer switch aligned with the master Auto Manage
-  // control. Turning Auto Manage off also stops automatic AI publishing.
-  await PlatformSetting.findOneAndUpdate(
-    { key: 'aiAutoPublish' },
-    { $set: { key: 'aiAutoPublish', value: enabled === true, description: 'Managed by RADAR Auto Manage; independent manual AI publishing remains available.' } },
-    { upsert: true, new: true }
-  );
   return getConfig();
 }
 
@@ -62,6 +55,10 @@ function sourceDomain(url) {
 }
 
 function qualityGate(story, evidence) {
+  const riskText = String(evidence?.topic || '') + ' ' + String(story?.title || '') + ' ' + String(story?.content || '');
+  if (/\\b(election|electoral|vote|voting|candidate|president|minister|court|lawsuit|arrest|accused|allegation|murder|killed|death|outbreak|disease|medicine|medical|health|war|conflict|attack|terror|rape|child abuse)\\b/i.test(riskText)) {
+    return 'Held: high-impact political, legal, health, violence or allegation-related reporting requires human editorial review.';
+  }
   const sources = (evidence?.headlines || []).filter((item) => sourceDomain(item.url));
   const domains = new Set(sources.map((item) => sourceDomain(item.url)));
   const paragraphs = Array.isArray(story?.paragraphs) ? story.paragraphs.filter((part) => String(part || '').trim().length >= 45) : [];

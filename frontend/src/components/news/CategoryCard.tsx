@@ -29,7 +29,9 @@ export default function CategoryCard({ category, label, image, subsections = [],
       .catch((error) => console.warn('4K category image lookup unavailable:', error))
     return () => { active = false }
   }, [category.slug, category.name, label])
-  const displayImage = remoteImage?.url || image
+  // Only show a source image whose original file has been checked as true UHD 4K.
+  // Local legacy thumbnails are not silently presented as 4K substitutes.
+  const displayImage = remoteImage?.url
   return (
     <article
       className={cn(
@@ -46,8 +48,9 @@ export default function CategoryCard({ category, label, image, subsections = [],
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <span className="flex h-full w-full items-center justify-center text-white/70">
+          <span className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/75">
             <Tag className="h-10 w-10" aria-hidden="true" />
+            <span className="text-xs font-semibold">{remoteImage === null ? 'Finding a verified 4K image…' : '4K image not available yet'}</span>
           </span>
         )}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pb-3 pt-8">

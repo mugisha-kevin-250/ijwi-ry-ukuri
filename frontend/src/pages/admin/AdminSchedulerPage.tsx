@@ -34,6 +34,7 @@ const JOB_LABELS: Record<string, string> = {
   radio: 'Assemble the bulletin',
   scores: 'Warm the scores page',
   'global-news': 'Refresh global news feeds',
+  'radar-auto-manage': 'RADAR autonomous newsroom',
   'weekly-pay': 'Close the pay week',
 }
 

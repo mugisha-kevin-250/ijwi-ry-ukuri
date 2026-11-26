@@ -181,7 +181,9 @@ router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform
     // source links, captions and credits attached so an editor can verify reuse
     // permission before publication.
     const extractedImages = (sourceResearch.images || []).filter((entry) => safeMediaUrl(entry.url));
-    const image = safeMediaUrl(extractedImages[0]?.url || claimedLead.imageUrl);
+    const extractedFeatured = extractedImages.find((entry) => safeMediaUrl(entry.url));
+    const image = safeMediaUrl(extractedFeatured?.url || claimedLead.imageUrl);
+    const featuredIsPublisherExtract = Boolean(extractedFeatured && image === safeMediaUrl(extractedFeatured.url));
     const gallery = extractedImages.filter((entry) => safeMediaUrl(entry.url) && safeMediaUrl(entry.url) !== image).slice(0, 8)
       .map((entry) => ({
         kind: 'image',
@@ -200,9 +202,9 @@ router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform
       metaDescription: plainText(draft.metaDescription, { maxLength: 200 }),
       content: cleanText(draft.content, { maxLength: 60000 }),
       featuredImage: image || '',
-      imageCredit: image ? sourceName : '',
-      imageCaption: image ? 'Image supplied by the original publisher. Confirm reuse rights before publication.' : '',
-      imageSourceUrl: image ? (sourceLink || '') : '',
+      imageCredit: image ? plainText(featuredIsPublisherExtract ? (extractedFeatured.credit || sourceName) : (claimedLead.imageCredit || sourceName), { maxLength: 160 }) : '',
+      imageCaption: image ? plainText(featuredIsPublisherExtract ? (extractedFeatured.caption || 'Image supplied by the original publisher; verify reuse rights.') : (claimedLead.imageCaption || 'Image supplied by the source; verify reuse rights.'), { maxLength: 240 }) : '',
+      imageSourceUrl: image ? (featuredIsPublisherExtract ? sourceLink : (safeMediaUrl(claimedLead.imageSourceUrl) || sourceLink || '')) : '',
       media: gallery,
       sourceResearch: {
         extractionStatus: sourceResearch.status || 'unavailable',

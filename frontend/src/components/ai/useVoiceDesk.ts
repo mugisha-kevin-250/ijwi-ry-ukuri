@@ -106,6 +106,21 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
   // page that no longer exists starts a listener nobody can see or stop.
   const alive = useRef(true)
   const voices = useRef<SpeechSynthesisVoice[]>([])
+  // Which voice chat this is. Stopping and starting the chat, leaving the page,
+  // or being refused the microphone all change it, and a sentence that is still
+  // being spoken when that happens must not hand the microphone to a
+  // conversation that no longer exists - that is how a stopped chat came back
+  // showing "voice chat is on" over a dead listener.
+  const chatSession = useRef(0)
+  // Chrome allows one recognition session at a time and needs a moment between
+  // them, so a restart is always armed through this timer, never started twice.
+  const listenTimer = useRef<number | undefined>(undefined)
+  const lastStopped = useRef(0)
+  const listeningRef = useRef(false)
+  // How many times in a row the microphone was opened and heard nothing. Three
+  // and the chat ends by itself rather than pulsing at a quiet room forever.
+  const silentTries = useRef(0)
+  const SILENT_RETRY_LIMIT = 3
 
   const micSupported = useRef(Boolean(recognitionCtor())).current
   const voiceSupported = useRef(typeof window !== 'undefined' && 'speechSynthesis' in window).current
@@ -126,29 +141,90 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
     return () => window.speechSynthesis.removeEventListener('voiceschanged', load)
   }, [voiceSupported])
 
-  // Leaving the page mid-sentence must not leave a voice talking over the news.
+  /**
+   * Close the microphone session that is open, without it reporting an ending.
+   *
+   * An aborted session still fires its `onend`, and a session that is being
+   * replaced has nothing left to say. Leaving that handler attached is how a
+   * restart armed a second restart: the desk then showed "voice chat is on"
+   * over a listener that had already been killed by the one after it.
+   */
+  const killRecognition = useCallback(() => {
+    const previous = recognition.current
+    recognition.current = null
+    listeningRef.current = false
+    lastStopped.current = Date.now()
+    if (!previous) return
+    previous.onresult = null
+    previous.onerror = null
+    previous.onend = null
+    previous.abort()
+  }, [])
+
+  const cancelArmedListen = useCallback(() => {
+    if (listenTimer.current !== undefined) window.clearTimeout(listenTimer.current)
+    listenTimer.current = undefined
+  }, [])
+
+  /**
+   * Hold the floor for the reader again, a beat after the last session closed.
+   *
+   * Browsers keep one recognition running at a time and need the moment between
+   * them to let go, so a re-arm always goes through this timer instead of
+   * starting a second listener on top of the first. A chat that hears nothing
+   * three times in a row ends by itself: silence is the reader having stopped,
+   * and a button pulsing at an empty room is not a conversation.
+   */
+  const armAgain = useCallback(
+    (delay = 320) => {
+      if (!alive.current || !chatRef.current) return
+      if (silentTries.current >= SILENT_RETRY_LIMIT) {
+        chatRef.current = false
+        setChatOn(false)
+        cancelArmedListen()
+        return
+      }
+      silentTries.current += 1
+      cancelArmedListen()
+      const wait = Math.max(delay, 400 - (Date.now() - lastStopped.current))
+      listenTimer.current = window.setTimeout(() => {
+        listenTimer.current = undefined
+        if (alive.current && chatRef.current) listenRef.current()
+      }, wait)
+    },
+    [cancelArmedListen],
+  )
+
+  // Leaving the page mid-sentence must not leave a voice talking over the news,
+  // or an armed timer that opens a microphone on a page nobody is looking at.
   useEffect(() => {
     alive.current = true
     return () => {
       alive.current = false
       chatRef.current = false
-      recognition.current?.abort()
+      chatSession.current += 1
+      cancelArmedListen()
+      killRecognition()
       if (voiceSupported) window.speechSynthesis.cancel()
     }
-  }, [voiceSupported])
+  }, [cancelArmedListen, killRecognition, voiceSupported])
 
   const stopListening = useCallback(() => {
-    recognition.current?.stop()
+    cancelArmedListen()
+    killRecognition()
     setListening(false)
-  }, [])
+  }, [cancelArmedListen, killRecognition])
 
   const startListening = useCallback(() => {
     const Ctor = recognitionCtor()
-    if (!Ctor) return
+    // A session that is already open is never replaced by a second one: the
+    // browser would drop the first, and the reader would be left holding a
+    // button that says the desk is listening while nothing is listening.
+    if (!Ctor || listeningRef.current) return
     if (voiceSupported) window.speechSynthesis.cancel()
+    killRecognition()
 
     const rec = new Ctor()
-    recognition.current?.abort()
     recognition.current = rec
     rec.lang = voiceFor(language)
     rec.interimResults = true
@@ -166,33 +242,53 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
       setHeard(text.trim())
     }
     rec.onerror = (event) => {
-      const denied = event?.error === 'not-allowed' || event?.error === 'service-not-allowed'
-      setMicError(denied ? 'denied' : event?.error === 'no-speech' ? '' : 'failed')
-      setListening(false)
+      const code = event?.error
+      const denied = code === 'not-allowed' || code === 'service-not-allowed'
+      setMicError(denied ? 'denied' : code === 'no-speech' ? '' : 'failed')
       // A microphone the reader will not open, or a browser that needs one
       // they have not allowed, cannot carry a conversation: the chat ends
       // rather than pulsing at them forever.
-      if (denied || event?.error === 'service-not-allowed') setChatOn(false)
+      if (denied) {
+        chatRef.current = false
+        setChatOn(false)
+        cancelArmedListen()
+      }
     }
     rec.onend = () => {
+      lastStopped.current = Date.now()
+      listeningRef.current = false
       setListening(false)
       setHeard('')
       const question = said.trim()
       // The dictation is the question: a reader who pressed a microphone and
       // said a sentence should not have to press anything else to ask it.
-      if (question) onAsk.current(question)
+      if (question) {
+        silentTries.current = 0
+        onAsk.current(question)
+        return
+      }
+      // A session that closed with nothing said is not the end of a
+      // conversation. The reader coughed, or thought for a second, and the desk
+      // is still holding the floor for them.
+      if (chatRef.current) armAgain()
     }
 
     setMicError('')
     setHeard('')
+    listeningRef.current = true
     setListening(true)
     try {
       rec.start()
     } catch {
+      lastStopped.current = Date.now()
+      listeningRef.current = false
       setListening(false)
       setMicError('failed')
+      // The browser not being ready is not the reader's mistake; ask once more
+      // while the chat is still open.
+      if (chatRef.current) armAgain(600)
     }
-  }, [language, voiceSupported])
+  }, [armAgain, cancelArmedListen, killRecognition, language, voiceSupported])
 
   /**
    * The answer, said out loud in a woman's voice.
@@ -208,14 +304,25 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
   const say = useCallback(
     (text: string) => {
       const clean = String(text || '').trim()
+      // The conversation this sentence belongs to. A sentence cancelled because
+      // the reader stopped the chat and started it again must not hand the
+      // microphone to the new one on top of the listener that already has it.
+      const session = chatSession.current
       const handBack = () => {
-        if (alive.current && chatRef.current) listenRef.current()
+        if (!alive.current || !chatRef.current || chatSession.current !== session) return
+        armAgain(220)
       }
       if (!voiceSupported || !clean) {
         handBack()
         return
       }
-      if (!speakRef.current) return
+      // A reader who turned speaking off is still in a voice chat: the desk has
+      // nothing to say out loud, so it gives the floor straight back rather
+      // than going quiet and deaf at the same moment.
+      if (!speakRef.current) {
+        handBack()
+        return
+      }
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(clean.slice(0, 1200))
       const lang = voiceFor(language)
@@ -242,7 +349,7 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
       setSpeaking(true)
       window.speechSynthesis.speak(utterance)
     },
-    [language, voiceSupported],
+    [armAgain, language, voiceSupported],
   )
 
   const stopSpeaking = useCallback(() => {
@@ -263,17 +370,29 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
    */
   const toggleChat = useCallback(() => {
     if (chatRef.current) {
+      // This conversation is over: its number is retired first, so a sentence
+      // still being cancelled cannot come back and open a listener for it.
+      chatSession.current += 1
       chatRef.current = false
       setChatOn(false)
+      cancelArmedListen()
       setListening(false)
       setHeard('')
-      recognition.current?.abort()
+      silentTries.current = 0
+      killRecognition()
       stopSpeaking()
       return
     }
+    chatSession.current += 1
+    silentTries.current = 0
+    // The ref is set as well as the state, because the microphone reports its
+    // ending before React has rendered the button: a chat that is only "on" in
+    // the next render is a chat that re-arms nothing when the first sentence
+    // finishes.
+    chatRef.current = true
     setChatOn(true)
     startListening()
-  }, [startListening, stopSpeaking])
+  }, [cancelArmedListen, killRecognition, startListening, stopSpeaking])
 
   /**
    * The reader's own place, asked for once and only when a question needs it.

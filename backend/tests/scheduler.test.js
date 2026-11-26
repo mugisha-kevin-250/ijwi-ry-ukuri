@@ -58,6 +58,7 @@ async function timedStory(title) {
     slug: `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`,
     summary: 'A short summary of the story.',
     content: 'One two three four five six seven eight nine ten words of body text.',
+    featuredImage: 'https://images.example.test/scheduled-story.jpg',
     author: owner._id,
     category: categoryId,
     status: 'approved',

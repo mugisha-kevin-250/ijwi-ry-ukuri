@@ -444,8 +444,6 @@ export default function RadarAiPage() {
         </form>
       )}
 
-      <p className="mt-4 max-w-2xl text-[11px] leading-relaxed text-slate-500">{t('ai.disclaimer')}</p>
-
       <div className="mt-4 flex flex-wrap gap-3 text-xs font-bold">
         <Link to="/articles" className="inline-flex items-center gap-1 text-blue-700 hover:underline">
           {t('nav.articles')}

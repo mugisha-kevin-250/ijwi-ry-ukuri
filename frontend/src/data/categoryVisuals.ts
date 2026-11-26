@@ -181,10 +181,10 @@ const CATEGORY_SEARCH_TERMS: Record<string, string> = {
   medicine: 'medical research hospital',
   science: 'science laboratory research',
   climate: 'climate environment nature',
-  middleEast: 'Middle East city landscape',
+  middleeast: 'Middle East city landscape',
   americas: 'Americas city landscape',
   europe: 'Europe city landscape',
-  asiaPacific: 'Asia Pacific landscape',
+  asiapacific: 'Asia Pacific landscape',
 }
 function categorySearchTerm(label: string): string {
   const key = normalize(label).replace(/[^a-z0-9]/g, '')

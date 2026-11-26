@@ -260,7 +260,7 @@ async function run() {
   if (!admin || admin.role !== 'ADMIN' || admin.isActive === false) return { skipped:true, reason:'The owner account is unavailable; no content was changed.' };
 
   const storageCleanup = await storageManager.runCleanup(admin._id).catch(error => ({ error: String(error?.message || error).slice(0, 200) }));
-  if (storageCleanup?.error || !storageCleanup?.after || storageCleanup.after.usedPercent >= 60) {
+  if (storageCleanup?.error || !storageCleanup?.after || (storageCleanup.after.usedPercent >= 60 || storageCleanup.after.uploadStorage?.usedPercent >= 60)) {
     const reason = storageCleanup?.error
       ? 'MongoDB storage could not be measured safely; RADAR paused new AI content for this pass.'
       : 'MongoDB remains at or above the 60% safety limit after eligible cleanup; RADAR paused new AI content.';

@@ -299,6 +299,77 @@ export default function AiReviewQueue({ reloadKey = 0 }: { reloadKey?: number })
               {paragraphs(preview.content).map((block, index) => <p key={index}>{block}</p>)}
             </div>
 
+            {preview.sourceResearch && (
+              <section className="mt-6 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                <h4 className="text-sm font-bold text-slate-900">Publisher research & provenance</h4>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-700">
+                    Source extraction: {preview.sourceResearch.extractionStatus || 'unknown'}
+                  </span>
+                  {preview.sourceResearch.usedFullSource && (
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800">Full source used</span>
+                  )}
+                  {!!preview.sourceResearch.sourceWordCount && (
+                    <span className="rounded-full bg-white px-2.5 py-1 text-slate-600">
+                      {preview.sourceResearch.sourceWordCount.toLocaleString()} source words
+                    </span>
+                  )}
+                </div>
+                {(preview.sourceResearch.sourceAuthor || preview.sourceResearch.sourcePublishedAt) && (
+                  <p className="mt-2 text-xs text-slate-600">
+                    {preview.sourceResearch.sourceAuthor ? `By ${preview.sourceResearch.sourceAuthor}` : ''}
+                    {preview.sourceResearch.sourceAuthor && preview.sourceResearch.sourcePublishedAt ? ' · ' : ''}
+                    {preview.sourceResearch.sourcePublishedAt || ''}
+                  </p>
+                )}
+                {preview.sourceResearch.originalUrl && (
+                  <a href={preview.sourceResearch.originalUrl} target="_blank" rel="noreferrer"
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline">
+                    Open original publisher article <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+                <p className="mt-2 text-xs leading-5 text-slate-600">
+                  Publisher claims still require editorial verification. Check image reuse rights and attribution before publication.
+                </p>
+              </section>
+            )}
+
+            {((preview.sources?.length || 0) > 0 || preview.featuredImage || (preview.media?.length || 0) > 0) && (
+              <section className="mt-5 rounded-xl border border-slate-200 p-4">
+                <h4 className="text-sm font-bold text-slate-900">Source links & images</h4>
+                {preview.sources?.length ? (
+                  <ul className="mt-2 space-y-1.5 text-sm">
+                    {preview.sources.map((source, index) => (
+                      <li key={source._id || source.url || index}>
+                        {source.url ? (
+                          <a href={source.url} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
+                            {source.organization || source.title || 'Open source'} <ExternalLink className="inline h-3 w-3" />
+                          </a>
+                        ) : <span className="text-slate-600">{source.title || 'Source'}</span>}
+                        {source.verificationStatus && <span className="ml-2 text-xs text-slate-500">({source.verificationStatus})</span>}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {preview.featuredImage && (
+                    <div className="min-w-0">
+                      <img src={preview.featuredImage} alt={preview.imageCaption || 'Publisher supplied featured image'} className="h-36 w-full rounded-lg object-cover" />
+                      <p className="mt-1 text-xs text-slate-600">{preview.imageCredit || 'Publisher image'}{preview.imageCaption ? ` · ${preview.imageCaption}` : ''}</p>
+                      <a href={preview.imageSourceUrl || preview.featuredImage} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-700 hover:underline">Open image/source link</a>
+                    </div>
+                  )}
+                  {(preview.media || []).filter((item) => item.kind === 'image').map((item, index) => (
+                    <div key={item._id || item.url || index} className="min-w-0">
+                      <img src={item.url} alt={item.caption || 'Publisher supplied image'} className="h-36 w-full rounded-lg object-cover" />
+                      <p className="mt-1 text-xs text-slate-600">{item.credit || 'Publisher image'}{item.caption ? ` · ${item.caption}` : ''}</p>
+                      <a href={item.url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-700 hover:underline">Open original image</a>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {preview.tags?.length > 0 && (
               <p className="mt-4 flex flex-wrap gap-1.5">
                 {preview.tags.map((tag) => (

@@ -11,7 +11,8 @@
     "ads-txt": "node scripts/generate-ads-txt.mjs",
     "prebuild": "node scripts/generate-sitemap.mjs && node scripts/generate-ads-txt.mjs",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postbuild": "node scripts/finalize-prerendered-articles.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

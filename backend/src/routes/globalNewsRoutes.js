@@ -257,7 +257,11 @@ router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform
 
     return res.status(201).json({
       success: true,
-      message: draft.research?.usedFullSource\n        ? 'Publisher article researched and converted into a detailed original RADAR draft. It has not been published.'\n        : 'A limited-source RADAR draft was created because the publisher page did not expose its full article. Review the extraction note before publication.',\n      research: draft.research,\n      extractionNote: sourceResearch.reason || '',
+      message: draft.research?.usedFullSource
+        ? 'Publisher article researched and converted into a detailed original RADAR draft. It has not been published.'
+        : 'A limited-source RADAR draft was created because the publisher page did not expose its full article. Review the extraction note before publication.',
+      research: draft.research,
+      extractionNote: sourceResearch.reason || '',
       item: claimedLead,
       article,
       alreadyCreated: false,

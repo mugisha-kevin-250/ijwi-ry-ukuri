@@ -482,37 +482,57 @@ async function writeStory({ topic, angle, audience = 'rwanda', evidence, region 
  * reproduce the publisher's full article. The model must keep uncertainty
  * visible and must not invent missing facts, quotes, dates or statistics.
  */
-async function writeGlobalNewsDraft({ title, description = '', sourceName, sourceUrl, region } = {}) {
-  const headline = String(title || '').trim().slice(0, 300);
+async function writeGlobalNewsDraft({ title, description = '', sourceName, sourceUrl, region, sourceContent = '', sourceTitle = '', sourceAuthor = '', sourcePublishedAt = '', extractionStatus = 'unavailable' } = {}) {
+  const headline = String(sourceTitle || title || '').trim().slice(0, 300);
   const excerpt = String(description || '').trim().slice(0, 3000);
+  const fullSource = String(sourceContent || '').trim().slice(0, 30000);
+  const hasFullSource = extractionStatus === 'extracted' && fullSource.length >= 500;
   if (!headline) {
     const error = new Error('This international lead has no headline to draft from');
     error.code = 'AI_EMPTY';
     throw error;
   }
+  if (!hasFullSource && !excerpt) {
+    const error = new Error('The publisher did not provide enough accessible material to create a responsible news draft.');
+    error.code = 'AI_SOURCE_INSUFFICIENT';
+    throw error;
+  }
   const prompt = [
-    'You are an English-language international news editor writing an ORIGINAL draft for RADAR, a Rwanda-based newsroom.',
-    'Translate the source headline into clear, natural English if it is not already English.',
-    'Create a concise, original news draft using ONLY the source headline and short excerpt supplied below.',
-    'Do not copy sentences or reproduce the publisher article. Do not claim RADAR independently confirmed anything.',
-    'Do not invent people, places, dates, quotes, numbers, causes, outcomes or context that is not explicitly in the supplied material.',
-    'If the supplied material is too limited, write a short cautious brief and clearly state that details remain limited and readers should consult the attributed source. Do not pad the story with guesses.',
-    'Use 2 to 4 short paragraphs. The headline, summary and body must all be in English.',
-    'Return only JSON with keys: title, metaDescription, summary, paragraphs, tags.',
-    'title must be at most 100 characters; metaDescription at most 155; summary at most 220; paragraphs is an array of 2 to 4 strings; tags is an array of 3 to 5 lowercase strings.',
+    'You are a senior international news reporter and editor writing an ORIGINAL, detailed English-language RADAR report for a Rwanda-based newsroom.',
+    hasFullSource
+      ? 'A publicly accessible publisher article was retrieved. Use its complete extracted text as the primary source material. Read it carefully and produce a substantial, well-structured report.'
+      : 'The publisher article could not be fully extracted. Do not pretend to have read it. Write only a cautious brief from the supplied excerpt and clearly disclose the limitation.',
+    'Write in professional newsroom English: precise, neutral, clear, informative, well organised and readable.',
+    'Do not copy the publisher wording or reproduce its article. Paraphrase and independently structure the facts. Do not invent facts, quotes, numbers, dates, names, motives, causes or context.',
+    'Preserve important verified details: who, what, when, where, why/how only where the source actually explains them. Distinguish allegations, claims, estimates and confirmed facts.',
+    'Do not imply RADAR independently verified a publisher claim. Attribute claims to the publisher, named official, report or institution as stated in the source.',
+    'Do not add generic filler or repeat the same point to increase length. If the source is short, keep the report proportionate.',
+    'Return JSON keys: title, metaDescription, summary, paragraphs, tags.',
+    hasFullSource
+      ? 'For a substantive source, write 6 to 10 coherent paragraphs (normally about 450 to 800 words when the source supports that length). Include a strong lead, key developments, relevant background present in the source, important figures/statements, implications only when explicitly supported, and a concise ending. Use shorter length if source material does not support it.'
+      : 'Write 2 to 4 short paragraphs only. State in the report that the publisher page could not be fully accessed and link readers to the original source for further details.',
+    'title at most 100 characters; metaDescription at most 155; summary at most 260; paragraphs is an array of 2 to 10 strings; tags is an array of 3 to 6 lowercase strings.',
+    'Return valid JSON only. No markdown fences.',
     '',
-    'SOURCE ATTRIBUTION:',
+    'SOURCE METADATA:',
     'Publisher: ' + String(sourceName || 'Original publisher').slice(0, 120),
-    'Publisher link: ' + String(sourceUrl || '').slice(0, 1200),
+    'Publisher URL: ' + String(sourceUrl || '').slice(0, 1200),
     'Region: ' + String(region || 'International').slice(0, 80),
-    'Original headline: ' + headline,
-    'Publisher excerpt (may be empty): ' + (excerpt || '[No excerpt was supplied]'),
+    'Source author: ' + String(sourceAuthor || 'Not supplied').slice(0, 200),
+    'Source publication date: ' + String(sourcePublishedAt || 'Not supplied').slice(0, 100),
+    'Source extraction status: ' + extractionStatus,
+    'Publisher headline: ' + headline,
+    'Publisher excerpt: ' + (excerpt || '[No excerpt supplied]'),
+    '',
+    'FULL ACCESSIBLE PUBLISHER ARTICLE TEXT:',
+    hasFullSource ? fullSource : '[Not available. Do not infer missing details.]',
   ].join('\n');
   const text = await callGemini({
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    temperature: 0.25,
-    maxOutputTokens: 1200,
+    temperature: 0.2,
+    maxOutputTokens: hasFullSource ? 6500 : 1400,
     responseMimeType: 'application/json',
+    timeoutMs: TIMEOUT_MS,
   });
   let story;
   try { story = parseStory(text); } catch (err) {
@@ -521,7 +541,9 @@ async function writeGlobalNewsDraft({ title, description = '', sourceName, sourc
     error.cause = err;
     throw error;
   }
-  if (!story.title || story.paragraphs.length < 2 || !story.summary) {
+  const paragraphs = (Array.isArray(story.paragraphs) ? story.paragraphs : [])
+    .map((paragraph) => String(paragraph || '').trim()).filter(Boolean).slice(0, 10);
+  if (!story.title || paragraphs.length < 2 || !story.summary) {
     const error = new Error('RADAR AI did not return a complete international draft');
     error.code = 'AI_EMPTY';
     throw error;
@@ -530,19 +552,20 @@ async function writeGlobalNewsDraft({ title, description = '', sourceName, sourc
     ...story,
     title: story.title.slice(0, 100),
     metaDescription: story.metaDescription.slice(0, 155),
-    summary: story.summary.slice(0, 220),
-    paragraphs: story.paragraphs.slice(0, 4),
-    tags: [...new Set([...story.tags, 'international', 'world-news'])].slice(0, 6),
-    content: story.paragraphs.slice(0, 4).join('\n\n'),
+    summary: story.summary.slice(0, 260),
+    paragraphs,
+    tags: [...new Set([...(story.tags || []), 'international', 'world-news'])].slice(0, 6),
+    content: paragraphs.join('\n\n'),
+    research: {
+      sourceExtractionStatus: extractionStatus,
+      sourceWordCount: fullSource ? fullSource.split(/\s+/).length : 0,
+      usedFullSource: hasFullSource,
+    },
     model: activeModel(),
     generatedAt: new Date().toISOString(),
   };
 }
 
-/**
- * Translate a batch of international desk headlines and short excerpts into
- * English in one model call. Original source text remains stored unchanged.
- */
 async function translateGlobalLeadMetadata(items = []) {
   const list = (Array.isArray(items) ? items : []).slice(0, 50).map((item, index) => ({
     id: String(item._id || index),

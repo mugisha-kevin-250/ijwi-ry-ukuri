@@ -66,7 +66,7 @@ function qualityGate(story, evidence) {
   const paragraphs = Array.isArray(story?.paragraphs) ? story.paragraphs.filter((part) => String(part || '').trim().length >= 45) : [];
   const body = String(story?.content || paragraphs.join('\n\n')).trim();
   if (sources.length < MIN_HEADLINES || domains.size < MIN_DISTINCT_PUBLISHERS) {
-    return 'Held: fewer than two distinct HTTPS publishers were available.';
+    return 'Held: fewer than two distinct HTTPS publisher pages with extracted article text were available.';
   }
   if (!String(story?.title || '').trim() || String(story.title).trim().length < 18) {
     return 'Held: headline did not pass the minimum quality check.';

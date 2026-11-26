@@ -367,7 +367,6 @@ export default function AdminAiWriterPage() {
     try {
       const updated = await adminAPI.setRadarAutoManage(!autoManage.enabled)
       setAutoManage(updated)
-      setStatus((current) => current ? { ...current, autoPublish: updated.enabled } : current)
       setNotice(updated.enabled
         ? 'RADAR AI Auto Manage is enabled. The backend will research on its schedule, even when your device is offline.'
         : 'RADAR AI Auto Manage is switched off.')
@@ -397,8 +396,7 @@ export default function AdminAiWriterPage() {
           <p className="text-sm font-semibold text-blue-700">Newsroom</p>
           <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">AI newsroom</h1>
           <p className="mt-1 text-sm text-slate-500">
-            See what readers are searching, have Gemini write the story, then approve it yourself. Only this portal
-            can reach the AI, and nothing reaches a reader without a decision here.
+            Write stories manually with editorial control, or enable Auto Manage for scheduled research and safeguarded automatic publishing.
           </p>
           {status?.model && (
             <p className="mt-2 text-xs text-slate-400">Model: {status.model}</p>

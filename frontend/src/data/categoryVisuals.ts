@@ -57,10 +57,7 @@ function visualFor(category?: { slug?: string; name?: string } | null): Category
   return ALIAS_TO_VISUAL.get(normalize(category.slug || '')) || ALIAS_TO_VISUAL.get(normalize(category.name || ''))
 }
 
-/** The picture a section is printed with; sections outside the table get none. */
-export function categoryImage(category?: { slug?: string; name?: string } | null): string | undefined {
-  return visualFor(category)?.image || undefined
-}
+/** The picture a section is printed with; sub-sections inherit their parent's picture. */
 
 /**
  * The section name in the language the reader is reading in, so a category

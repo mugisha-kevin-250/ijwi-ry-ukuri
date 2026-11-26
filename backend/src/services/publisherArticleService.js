@@ -156,6 +156,11 @@ async function fetchPublisherArticle(rawUrl) {
     let response;
     for (let hop = 0; hop <= 3; hop += 1) {
       await assertPublicHost(currentUrl);
+      const robots = await fetchRobots(currentUrl);
+      if (robots === null) return { status: 'restricted', reason: 'Publisher robots.txt could not be checked; extraction was skipped.' };
+      if (!robotsAllows(robots, new URL(currentUrl).pathname)) {
+        return { status: 'restricted', reason: 'Publisher robots.txt disallows automated article extraction.' };
+      }
       response = await requestText(currentUrl);
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         const location = response.headers.get('location');
@@ -173,9 +178,6 @@ async function fetchPublisherArticle(rawUrl) {
     if (Number(response.headers.get('content-length') || 0) > MAX_HTML_BYTES) return { status: 'unavailable', reason: 'Publisher page exceeds the safe extraction size.' };
     const html = await response.text();
     if (Buffer.byteLength(html, 'utf8') > MAX_HTML_BYTES) return { status: 'unavailable', reason: 'Publisher page exceeds the safe extraction size.' };
-    const robots = await fetchRobots(currentUrl);
-    if (robots === null) return { status: 'restricted', reason: 'Publisher robots.txt could not be checked; extraction was skipped.' };
-    if (!robotsAllows(robots, new URL(currentUrl).pathname)) return { status: 'restricted', reason: 'Publisher robots.txt disallows automated article extraction.' };
     const structured = jsonLdMetadata(html);
     const body = extractBody(html);
     const title = stripMarkup(meta(html, 'og:title') || structured.headline || structured.name || (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '');

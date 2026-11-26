@@ -368,7 +368,7 @@ export default function AdminAiWriterPage() {
       const updated = await adminAPI.setRadarAutoManage(!autoManage.enabled)
       setAutoManage(updated)
       setNotice(updated.enabled
-        ? 'RADAR AI Auto Manage is enabled. The backend will research on its schedule, even when your device is offline.'
+        ? 'RADAR AI Auto Manage is enabled. It will manage the Global News newsroom on the server, even when your device is offline.'
         : 'RADAR AI Auto Manage is switched off.')
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Auto Manage could not be updated.')
@@ -455,9 +455,9 @@ export default function AdminAiWriterPage() {
           </div>
           {!autoManage.configured && <p className="mt-3 text-xs text-amber-700">Connect GEMINI_API_KEY on the backend before enabling automation.</p>}
           <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">
-            This mode runs on the backend, not your device. It researches current Google Trends leads, writes original stories, and automatically publishes at most one per run only when two distinct HTTPS publisher articles can be safely extracted (including robots.txt permission), and the article passes length and completeness checks, and no recent duplicate is found. Weak stories stay in the review queue. Credited source images are attached when available; video is included only when a valid source video is supplied. Every run is logged. It never changes user roles, approves writer applications, or edits/deletes existing content.
+            This mode runs the newsroom on the backend, not your device. It reads new leads from the RADAR Global News desk, extracts permitted publisher articles, writes original reports with source attribution, and checks for duplicates and editorial risks. It may publish at most one story per run, and only when at least two distinct publishers provide full article text, the story passes quality checks, and a real UHD 4K featured image (at least 3840×2160 landscape or 2160×3840 portrait) has been verified. A story without a verified 4K image is never published. Available publisher video is attached with its source; video is optional. Every run is logged. It does not change user roles, approve writer applications, or edit/delete existing content. Source desk: https://www.radartimes.2bd.net/mugishaimekevin/global-news
           </p>
-          {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} articles created · {autoManage.lastResult?.published || 0} published · {autoManage.lastResult?.held || 0} held for safeguards.</p>}
+          {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} articles created · {autoManage.lastResult?.published || 0} published · {autoManage.lastResult?.held || 0} held · {autoManage.lastResult?.verified4kImages || 0} verified 4K images · {autoManage.lastResult?.videosAttached || 0} videos attached.</p>}
           {autoManage.lastResult?.notes?.length ? (
             <ul className="mt-2 space-y-1 text-xs text-slate-600">
               {autoManage.lastResult.notes.slice(0, 5).map((item, index) => <li key={item.id || item.topic || index}><span className="font-medium">{item.title || item.topic || item.error}</span>{item.outcome && <span className="ml-2 uppercase text-[10px] text-slate-500">{item.outcome}</span>}{item.reason && <span className="ml-2 text-slate-500">— {item.reason}</span>}</li>)}

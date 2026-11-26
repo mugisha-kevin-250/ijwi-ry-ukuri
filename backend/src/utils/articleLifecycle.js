@@ -70,6 +70,7 @@ function publishable(article) {
   if (!String(article.title || '').trim()) return 'The headline is empty';
   if (!String(article.summary || '').trim()) return 'The summary is empty';
   if (!String(article.content || '').trim()) return 'The story body is empty';
+  if (!String(article.featuredImage || '').trim()) return 'A featured image is required before a story can be published';
   if (!article.category) return 'The story has no section';
   if (!article.author) return 'The story has no author';
   return '';

@@ -110,6 +110,109 @@ function write(name, xml) {
 
 const articleUrl = (article) => `${SITE_URL}/article/${article.slug}`
 
+// Static article documents are written into public/ before Vite copies it to
+// dist/. Google and social crawlers therefore receive the real story metadata
+// and readable text in the first HTML response, without waiting for React/API JS.
+function htmlEscape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character])
+}
+
+function articlePlainText(value) {
+  if (typeof value !== 'string') return ''
+  return value
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<\/(p|div|h[1-6]|li|blockquote|section|article)>/gi, '\\n')
+    .replace(/<br\s*\/?>/gi, '\\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([\\da-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .split(/\\n+/)
+    .map((line) => line.replace(/\\s+/g, ' ').trim())
+    .filter(Boolean)
+}
+
+function renderPrerenderedArticle(article, shell) {
+  const canonical = articleUrl(article)
+  const title = `${article.title || 'News'} | RADAR`
+  const description = String(article.metaDescription || article.summary || '').trim().slice(0, 300)
+  const image = mediaUrl(article.featuredImage) || `${SITE_URL}/icons/icon-512x512.png`
+  const published = isoStamp(article.publishedAt || article.createdAt)
+  const modified = isoStamp(article.updatedAt || article.publishedAt || article.createdAt)
+  const author = article.author && typeof article.author === 'object' ? article.author : null
+  const category = article.category && typeof article.category === 'object' ? article.category : null
+  const paragraphs = articlePlainText(article.content || article.body || article.text || article.summary || '')
+  const body = paragraphs.length
+    ? paragraphs.map((paragraph) => `<p>${htmlEscape(paragraph)}</p>`).join('\\n')
+    : (description ? `<p>${htmlEscape(description)}</p>` : '')
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': article.isSponsored ? 'Article' : 'NewsArticle',
+    mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+    headline: article.title,
+    description: description || undefined,
+    image: [image],
+    datePublished: published || undefined,
+    dateModified: modified || undefined,
+    inLanguage: article.language || 'en',
+    isAccessibleForFree: true,
+    articleSection: category?.name || undefined,
+    keywords: Array.isArray(article.tags) ? article.tags.join(', ') : undefined,
+    author: author ? {
+      '@type': 'Person',
+      name: author.fullName || author.username || 'RADAR',
+      url: author._id ? `${SITE_URL}/user/${author._id}` : undefined,
+    } : { '@type': 'Organization', name: 'RADAR' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'RADAR TIMES',
+      url: `${SITE_URL}/`,
+      logo: { '@type': 'ImageObject', url: `${SITE_URL}/icons/icon-192x192.png` },
+    },
+  }
+  const safeSchema = JSON.stringify(schema).replace(/</g, '\\u003c')
+  let html = shell
+    .replace(/<title>[\\s\\S]*?<\\/title>/i, `<title>${htmlEscape(title)}</title>`)
+    .replace(/<meta name="description" content="[^"]*"\\s*\\/?\s*>/i, `<meta name="description" content="${htmlEscape(description)}" />`)
+    .replace(/<link rel="canonical" href="[^"]*"\\s*\\/?\s*>/i, `<link rel="canonical" href="${canonical}" />`)
+    .replace(/<meta property="og:type" content="[^"]*"\\s*\\/?\s*>/i, '<meta property="og:type" content="article" />')
+    .replace(/<meta property="og:title" content="[^"]*"\\s*\\/?\s*>/i, `<meta property="og:title" content="${htmlEscape(title)}" />`)
+    .replace(/<meta property="og:description" content="[^"]*"\\s*\\/?\s*>/i, `<meta property="og:description" content="${htmlEscape(description)}" />`)
+    .replace(/<meta property="og:url" content="[^"]*"\\s*\\/?\s*>/i, `<meta property="og:url" content="${canonical}" />`)
+    .replace(/<meta property="og:image" content="[^"]*"\\s*\\/?\s*>/i, `<meta property="og:image" content="${image}" />`)
+    .replace(/<meta name="twitter:title" content="[^"]*"\\s*\\/?\s*>/i, `<meta name="twitter:title" content="${htmlEscape(title)}" />`)
+    .replace(/<meta name="twitter:description" content="[^"]*"\\s*\\/?\s*>/i, `<meta name="twitter:description" content="${htmlEscape(description)}" />`)
+    .replace(/<meta name="twitter:image" content="[^"]*"\\s*\\/?\s*>/i, `<meta name="twitter:image" content="${image}" />`)
+  const staticStory = `<main id="radar-prerendered-story"><article><header><p><a href="/">RADAR TIMES</a> / <a href="/articles">News</a></p><h1>${htmlEscape(article.title)}</h1>${description ? `<p>${htmlEscape(description)}</p>` : ''}${author?.fullName ? `<p>By ${htmlEscape(author.fullName)}</p>` : ''}${published ? `<time datetime="${published}">${published.slice(0, 10)}</time>` : ''}</header>${article.featuredImage ? `<figure><img src="${image}" alt="${htmlEscape(article.title)}" width="1200" height="675" /><figcaption>${htmlEscape(article.imageCaption || '')}</figcaption></figure>` : ''}<div>${body}</div></article></main>`
+  html = html.replace('</head>', `<script type="application/ld+json">${safeSchema}</script>\\n</head>`)
+  html = html.replace('<div id="app"></div>', `<div id="app">${staticStory}</div>`)
+  return html
+}
+
+function writePrerenderedArticles(articles) {
+  const shellPath = path.join(root, 'public', 'index.html')
+  if (!fs.existsSync(shellPath)) throw new Error('Cannot prerender articles: public/index.html is missing')
+  const shell = fs.readFileSync(shellPath, 'utf8')
+  const outputRoot = path.join(root, 'public', 'article')
+  let written = 0
+  for (const article of articles) {
+    if (!article?.slug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(article.slug) || !article.title) continue
+    const directory = path.join(outputRoot, article.slug)
+    fs.mkdirSync(directory, { recursive: true })
+    fs.writeFileSync(path.join(directory, 'index.html'), renderPrerenderedArticle(article, shell))
+    written += 1
+  }
+  console.log(`static article pages: ${written} generated for Google and social crawlers`)
+}
+
 const publishedStamp = (article) => article.publishedAt || article.createdAt || null
 
 const byNewest = (articles) =>

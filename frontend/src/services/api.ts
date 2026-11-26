@@ -689,6 +689,16 @@ export interface AiWriterStatus {
   autoPublish: boolean
 }
 
+export interface RadarAutoManageStatus {
+  enabled: boolean
+  ownerId: string
+  lastRunAt: string | null
+  lastResult: { researched?: number; drafted?: number; duplicates?: number; held?: number; notes?: { id?: string; title?: string; category?: string; status?: string; topic?: string; error?: string }[] } | null
+  configured: boolean
+  intervalMinutes: number
+  mode: 'editorial-review'
+}
+
 export interface AiDraftResult {
   title: string
   summary: string
@@ -1193,6 +1203,34 @@ export const adminAPI = {
   deleteArticle: (id: string) =>
     apiClient.delete(`/admin/articles/${id}`),
 
+  getRadarAutoManage: async (): Promise<RadarAutoManageStatus> => {
+    const response = await apiClient.get('/admin/ai/auto-manage')
+    const payload = response.data.data as Partial<RadarAutoManageStatus> | undefined
+    return {
+      enabled: payload?.enabled === true,
+      ownerId: payload?.ownerId || '',
+      lastRunAt: payload?.lastRunAt || null,
+      lastResult: payload?.lastResult || null,
+      configured: payload?.configured === true,
+      intervalMinutes: Number(payload?.intervalMinutes || 15),
+      mode: 'editorial-review',
+    }
+  },
+
+  setRadarAutoManage: async (enabled: boolean): Promise<RadarAutoManageStatus> => {
+    const response = await apiClient.put('/admin/ai/auto-manage', { enabled })
+    const payload = response.data.data as Partial<RadarAutoManageStatus> | undefined
+    return {
+      enabled: payload?.enabled === true,
+      ownerId: payload?.ownerId || '',
+      lastRunAt: payload?.lastRunAt || null,
+      lastResult: payload?.lastResult || null,
+      configured: payload?.configured === true,
+      intervalMinutes: Number(payload?.intervalMinutes || 15),
+      mode: 'editorial-review',
+    }
+  },
+
   getAiStatus: async (): Promise<AiWriterStatus> => {
     const response = await apiClient.get('/admin/ai/status')
     const payload = response.data.data as Partial<AiWriterStatus> | undefined
@@ -1323,8 +1361,9 @@ export const adminAPI = {
   removeAudiusStationTrack: (id: string) =>
     apiClient.delete(`/admin/radio/audius/tracks/${encodeURIComponent(id)}`),
   /** What Google reports people searching, read by the server. */
-  getTrends: async (refresh = false): Promise<TrendRadar> => {
-    const response = await apiClient.get('/admin/trends', refresh ? { refresh: '1' } : undefined)
+  getTrends: async (refresh = false, geo?: string): Promise<TrendRadar> => {
+    const params = { ...(refresh ? { refresh: '1' } : {}), ...(geo ? { geo } : {}) }
+    const response = await apiClient.get('/admin/trends', Object.keys(params).length ? params : undefined)
     const payload = response.data.data as Partial<TrendRadar> | null
     return {
       provider: payload?.provider || 'google-trends',

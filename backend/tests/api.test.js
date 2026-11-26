@@ -138,7 +138,7 @@ test('article creation', async () => {
   const response = await request(app)
     .post('/api/writers/articles')
     .set('Authorization', `Bearer ${token}`)
-    .send({ title: 'My First Story', summary: 'A quick summary', content: 'This is full article text', category: categoryId, tags: ['news', 'rwanda'] });
+    .send({ title: 'My First Story', summary: 'A quick summary', content: 'This is full article text', featuredImage: 'https://images.example.test/first-story.jpg', category: categoryId, tags: ['news', 'rwanda'] });
 
   assert.equal(response.status, 201);
   articleId = response.body.data.article._id;
@@ -251,7 +251,7 @@ test('article approval and publish', async () => {
   const created = await request(app)
     .post('/api/writers/articles')
     .set('Authorization', `Bearer ${token}`)
-    .send({ title: 'Story For Review', summary: 'A summary', content: 'Full body text for the review desk', category: category._id });
+    .send({ title: 'Story For Review', summary: 'A summary', content: 'Full body text for the review desk', featuredImage: 'https://images.example.test/review-story.jpg', category: category._id });
   assert.equal(created.status, 201);
   const reviewId = created.body.data.article._id;
 
@@ -294,7 +294,7 @@ test('an author takes a story back only while nobody has reviewed it', async () 
   const created = await request(app)
     .post('/api/writers/articles')
     .set('Authorization', `Bearer ${token}`)
-    .send({ title: 'Story To Withdraw', summary: 'A summary', content: 'Body text that will be pulled back', category: category._id });
+    .send({ title: 'Story To Withdraw', summary: 'A summary', content: 'Body text that will be pulled back', featuredImage: 'https://images.example.test/withdraw-story.jpg', category: category._id });
   const withdrawId = created.body.data.article._id;
 
   await request(app).post(`/api/writers/articles/${withdrawId}/submit`).set('Authorization', `Bearer ${token}`);
@@ -607,7 +607,7 @@ test('a published story lands in the admin inbox', async () => {
   const created = await request(app)
     .post('/api/writers/articles')
     .set('Authorization', `Bearer ${token}`)
-    .send({ title: 'Inbox Story', summary: 'Something the admin has not seen yet', content: 'Body text of the inbox story.', category: categoryId });
+    .send({ title: 'Inbox Story', summary: 'Something the admin has not seen yet', content: 'Body text of the inbox story.', featuredImage: 'https://images.example.test/inbox-story.jpg', category: categoryId });
   const newId = created.body.data.article._id;
 
   const before = await Notification.countDocuments({ type: 'new_story' });
@@ -745,6 +745,7 @@ test('the owner publishing an AI story sends it live', async () => {
       title: 'Published AI Story',
       summary: 'The owner clicked publish.',
       content: 'One paragraph of a published story.',
+      featuredImage: 'https://images.example.test/published-ai-story.jpg',
       category: categoryId,
       publish: true
     });

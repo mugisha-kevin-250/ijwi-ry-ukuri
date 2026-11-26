@@ -705,6 +705,11 @@ export interface RadarAutoManageStatus {
     source?: string
     refreshed?: number
     researched?: number
+    categoriesChecked?: number
+    categoriesAlreadyCovered?: number
+    categoriesMatched?: number
+    trendResearch?: { liveRegions?: number; regionsChecked?: number; topics?: number; headlinesProcessed?: number; leadsSaved?: number }
+    globalNews?: { fetched?: number; saved?: number; failed?: number }
     drafted?: number
     published?: number
     duplicates?: number
@@ -718,7 +723,7 @@ export interface RadarAutoManageStatus {
   intervalMinutes: number
   sourceDeskUrl?: string
   imagePolicy?: string
-  mode: 'autonomous-publish-with-safeguards' | 'autonomous-global-news-manager'
+  mode: 'autonomous-publish-with-safeguards' | 'autonomous-global-news-manager' | 'autonomous-trends-and-global-news-manager'
 }
 
 export interface AiDraftResult {

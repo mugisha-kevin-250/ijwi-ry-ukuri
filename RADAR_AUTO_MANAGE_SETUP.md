@@ -21,7 +21,7 @@ Do not put the token in frontend variables, source code, or committed environmen
 
 Auto Manage can publish without the manager being online, but it is deliberately conservative:
 
-- At least two distinct HTTPS publisher domains must be present in the source feed.
+- At least two distinct HTTPS publisher articles must be safely extracted from their actual pages. RADAR checks redirects, public-host safety and publisher `robots.txt`; headline-only evidence is never enough for automatic publication.
 - The generated article must have a meaningful headline and summary, at least five substantive paragraphs, and at least 1,200 body characters.
 - Placeholder/AI-limitation copy is rejected and recent AI stories are checked for duplicate topics and source URLs.
 - At most one story is published per 15-minute pass. Other eligible drafts wait for another pass; weak stories remain in `pending_review`.

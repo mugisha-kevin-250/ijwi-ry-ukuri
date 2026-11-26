@@ -61,6 +61,8 @@ if (!jwtSecret) {
 module.exports = {
   PORT: process.env.PORT || 5000,
   MONGODB_URI: process.env.MONGODB_URI || '',
+  // Set this to the actual Atlas cluster storage allowance for accurate capacity reporting.
+  MONGODB_STORAGE_LIMIT_MB: Number(process.env.MONGODB_STORAGE_LIMIT_MB || 512),
   JWT_SECRET: jwtSecret,
   // Tokens are always HMAC-signed with this one algorithm; a verify call that
   // accepts whatever the token claims lets a forged algorithm through.

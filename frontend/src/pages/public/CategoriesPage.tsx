@@ -47,6 +47,14 @@ export default function CategoriesPage() {
     })
   }, [term, t])
 
+  const visibleSubsections = useMemo(() => SECTIONS.flatMap((section) =>
+    section.children.map((child) => ({ section, child }))
+  ).filter(({ section, child }) => {
+    if (!term) return true
+    const words = [t(child.labelKey), child.slug, ...child.aliases, t(section.labelKey)]
+    return words.some((value) => value.toLowerCase().includes(term))
+  }), [term, t])
+
   // Anything the section tree does not publish — a topic an admin made up
   // themselves — still gets a card here, on its long-standing /category page.
   const visibleTopics = useMemo(() => {
@@ -125,6 +133,22 @@ export default function CategoriesPage() {
                       label: t(child.labelKey),
                       href: `/${section.slug}/${child.slug}`,
                     }))}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {visibleSubsections.length > 0 && (
+            <section aria-labelledby="subsections-heading" className="space-y-4">
+              <h2 id="subsections-heading" className="text-xl font-bold text-[var(--color-text)]">Explore every topic</h2>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {visibleSubsections.map(({ section, child }) => (
+                  <CategoryCard
+                    key={section.slug + '-' + child.slug}
+                    category={{ _id: child.slug, name: child.slug, slug: child.slug }}
+                    label={t(child.labelKey)}
+                    image={categoryImage({ slug: child.slug })}
                   />
                 ))}
               </div>

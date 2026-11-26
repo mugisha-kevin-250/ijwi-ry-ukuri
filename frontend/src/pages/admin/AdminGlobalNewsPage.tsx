@@ -12,6 +12,7 @@ export default function AdminGlobalNewsPage() {
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [draftCreated, setDraftCreated] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -39,11 +40,12 @@ export default function AdminGlobalNewsPage() {
     finally { setBusy('') }
   }
   const review = async (id: string, decision: 'verified' | 'rejected') => {
-    setBusy(id); setError(''); setNotice('')
+    setBusy(id); setError(''); setNotice(''); setDraftCreated(false)
     try {
       const response = await apiClient.post<any>(`/global-news/${id}/review`, { status: decision })
       const result = response.data as any
       setItems((current) => current.filter((item) => item._id !== id))
+      setDraftCreated(decision === 'verified')
       setNotice(decision === 'verified' ? `Draft created: “${result?.article?.title || 'English RADAR report'}”. It is saved as an unpublished draft and is ready for editorial review.` : 'Lead rejected and removed from this queue.')
       await load()
     } catch (err) { setError(serverMessage(err, 'Could not save the review decision.')) }
@@ -61,7 +63,7 @@ export default function AdminGlobalNewsPage() {
         <button onClick={() => void refresh()} disabled={!!busy || loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${busy === 'refresh' ? 'animate-spin' : ''}`} /> Refresh international news</button>
       </header>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-      {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
+      {notice && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><p>{notice}</p>{draftCreated && <a href="/mugishaimekevin/ai-writer" className="mt-2 inline-block font-bold underline">Open AI draft review queue</a>}</div>}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ['World News API', status ? (status.worldNewsApiConfigured ? 'Configured' : 'Not configured') : '—'],
@@ -79,7 +81,7 @@ export default function AdminGlobalNewsPage() {
         {loading ? <div className="space-y-3 p-5">{[1,2,3].map((x) => <div key={x} className="h-20 animate-pulse rounded-lg bg-slate-100" />)}</div> : !items.length ? <div className="p-10 text-center text-sm text-slate-500">No unreviewed leads in the queue.</div> : <ul className="divide-y divide-slate-100">{items.map((item) => <li key={item._id} className="flex min-w-0 flex-col gap-3 p-4 sm:p-5"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wide text-blue-700">{item.sourceName} · {item.region} · Source language: {(item.language || 'unknown').toUpperCase()}</p><h3 className="mt-1 break-words font-semibold leading-snug text-slate-900">{item.englishTitle || item.title}</h3>{item.englishTitle && item.englishTitle !== item.title && <p className="mt-1 text-xs text-slate-400">Original: {item.title}</p>}
             {(item.englishDescription || item.description) && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">{item.englishDescription || item.description}</p>}
             {item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" className="mt-3 h-28 w-44 rounded-lg object-cover" />}
-            <a href={item.link} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block break-all text-xs text-blue-700 underline">Open publisher source</a></div><div className="flex flex-wrap gap-2"><button disabled={!!busy} onClick={() => void review(item._id, 'verified')} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><CheckCircle2 className="h-4 w-4" /> Verify & create draft</button><button disabled={!!busy} onClick={() => void review(item._id, 'rejected')} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50"><XCircle className="h-4 w-4" /> Reject lead</button></div></li>)}</ul>}
+            <a href={item.link} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block break-all text-xs text-blue-700 underline">Open publisher source</a></div><div className="flex flex-wrap gap-2"><button disabled={!!busy} onClick={() => void review(item._id, 'verified')} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><CheckCircle2 className="h-4 w-4" /> {busy === item._id ? 'Creating draft…' : 'Verify & create draft'}</button><button disabled={!!busy} onClick={() => void review(item._id, 'rejected')} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50"><XCircle className="h-4 w-4" /> Reject lead</button></div></li>)}</ul>}
       </section>
     </div>
   )

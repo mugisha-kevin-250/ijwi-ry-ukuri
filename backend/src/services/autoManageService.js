@@ -6,6 +6,7 @@ const trendService = require('./trendService');
 const geminiService = require('./geminiService');
 const workflow = require('./articleWorkflow');
 const storyMedia = require('./storyMedia');
+const publisherArticleService = require('./publisherArticleService');
 const generateSlug = require('../utils/generateSlug');
 
 const SETTING_KEY = 'radarAutoManage';
@@ -13,6 +14,7 @@ const MAX_DRAFTS_PER_PASS = 2;
 const MAX_PUBLISH_PER_PASS = 1;
 const MIN_HEADLINES = 2;
 const MIN_DISTINCT_PUBLISHERS = 2;
+const MIN_SOURCE_TEXT_CHARS = 500;
 const MIN_BODY_CHARS = 1200;
 const MIN_PARAGRAPHS = 5;
 
@@ -59,7 +61,7 @@ function qualityGate(story, evidence) {
   if (/\b(election|electoral|vote|voting|candidate|president|minister|court|lawsuit|arrest|accused|allegation|murder|killed|death|outbreak|disease|medicine|medical|health|war|conflict|attack|terror|rape|child abuse)\b/i.test(riskText)) {
     return 'Held: high-impact political, legal, health, violence or allegation-related reporting requires human editorial review.';
   }
-  const sources = (evidence?.headlines || []).filter((item) => sourceDomain(item.url));
+  const sources = (evidence?.headlines || []).filter((item) => sourceDomain(item.url) && item.status === 'extracted' && String(item.text || '').trim().length >= MIN_SOURCE_TEXT_CHARS);
   const domains = new Set(sources.map((item) => sourceDomain(item.url)));
   const paragraphs = Array.isArray(story?.paragraphs) ? story.paragraphs.filter((part) => String(part || '').trim().length >= 45) : [];
   const body = String(story?.content || paragraphs.join('\n\n')).trim();
@@ -144,14 +146,34 @@ async function run() {
         continue;
       }
 
+      // Fetch the actual publisher pages safely, respecting redirects,
+      // robots.txt, public-host checks and extraction limits. Headline-only
+      // evidence is never enough for autonomous publication.
+      const fetched = await Promise.all(sources.slice(0, 5).map(async (item) => {
+        const page = await publisherArticleService.fetchPublisherArticle(item.url);
+        if (page.status !== 'extracted' || String(page.text || '').trim().length < MIN_SOURCE_TEXT_CHARS) return null;
+        return {
+          ...page,
+          source: item.source || sourceDomain(page.url || item.url),
+          feedTitle: item.title || '',
+        };
+      }));
+      const fullSources = fetched.filter(Boolean);
+      const fullDomains = new Set(fullSources.map((item) => sourceDomain(item.url)));
+      if (fullSources.length < MIN_HEADLINES || fullDomains.size < MIN_DISTINCT_PUBLISHERS) {
+        result.held += 1;
+        result.notes.push({ topic: lead.topic, outcome: 'held', reason: 'Fewer than two full publisher articles could be safely extracted; headline-only writing is not auto-published.' });
+        continue;
+      }
+      const fullEvidence = { ...evidence, headlines: fullSources };
       const story = await geminiService.writeStory({
         topic: evidence.topic,
         audience: lead.geo === 'RW' ? 'rwanda' : 'world',
         region: evidence.region,
-        evidence: sources.slice(0, 5),
-        angle: 'Write a careful, original, source-led report. Attribute claims to the named publisher, distinguish confirmed facts from claims, do not invent quotes, numbers, dates or details, and explicitly state when evidence is limited. Use at least five substantive paragraphs and do not pad with speculation.',
+        evidence: fullSources.slice(0, 5),
+        angle: 'Write a careful, original, source-led report using only facts supported by the extracted publisher article text. Attribute claims to the named publisher, distinguish confirmed facts from claims, do not invent quotes, numbers, dates or details, and explicitly state when evidence is limited. Paraphrase; never reproduce publisher wording. Use at least five substantive paragraphs and do not pad with speculation.',
       });
-      const failedGate = qualityGate(story, evidence);
+      const failedGate = qualityGate(story, fullEvidence);
       const lower = (story.tags || []).join(' ').toLowerCase() + ' ' + story.title.toLowerCase();
       const category = categories.find((item) => lower.includes(String(item.name || '').toLowerCase())) || categories[0];
       const title = String(story.title || '').trim().slice(0, 200);
@@ -203,8 +225,8 @@ async function run() {
         country: evidence.region,
         aiGenerated: true,
         status: 'pending_review',
-        sources: sources.slice(0, 8).map((item) => ({
-          title: item.title,
+        sources: fullSources.slice(0, 8).map((item) => ({
+          title: item.title || item.feedTitle || lead.topic,
           organization: item.source || sourceDomain(item.url),
           url: item.url,
           type: 'link',

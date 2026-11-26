@@ -15,6 +15,9 @@ const MIN_HEADLINES = 2;
 const MIN_DISTINCT_PUBLISHERS = 2;
 const MIN_BODY_CHARS = 1200;
 const MIN_PARAGRAPHS = 5;
+// High-impact subjects always require a human editor, even when other checks pass.
+const HUMAN_REVIEW_PATTERN = /\b(?:election|electoral|president|prime minister|parliament|government|minister|politic|war|military|attack|terror|conflict|killed|death|fatal|crime|murder|rape|assault|arrest|court|trial|lawsuit|health|medical|medicine|drug|disease|outbreak|epidemic|pandemic|earthquake|flood|disaster|missing child|child abuse)\b/i;
+
 
 async function getConfig() {
   const setting = await PlatformSetting.findOne({ key: SETTING_KEY }).lean();
@@ -77,6 +80,9 @@ function qualityGate(story, evidence) {
   }
   if (/\b(?:as an ai|i cannot verify|not enough information to write|placeholder text)\b/i.test(body)) {
     return 'Held: generated copy contains an AI limitation or placeholder statement.';
+  }
+  if (HUMAN_REVIEW_PATTERN.test(String(evidence?.topic || '') + ' ' + String(story?.title || '') + ' ' + body.slice(0, 1800))) {
+    return 'Held for human editorial review: the topic is sensitive or high-impact.';
   }
   return '';
 }
@@ -176,13 +182,26 @@ async function run() {
           credit: photo.source,
         }]);
         if (checked.ok && checked.media.length) {
-          media = checked.media;
+          media.push(checked.media[0]);
           featuredImage = checked.media[0].url;
           imageCredit = String(photo.source).slice(0, 160);
           imageSourceUrl = String(photo.articleUrl).slice(0, 1200);
-          result.mediaAttached += 1;
         }
       }
+
+      // Attach a clip only if a source actually supplied its URL. The existing
+      // normalizer validates the URL and derives the safe embed target.
+      const videoItem = evidence.headlines.find((item) => item.videoUrl || item.video);
+      if (videoItem && videoItem.source && sourceDomain(videoItem.url)) {
+        const checkedVideo = storyMedia.normalize([{
+          kind: 'video',
+          url: videoItem.videoUrl || videoItem.video,
+          caption: videoItem.title || title,
+          credit: videoItem.source,
+        }]);
+        if (checkedVideo.ok && checkedVideo.media.length) media.push(checkedVideo.media[0]);
+      }
+      result.mediaAttached += media.length;
 
       const slugBase = generateSlug(title) || 'radar-ai-story';
       const article = await Article.create({

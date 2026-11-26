@@ -367,6 +367,7 @@ export default function AdminAiWriterPage() {
     try {
       const updated = await adminAPI.setRadarAutoManage(!autoManage.enabled)
       setAutoManage(updated)
+      setStatus((current) => current ? { ...current, autoPublish: updated.enabled } : current)
       setNotice(updated.enabled
         ? 'RADAR AI Auto Manage is enabled. The backend will research on its schedule, even when your device is offline.'
         : 'RADAR AI Auto Manage is switched off.')
@@ -461,7 +462,7 @@ export default function AdminAiWriterPage() {
           {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} articles created · {autoManage.lastResult?.published || 0} published · {autoManage.lastResult?.held || 0} held for safeguards.</p>}
           {autoManage.lastResult?.notes?.length ? (
             <ul className="mt-2 space-y-1 text-xs text-slate-600">
-              {autoManage.lastResult.notes.slice(0, 3).map((item, index) => <li key={item.id || item.topic || index}>{item.title || item.topic || item.error}</li>)}
+              {autoManage.lastResult.notes.slice(0, 3).map((item, index) => <li key={item.id || item.topic || index}>{item.title || item.topic || item.reason || item.error}</li>)}
             </ul>
           ) : null}
         </section>

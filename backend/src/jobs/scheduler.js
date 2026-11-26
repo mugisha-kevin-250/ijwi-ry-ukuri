@@ -104,7 +104,7 @@ const JOBS = {
   'radar-auto-manage': {
     manual: true,
     every: '*/15 * * * *',
-    summary: 'Research fresh Google Trends leads and create sourced AI drafts for editorial review when Auto Manage is enabled.',
+    summary: 'Research fresh Google Trends leads, write original stories, and publish at most one per pass when the source-diversity and article-quality safeguards pass; otherwise retain the story for review.',
     run: () => autoManageService.run(),
   },
   'weekly-pay': {

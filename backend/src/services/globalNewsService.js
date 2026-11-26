@@ -9,7 +9,7 @@ const MAX_AGE_DAYS = 30;
 
 function configuredFeeds() {
   let parsed;
-  try { parsed = JSON.parse(env.GLOBAL_NEWS_FEEDS || '[]'); } catch { return []; }
+  try { parsed = JSON.parse(env.WORLD_NEWS_FEEDS || '[]'); } catch { return []; }
   if (!Array.isArray(parsed)) return [];
   return parsed.slice(0, MAX_FEEDS).filter((feed) => {
     if (!feed || typeof feed.url !== 'string' || typeof feed.name !== 'string') return false;
@@ -84,7 +84,7 @@ async function readFeed(feed) {
 }
 async function refresh() {
   const feeds = configuredFeeds();
-  if (!feeds.length) return { configured: 0, fetched: 0, saved: 0, failed: 0, message: 'Set GLOBAL_NEWS_FEEDS to a JSON array of permitted HTTPS RSS/Atom sources.' };
+  if (!feeds.length) return { configured: 0, fetched: 0, saved: 0, failed: 0, message: 'Set WORLD_NEWS_FEEDS to a JSON array of permitted HTTPS RSS/Atom sources.' };
   const results = [];
   // Small batches keep a free Render instance from opening dozens of sockets at once.
   for (let i = 0; i < feeds.length; i += 5) {

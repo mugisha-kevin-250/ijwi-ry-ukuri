@@ -114,6 +114,30 @@ function collectImages(html, base) {
   }
   return found.slice(0, MAX_IMAGES);
 }
+function collectVideos(html, base, structured = {}) {
+  const found = [];
+  const add = (raw, caption = '') => {
+    const url = safePublicUrl(raw, base);
+    if (!url || found.some((item) => item.url === url)) return;
+    found.push({ url, caption: stripMarkup(caption).slice(0, 240), credit: new URL(base).hostname.replace(/^www\./, '') });
+  };
+  for (const key of ['og:video', 'og:video:url', 'og:video:secure_url', 'twitter:player:stream']) add(meta(html, key));
+  const videoTags = html.match(/<video\b[^>]*>[\s\S]*?<\/video\s*>/gi) || [];
+  for (const block of videoTags) {
+    const sources = block.match(/<(?:source|video)\b[^>]*>/gi) || [];
+    for (const tag of sources) {
+      const raw = (tag.match(/\bsrc=["']([^"']+)["']/i) || [])[1];
+      if (raw) add(raw);
+    }
+  }
+  const videoData = Array.isArray(structured.video) ? structured.video : structured.video ? [structured.video] : [];
+  for (const item of videoData) {
+    if (typeof item === 'string') add(item);
+    else if (item && typeof item === 'object') add(item.contentUrl || item.embedUrl || item.url, item.name || item.caption || '');
+  }
+  return found.slice(0, 5);
+}
+
 function extractBody(html) {
   const candidates = [];
   for (const pattern of [/<article\b[^>]*>([\s\S]*?)<\/article\s*>/i, /<main\b[^>]*>([\s\S]*?)<\/main\s*>/i]) {
@@ -186,12 +210,13 @@ async function fetchPublisherArticle(rawUrl) {
       ? structured.author.map((entry) => typeof entry === 'string' ? entry : entry?.name).filter(Boolean).join(', ')
       : (typeof structured.author === 'string' ? structured.author : structured.author?.name || '');
     const images = collectImages(html, currentUrl);
+    const videos = collectVideos(html, currentUrl, structured);
     const publishedAt = structured.datePublished || meta(html, 'article:published_time') || '';
     const canonical = safePublicUrl(meta(html, 'og:url') || structured.url || currentUrl, currentUrl) || currentUrl;
     const base = {
       status: body.length >= 500 ? 'extracted' : 'limited',
       url: canonical, title, description, author: stripMarkup(author).slice(0, 200),
-      publishedAt, images, text: body, wordCount: body ? body.split(/\s+/).length : 0,
+      publishedAt, images, videos, text: body, wordCount: body ? body.split(/\s+/).length : 0,
     };
     if (body.length < 500) return { ...base, reason: 'The publisher page exposed too little article text for a full-source draft.' };
     return { ...base, extractedAt: new Date() };

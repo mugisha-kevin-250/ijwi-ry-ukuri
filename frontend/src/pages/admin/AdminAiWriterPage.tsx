@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Ref } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, FileText, RefreshCw, Sparkles } from 'lucide-react'
-import { adminAPI, publicAPI, type AiDraftResult, type AiWriterStatus } from '../../services/api'
+import { adminAPI, publicAPI, type AiDraftResult, type AiWriterStatus, type RadarAutoManageStatus } from '../../services/api'
 import type { Article, Category } from '../../types'
 import { useI18n } from '../../context/I18nContext'
 import { canonicalCategoryId, resolveCategories } from '../../data/categoryVisuals'
@@ -112,6 +112,8 @@ function Field({
 export default function AdminAiWriterPage() {
   const { t } = useI18n()
   const [status, setStatus] = useState<AiWriterStatus | null>(null)
+  const [autoManage, setAutoManage] = useState<RadarAutoManageStatus | null>(null)
+  const [autoManageBusy, setAutoManageBusy] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [sectionTree, setSectionTree] = useState<TreeSection[]>([])
   const [loading, setLoading] = useState(true)
@@ -179,12 +181,14 @@ export default function AdminAiWriterPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError('')
-    const [statusResult, categoryResult] = await Promise.allSettled([
+    const [statusResult, categoryResult, autoManageResult] = await Promise.allSettled([
       adminAPI.getAiStatus(),
-      publicAPI.getCategories()
+      publicAPI.getCategories(),
+      adminAPI.getRadarAutoManage()
     ])
     if (statusResult.status === 'fulfilled') setStatus(statusResult.value)
-    else setLoadError('Only the site owner can open the AI writer.')
+    else setLoadError('Only staff with AI writer access can open the AI writer.')
+    if (autoManageResult.status === 'fulfilled') setAutoManage(autoManageResult.value)
     if (categoryResult.status === 'fulfilled') {
       const payload = categoryResult.value.data.data as
         | { categories?: Category[]; sections?: TreeSection[] }
@@ -356,6 +360,23 @@ export default function AdminAiWriterPage() {
     topicField.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
+  const toggleAutoManage = async () => {
+    if (!autoManage || autoManageBusy) return
+    setAutoManageBusy(true)
+    setError('')
+    try {
+      const updated = await adminAPI.setRadarAutoManage(!autoManage.enabled)
+      setAutoManage(updated)
+      setNotice(updated.enabled
+        ? 'RADAR AI Auto Manage is enabled. The backend will research on its schedule, even when your device is offline.'
+        : 'RADAR AI Auto Manage is switched off.')
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Auto Manage could not be updated.')
+    } finally {
+      setAutoManageBusy(false)
+    }
+  }
+
   const toggleAutoPublish = async () => {
     if (!status) return
     const next = !status.autoPublish
@@ -410,6 +431,40 @@ export default function AdminAiWriterPage() {
             </p>
           </div>
         </div>
+      )}
+
+      {autoManage && (
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="radar-auto-manage-title">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+                <Sparkles className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 id="radar-auto-manage-title" className="font-bold text-slate-900">RADAR AI Auto Manage</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {autoManage.enabled ? 'Enabled on the server — runs every 15 minutes without your browser.' : 'Off — enable server-side research and automatic draft preparation.'}
+                </p>
+              </div>
+            </div>
+            <button type="button" role="switch" aria-checked={autoManage.enabled} disabled={autoManageBusy || !autoManage.configured}
+              onClick={() => void toggleAutoManage()}
+              className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-50 ${autoManage.enabled ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+              <span className={`absolute left-0.5 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${autoManage.enabled ? 'translate-x-5' : ''}`} />
+              <span className="sr-only">{autoManage.enabled ? 'Disable Auto Manage' : 'Enable Auto Manage'}</span>
+            </button>
+          </div>
+          {!autoManage.configured && <p className="mt-3 text-xs text-amber-700">Connect GEMINI_API_KEY on the backend before enabling automation.</p>}
+          <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">
+            This mode runs on the backend, not your device. It researches current Google Trends leads and creates source-linked AI drafts in the review queue. It does not publish unverified AI copy, approve or reject writer applications, alter accounts, or delete/edit existing content. An editor must verify sources and approve each story.
+          </p>
+          {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} drafts created · {autoManage.lastResult?.held || 0} held for insufficient evidence.</p>}
+          {autoManage.lastResult?.notes?.length ? (
+            <ul className="mt-2 space-y-1 text-xs text-slate-600">
+              {autoManage.lastResult.notes.slice(0, 3).map((item, index) => <li key={item.id || item.topic || index}>{item.title || item.topic || item.error}</li>)}
+            </ul>
+          ) : null}
+        </section>
       )}
 
       <TrendRadar onUse={status?.configured ? chooseTrend : undefined} />

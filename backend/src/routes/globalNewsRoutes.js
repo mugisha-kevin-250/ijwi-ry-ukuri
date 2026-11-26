@@ -18,14 +18,14 @@ const router = express.Router();
 // leads are not silently converted into original RADAR reporting.
 router.get('/', async (req, res, next) => {
   try {
-    const result = await service.list({ page: req.query.page, limit: req.query.limit, region: req.query.region });
+    const result = await service.list({ page: req.query.page, limit: req.query.limit, region: req.query.region, search: req.query.search });
     res.json({ success: true, ...result });
   } catch (error) { next(error); }
 });
 
 router.get('/queue', protect, requirePermission(PERMISSIONS.managePlatform), async (req, res, next) => {
   try {
-    const result = await service.list({ page: req.query.page, limit: req.query.limit, status: 'unreviewed', includeReviewStatus: true });
+    const result = await service.list({ page: req.query.page, limit: req.query.limit, status: 'unreviewed', search: req.query.search, includeReviewStatus: true });
     res.json({ success: true, ...result });
   } catch (error) { next(error); }
 });

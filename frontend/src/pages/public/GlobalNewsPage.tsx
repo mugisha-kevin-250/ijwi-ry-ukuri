@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
+import { writerAPI } from '../../services/api'
 import { AlertCircle, Clock3, ExternalLink, Globe2, RefreshCw } from 'lucide-react'
 import { apiClient, serverMessage } from '../../services/apiClient'
 
 type GlobalNewsLead = {
   _id: string
   title: string
+  description?: string
+  imageUrl?: string
+  imageCredit?: string
+  imageCaption?: string
   link: string
   sourceName: string
   region: string
@@ -29,7 +35,13 @@ function dateLabel(value?: string | null) {
 }
 
 export default function GlobalNewsPage() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const canWrite = ['WRITER', 'EDITOR', 'ADMIN', 'MANAGING_EDITOR', 'NEWS_EDITOR'].includes(String(user?.role || '').toUpperCase())
   const [region, setRegion] = useState('')
+  const [search, setSearch] = useState('')
+  const [drafting, setDrafting] = useState('')
+  const [actionError, setActionError] = useState('')
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<FeedResponse>({ items: [], page: 1, pages: 0, total: 0 })
   const [loading, setLoading] = useState(true)
@@ -40,18 +52,30 @@ export default function GlobalNewsPage() {
     setLoading(true)
     setError('')
     try {
-      const response = await apiClient.get<FeedResponse>('/global-news', { page, limit: 24, region })
+      const response = await apiClient.get<FeedResponse>('/global-news', { page, limit: 24, region, search: search.trim() })
       const data = response.data as unknown as FeedResponse
       setResult({ items: Array.isArray(data.items) ? data.items : [], page: data.page || page, pages: data.pages || 0, total: data.total || 0 })
       setUpdatedAt(new Date())
     } catch (err) {
       setError(serverMessage(err, 'Global headlines could not be loaded. Please try again.'))
     } finally { setLoading(false) }
-  }, [page, region])
+  }, [page, region, search])
 
   useEffect(() => { void load() }, [load])
 
   const changeRegion = (value: string) => { setRegion(value); setPage(1) }
+
+  const createWriterDraft = async (id: string) => {
+    setDrafting(id); setActionError('')
+    try {
+      const response: any = await writerAPI.createGlobalNewsDraft(id)
+      const article = response?.data?.data?.article
+      if (!article?._id) throw new Error('The server did not return the new draft.')
+      navigate(`/writer/articles/${article._id}/edit`)
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || err.message || 'Could not create a writer draft.')
+    } finally { setDrafting('') }
+  }
 
   return (
     <main className="container-custom py-6 sm:py-10">
@@ -86,6 +110,10 @@ export default function GlobalNewsPage() {
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">Choose a region to narrow the headlines.</p>
         </div>
         <label className="flex w-full items-center gap-2 text-sm font-medium text-[var(--color-text)] sm:w-auto">
+          <span className="shrink-0">Search</span>
+          <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Search headlines, topics or publishers" className="min-h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 text-sm sm:w-64" />
+        </label>
+        <label className="flex w-full items-center gap-2 text-sm font-medium text-[var(--color-text)] sm:w-auto">
           <span className="shrink-0">Region</span>
           <select value={region} onChange={(event) => changeRegion(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 text-sm sm:w-52">
             {REGIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -93,6 +121,7 @@ export default function GlobalNewsPage() {
         </label>
       </div>
 
+      {actionError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{actionError}</div>}
       {error && <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><AlertCircle className="mt-0.5 h-5 w-5 shrink-0" /><div className="min-w-0"><p className="font-semibold">The world desk is temporarily unavailable.</p><p className="mt-1">{error}</p><button onClick={() => void load()} className="mt-2 font-bold underline">Try again</button></div></div>}
 
       {loading && !result.items.length ? (
@@ -113,12 +142,16 @@ export default function GlobalNewsPage() {
               <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-brand-text)]">
                 <span>{item.region || 'WORLD'}</span><span aria-hidden="true">•</span><span>{item.sourceName}</span>
               </div>
+              {item.imageUrl && <img src={item.imageUrl} alt={item.imageCaption || item.title} loading="lazy" referrerPolicy="no-referrer" className="mt-3 aspect-video w-full rounded-lg object-cover" />}
               <h3 className="mt-3 flex-1 text-base font-bold leading-snug text-[var(--color-text)] sm:text-lg">{item.title}</h3>
+              {item.description && <p className="mt-2 line-clamp-3 text-sm text-[var(--color-text-muted)]">{item.description}</p>}
+              {item.imageCredit && <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">Image: {item.imageCredit}</p>}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
                 <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]"><Clock3 className="h-3.5 w-3.5" />{dateLabel(item.publishedAt || item.fetchedAt)}</span>
-                <a href={item.link} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-[var(--color-brand-light)] px-3 text-xs font-bold text-[var(--color-brand-text)] hover:underline">
-                  Read at source <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  {canWrite && <button type="button" onClick={() => void createWriterDraft(item._id)} disabled={!!drafting} className="inline-flex min-h-10 items-center rounded-lg bg-blue-700 px-3 text-xs font-bold text-white disabled:opacity-50">{drafting === item._id ? 'Creating draft…' : 'Create my RADAR draft'}</button>}
+                  <a href={item.link} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-[var(--color-brand-light)] px-3 text-xs font-bold text-[var(--color-brand-text)] hover:underline">Read at source <ExternalLink className="h-3.5 w-3.5" /></a>
+                </div>
               </div>
             </article>
           ))}

@@ -171,7 +171,7 @@ async function saveItems(items) {
           $set: refreshFields,
           $setOnInsert: { ...insertFields, dedupeKey, reviewStatus: 'unreviewed', fetchedAt: new Date() },
         },
-        { upsert: true },
+        { upsert: true, setDefaultsOnInsert: false },
       );
       saved += Number(outcome.upsertedCount || 0);
       processed += 1;

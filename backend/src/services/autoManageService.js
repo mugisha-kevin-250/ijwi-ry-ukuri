@@ -170,15 +170,24 @@ async function run() {
       // A trend publisher's photo is only attached after the existing image
       // verifier fetches it and confirms that it is a real, readable image.
       let photo = null;
-      const photoCandidates = evidence.headlines.filter((item) => item.picture).map((item) => ({
+      const photoCandidates = evidence.headlines.filter((item) => item.picture && item.source && item.url).map((item) => ({
         url: item.picture,
-        credit: item.source || 'Original publisher',
-        source: item.source || '',
+        credit: item.source,
+        source: item.source,
+        articleUrl: item.url,
         why: item.title || evidence.topic,
       }));
       if (photoCandidates.length) {
-        const checked = await aiPhotoService.verify(photoCandidates, { limit: 3 });
-        photo = checked.photos[0] || null;
+        try {
+          const checked = await aiPhotoService.verify(photoCandidates, { limit: 3 });
+          photo = checked.photos[0] || null;
+          if (photo) {
+            const original = photoCandidates.find((candidate) => candidate.url === photo.originalUrl || candidate.url === photo.url);
+            photo.articleUrl = original?.articleUrl || '';
+          }
+        } catch (mediaError) {
+          result.notes.push({ topic: lead.topic, error: `Image check unavailable; publishing without a photo: ${String(mediaError.message || mediaError).slice(0, 100)}` });
+        }
       }
 
       // The Trends RSS currently supplies headline photos, not a dependable
@@ -205,7 +214,7 @@ async function run() {
         status: holdReason ? 'pending_review' : 'draft',
         featuredImage: photo?.url || undefined,
         imageCredit: photo?.credit || undefined,
-        imageSourceUrl: photo?.pageUrl || undefined,
+        imageSourceUrl: photo?.articleUrl || photo?.pageUrl || undefined,
         imageCaption: photo ? String(photo.why || evidence.topic).slice(0, 240) : undefined,
         ...(video?.ok ? video.fields : {}),
         sources,

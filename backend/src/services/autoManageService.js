@@ -27,6 +27,7 @@ const CATEGORY_KEYWORDS = {
 };
 const MAX_DRAFTS_PER_PASS = 2;
 const MAX_PUBLISH_PER_PASS = 1;
+const MAX_CATEGORY_ATTEMPTS_PER_PASS = 6;
 const MIN_HEADLINES = 2;
 const MIN_DISTINCT_PUBLISHERS = 2;
 const MIN_SOURCE_TEXT_CHARS = 500;
@@ -44,6 +45,7 @@ async function getConfig() {
     ownerId: value.ownerId ? String(value.ownerId) : '',
     lastRunAt: value.lastRunAt || null,
     lastResult: value.lastResult || null,
+    lastCategoryCursor: Number(value.lastCategoryCursor) || 0,
     sourceDeskUrl: SOURCE_DESK_URL,
     imagePolicy: 'UHD 4K minimum (3840x2160 landscape or 2160x3840 portrait)',
     researchSources: ['Google Trends', 'RADAR Global News'],
@@ -280,12 +282,16 @@ async function run() {
     categoriesChecked:targets.length,
     categoriesAlreadyCovered:0,
     categoriesMatched:0,
+    categoriesAttempted:0,
     drafted:0,published:0,duplicates:0,held:0,mediaAttached:0,verified4kImages:0,videosAttached:0,
     notes:[]
   };
   const used = new Set();
-  for (const target of targets) {
-    if (result.drafted >= MAX_DRAFTS_PER_PASS || result.published >= MAX_PUBLISH_PER_PASS) break;
+  const categoryStart = targets.length ? (Number(config.lastCategoryCursor || 0) % targets.length) : 0;
+  const orderedTargets = [...targets.slice(categoryStart), ...targets.slice(0, categoryStart)];
+  for (const target of orderedTargets) {
+    if (result.drafted >= MAX_DRAFTS_PER_PASS || result.published >= MAX_PUBLISH_PER_PASS || result.categoriesAttempted >= MAX_CATEGORY_ATTEMPTS_PER_PASS) break;
+    result.categoriesAttempted += 1;
     const category = target.category;
     if (await dailyCategoryPublished(target, dayStart)) {
       result.categoriesAlreadyCovered += 1;
@@ -431,9 +437,10 @@ async function run() {
   const next = {
     ...config,
     lastRunAt:new Date().toISOString(),
+    lastCategoryCursor: targets.length ? (categoryStart + result.categoriesAttempted) % targets.length : 0,
     lastResult:{
       source:result.source,trendResearch:result.trendResearch,globalNews:result.globalNews,
-      researched:result.researched,categoriesChecked:result.categoriesChecked,categoriesAlreadyCovered:result.categoriesAlreadyCovered,categoriesMatched:result.categoriesMatched,
+      researched:result.researched,categoriesChecked:result.categoriesChecked,categoriesAttempted:result.categoriesAttempted,categoriesAlreadyCovered:result.categoriesAlreadyCovered,categoriesMatched:result.categoriesMatched,
       drafted:result.drafted,published:result.published,duplicates:result.duplicates,held:result.held,
       mediaAttached:result.mediaAttached,verified4kImages:result.verified4kImages,videosAttached:result.videosAttached,notes:result.notes.slice(0,30)
     }

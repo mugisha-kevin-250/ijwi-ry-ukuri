@@ -182,7 +182,7 @@ router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform
     // permission before publication.
     const extractedImages = (sourceResearch.images || []).filter((entry) => safeMediaUrl(entry.url));
     const image = safeMediaUrl(extractedImages[0]?.url || claimedLead.imageUrl);
-    const gallery = extractedImages.slice(image && extractedImages[0]?.url === image ? 1 : 0, 9)
+    const gallery = extractedImages.filter((entry) => safeMediaUrl(entry.url) && safeMediaUrl(entry.url) !== image).slice(0, 8)
       .map((entry) => ({
         kind: 'image',
         url: safeMediaUrl(entry.url),

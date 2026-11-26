@@ -160,11 +160,16 @@ async function saveItems(items) {
       if (item.imageSourceUrl) refreshFields.imageSourceUrl = item.imageSourceUrl;
       if (item.imageCaption) refreshFields.imageCaption = item.imageCaption;
       if (item.imageProvider) refreshFields.imageProvider = item.imageProvider;
+      // A path cannot be updated by both $set and $setOnInsert in one Mongo
+      // operation. Existing records receive refresh fields; inserts receive the
+      // remaining source metadata, with no overlapping update paths.
+      const insertFields = { ...item };
+      Object.keys(refreshFields).forEach((field) => delete insertFields[field]);
       const outcome = await GlobalNewsItem.updateOne(
         { dedupeKey },
         {
           $set: refreshFields,
-          $setOnInsert: { ...item, dedupeKey, reviewStatus: 'unreviewed', fetchedAt: new Date() },
+          $setOnInsert: { ...insertFields, dedupeKey, reviewStatus: 'unreviewed', fetchedAt: new Date() },
         },
         { upsert: true },
       );

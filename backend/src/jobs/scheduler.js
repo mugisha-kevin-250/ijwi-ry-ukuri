@@ -104,7 +104,7 @@ const JOBS = {
   'radar-auto-manage': {
     manual: true,
     every: '*/15 * * * *',
-    summary: 'Manage the RADAR Global News desk: extract publisher reporting, write attributed stories, verify a genuine 4K featured image, attach available video, and publish at most one eligible story per pass.',
+    summary: 'Research Google Trends across configured regions and refresh RADAR Global News; build source-backed daily coverage across active categories, verify genuine 4K featured images, attach available publisher video, and publish at most one eligible story per pass.',
     run: () => autoManageService.run(),
   },
   'weekly-pay': {
@@ -202,7 +202,7 @@ function startScheduler() {
     cron.schedule(job.every, () => runJob(name), options);
   }
 
-  console.log('Scheduler started: story publishing and breaking expiry every 5 minutes, radio and live scores every minute, global news every 10 minutes (World News API quota-limited to its configured interval), RADAR AI Auto Manage every 15 minutes when enabled, weekly pay on Mondays.');
+  console.log('Scheduler started: story publishing and breaking expiry every 5 minutes, radio and live scores every minute, global news every 10 minutes (World News API quota-limited to its configured interval), RADAR AI Auto Manage every 15 minutes when enabled, researching Google Trends and Global News for daily category coverage, weekly pay on Mondays.');
   return { runJob, JOBS };
 }
 

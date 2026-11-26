@@ -693,10 +693,10 @@ export interface RadarAutoManageStatus {
   enabled: boolean
   ownerId: string
   lastRunAt: string | null
-  lastResult: { researched?: number; drafted?: number; duplicates?: number; held?: number; notes?: { id?: string; title?: string; category?: string; status?: string; topic?: string; error?: string }[] } | null
+  lastResult: { researched?: number; drafted?: number; published?: number; duplicates?: number; held?: number; mediaAttached?: number; notes?: { id?: string; title?: string; category?: string; status?: string; topic?: string; error?: string; outcome?: string; reason?: string; media?: boolean }[] } | null
   configured: boolean
   intervalMinutes: number
-  mode: 'editorial-review'
+  mode: 'autonomous-publish-with-safeguards'
 }
 
 export interface AiDraftResult {

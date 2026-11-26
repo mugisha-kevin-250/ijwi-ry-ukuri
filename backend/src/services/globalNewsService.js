@@ -125,9 +125,15 @@ async function saveItems(items) {
     if (!item || !item.title || !item.link) continue;
     const dedupeKey = keyFor(item);
     try {
+      const refreshFields = {};
+      if (item.description) refreshFields.description = item.description;
+      if (item.imageUrl) refreshFields.imageUrl = item.imageUrl;
       const outcome = await GlobalNewsItem.updateOne(
         { dedupeKey },
-        { $setOnInsert: { ...item, dedupeKey, reviewStatus: 'unreviewed', fetchedAt: new Date() } },
+        {
+          $set: refreshFields,
+          $setOnInsert: { ...item, dedupeKey, reviewStatus: 'unreviewed', fetchedAt: new Date() },
+        },
         { upsert: true },
       );
       saved += Number(outcome.upsertedCount || 0);

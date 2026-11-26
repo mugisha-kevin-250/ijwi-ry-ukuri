@@ -12,8 +12,8 @@ const story = {
 const evidence = {
   topic: 'Regional transport service plan',
   headlines: [
-    { title: 'Publisher one report', url: 'https://one.example/news', source: 'Publisher One' },
-    { title: 'Publisher two report', url: 'https://two.example/news', source: 'Publisher Two' },
+    { title: 'Publisher one report', url: 'https://one.example/news', source: 'Publisher One', status: 'extracted', text: 'Verified extracted article body. '.repeat(20) },
+    { title: 'Publisher two report', url: 'https://two.example/news', source: 'Publisher Two', status: 'extracted', text: 'Second extracted article body. '.repeat(20) },
   ],
 };
 
@@ -24,6 +24,12 @@ test('RADAR quality gate accepts a sufficiently sourced complete low-risk articl
 test('RADAR quality gate holds articles with only one publisher domain', () => {
   const onePublisher = { ...evidence, headlines: evidence.headlines.map((item) => ({ ...item, url: 'https://one.example/' + item.title })) };
   assert.match(qualityGate(story, onePublisher), /two distinct HTTPS publishers/);
+});
+
+
+test('RADAR quality gate refuses headline-only evidence for automatic publication', () => {
+  const headlinesOnly = { ...evidence, headlines: evidence.headlines.map(({ title, url, source }) => ({ title, url, source })) };
+  assert.match(qualityGate(story, headlinesOnly), /two distinct HTTPS publishers/);
 });
 
 test('RADAR quality gate holds high-impact topics for human editorial review', () => {

@@ -519,7 +519,7 @@ router.get('/ai/status', requirePermission([PERMISSIONS.runAiWriter]), async (re
   }
 });
 
-router.get('/system/storage', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
+router.get('/system/storage', requirePermission([PERMISSIONS.managePlatform, PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const usage = await storageManager.getUsage();
     const setting = await PlatformSetting.findOne({ key: 'radarAutoManage' }).lean();

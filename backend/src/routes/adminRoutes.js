@@ -528,7 +528,7 @@ router.put('/ai/auto-manage', requirePermission([PERMISSIONS.runAiWriter]), asyn
       ...config,
       configured: geminiService.isConfigured(),
       intervalMinutes: 15,
-      mode: 'editorial-review',
+      mode: 'autonomous-publish-with-safeguards',
     });
   } catch (error) { next(error); }
 });

@@ -57,7 +57,9 @@ function watchList() {
 }
 
 function geoName(geo) {
-  return GEO_NAMES[geo] || geo;
+  if (GEO_NAMES[geo]) return GEO_NAMES[geo];
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(String(geo || '').toUpperCase()) || geo; }
+  catch { return geo; }
 }
 
 function utcDay(date) {

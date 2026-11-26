@@ -98,7 +98,7 @@ const JOBS = {
   'global-news': {
     manual: true,
     every: '*/10 * * * *',
-    summary: 'Refresh configured international RSS feeds and deduplicate story leads.',
+    summary: 'Refresh permitted RSS feeds and quota-limited World News API headlines; deduplicate all story leads.',
     run: () => globalNewsService.refresh(),
   },
   'radar-auto-manage': {
@@ -202,7 +202,7 @@ function startScheduler() {
     cron.schedule(job.every, () => runJob(name), options);
   }
 
-  console.log('Scheduler started: story publishing and the breaking expiry every 5 minutes, the radio bulletin and live scores on the minute, global news every 10 minutes, RADAR AI Auto Manage every 15 minutes when enabled, weekly pay on Mondays.');
+  console.log('Scheduler started: story publishing and breaking expiry every 5 minutes, radio and live scores every minute, global news every 10 minutes (World News API quota-limited to its configured interval), RADAR AI Auto Manage every 15 minutes when enabled, weekly pay on Mondays.');
   return { runJob, JOBS };
 }
 

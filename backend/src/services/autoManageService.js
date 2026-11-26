@@ -12,6 +12,7 @@ const storyMedia = require('./storyMedia');
 const publisherArticleService = require('./publisherArticleService');
 const aiPhotoService = require('./aiPhotoService');
 const generateSlug = require('../utils/generateSlug');
+const storageManager = require('./storageManager');
 
 const SETTING_KEY = 'radarAutoManage';
 const SOURCE_DESK_URL = 'https://www.radartimes.2bd.net/mugishaimekevin/global-news';
@@ -258,6 +259,7 @@ async function run() {
     : await User.findOne({ role:'ADMIN', isActive:true }).select('_id role isActive').lean();
   if (!admin || admin.role !== 'ADMIN' || admin.isActive === false) return { skipped:true, reason:'The owner account is unavailable; no content was changed.' };
 
+  const storageCleanup = await storageManager.runCleanup(admin._id).catch(error => ({ error: String(error?.message || error).slice(0, 200) }));
   const [trendResearch, globalRefresh] = await Promise.all([
     collectGoogleTrendLeads().catch(error => ({ provider:'google-trends', error:String(error?.message||error).slice(0,180), liveRegions:0, regionsChecked:0, topics:0, headlinesProcessed:0, leadsSaved:0 })),
     globalNewsService.refresh().catch(error => ({ fetched:0, saved:0, failed:1, error:String(error?.message||error).slice(0,180) }))
@@ -277,7 +279,9 @@ async function run() {
     source:'Google Trends + RADAR Global News',
     sourceDeskUrl:SOURCE_DESK_URL,
     trendResearch,
+    storageCleanup,
     globalNews:{ fetched:Number(globalRefresh?.fetched||0), saved:Number(globalRefresh?.saved||0), failed:Number(globalRefresh?.failed||0) },
+    storageCleanup,
     researched:leads.length,
     categoriesChecked:targets.length,
     categoriesAlreadyCovered:0,
@@ -439,7 +443,7 @@ async function run() {
     lastRunAt:new Date().toISOString(),
     lastCategoryCursor: targets.length ? (categoryStart + result.categoriesAttempted) % targets.length : 0,
     lastResult:{
-      source:result.source,trendResearch:result.trendResearch,globalNews:result.globalNews,
+      source:result.source,trendResearch:result.trendResearch,storageCleanup:result.storageCleanup,globalNews:result.globalNews,
       researched:result.researched,categoriesChecked:result.categoriesChecked,categoriesAttempted:result.categoriesAttempted,categoriesAlreadyCovered:result.categoriesAlreadyCovered,categoriesMatched:result.categoriesMatched,
       drafted:result.drafted,published:result.published,duplicates:result.duplicates,held:result.held,
       mediaAttached:result.mediaAttached,verified4kImages:result.verified4kImages,videosAttached:result.videosAttached,notes:result.notes.slice(0,30)

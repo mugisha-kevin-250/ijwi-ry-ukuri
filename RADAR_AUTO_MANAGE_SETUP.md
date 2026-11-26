@@ -27,6 +27,6 @@ Auto Manage can publish without the manager being online, but it is deliberately
 - At most one story is published per 15-minute pass. Other eligible drafts wait for another pass; weak stories remain in `pending_review`.
 - Publication uses the existing article lifecycle, so published timestamps, audit events and reader notifications are retained.
 - Source links remain attributed and visibly marked `pending` for human verification. The automation does not claim a human verified them.
-- A source-provided image is attached only when it has a named publisher, a source article URL and passes the site's media URL validation. No video is fabricated; video is attached only if a valid source video is available.
+- A source-provided image is attached only when it has a named publisher, a source article URL and passes the site's media URL validation. The current Google Trends feed supplies images but no embeddable video URLs, so RADAR does not fabricate video.
 
 Every scheduler pass records counts and failures in the Scheduler Desk. Auto Manage does not approve/reject writer applications, change account roles, delete records, or edit existing content. No automated gate can guarantee factual accuracy: breaking, sensitive, legal, health, election and allegations-based reporting should remain under human editorial review.

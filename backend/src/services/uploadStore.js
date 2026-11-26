@@ -6,8 +6,6 @@ const storageManager = require('./storageManager');
 
 const LIMIT_BYTES = env.UPLOAD_STORE_LIMIT_MB * 1024 * 1024;
 
-const LIMIT_BYTES = env.UPLOAD_STORE_LIMIT_MB * 1024 * 1024;
-
 async function storedBytes() {
   const [totals] = await Upload.aggregate([{ $group: { _id: null, size: { $sum: '$size' } } }]);
   return totals ? totals.size : 0;

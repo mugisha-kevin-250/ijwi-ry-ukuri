@@ -8,6 +8,7 @@ type Health = {
   wired: Record<string, boolean | string | null>
 }
 type Readiness = { success: boolean; status: string; database: boolean }
+type Storage = { capacityMB: number; usedMB: number; remainingMB: number; usedPercent: number; uploadStorage: { capacityMB: number; usedMB: number; remainingMB: number; usedPercent: number; files: number }; measuredAt: string; cleanup?: { deletedStories?: number; deletedImages?: number; freedImageMB?: number; after?: { usedPercent?: number } } | null }
 
 function State({ ok, yes = 'Available', no = 'Not configured' }: { ok: boolean; yes?: string; no?: string }) {
   return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
@@ -19,6 +20,7 @@ function State({ ok, yes = 'Available', no = 'Not configured' }: { ok: boolean; 
 export default function AdminSystemHealthPage() {
   const [health, setHealth] = useState<Health | null>(null)
   const [readiness, setReadiness] = useState<Readiness | null>(null)
+  const [storage, setStorage] = useState<Storage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [checkedAt, setCheckedAt] = useState<Date | null>(null)
@@ -27,12 +29,14 @@ export default function AdminSystemHealthPage() {
     setLoading(true)
     setError('')
     try {
-      const [healthResponse, readyResponse] = await Promise.all([
+      const [healthResponse, readyResponse, storageResponse] = await Promise.all([
         apiClient.get('/health'),
         apiClient.get('/health/ready'),
+        apiClient.get('/admin/system/storage'),
       ])
       setHealth(healthResponse.data as unknown as Health)
       setReadiness(readyResponse.data as unknown as Readiness)
+      setStorage(((storageResponse.data as any)?.data || storageResponse.data) as Storage)
       setCheckedAt(new Date())
     } catch (err) {
       setError(serverMessage(err, 'The backend health checks could not be reached.'))
@@ -74,6 +78,28 @@ export default function AdminSystemHealthPage() {
           <div className="mt-3"><State ok={readiness?.database === true} yes="MongoDB ping succeeded" no={loading ? 'Checking' : 'Not ready'} /></div>
           <p className="mt-3 text-xs text-slate-500">Readiness endpoint: /api/health/ready</p>
         </article>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h2 className="font-bold text-slate-900">MongoDB storage</h2><p className="mt-1 text-xs text-slate-500">Logical database usage against the configured storage allowance. Set MONGODB_STORAGE_LIMIT_MB in Render to match your Atlas tier.</p></div>
+          <State ok={!!storage && storage.usedPercent < 60} yes="Below 60% safety limit" no={storage ? 'At or above 60% limit' : 'Unavailable'} />
+        </div>
+        {storage ? <>
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <div><p className="text-xs text-slate-500">Used</p><p className="text-xl font-extrabold text-slate-900">{storage.usedMB} MB</p></div>
+            <div><p className="text-xs text-slate-500">Remaining</p><p className="text-xl font-extrabold text-slate-900">{storage.remainingMB} MB</p></div>
+            <div><p className="text-xs text-slate-500">Capacity</p><p className="text-xl font-extrabold text-slate-900">{storage.capacityMB} MB</p></div>
+            <div><p className="text-xs text-slate-500">Usage</p><p className="text-xl font-extrabold text-slate-900">{storage.usedPercent}%</p></div>
+          </div>
+          <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${storage.usedPercent >= 60 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, storage.usedPercent)}%` }} /></div>
+          <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-600">
+            <p className="font-semibold">Uploaded media: {storage.uploadStorage.usedMB} / {storage.uploadStorage.capacityMB} MB ({storage.uploadStorage.usedPercent}%) · {storage.uploadStorage.files} files · {storage.uploadStorage.remainingMB} MB remaining</p>
+            <p className="mt-1">Auto cleanup starts above 60% and targets 55%. It only considers non-owner published stories older than 180 days with no comments and at most 25 views.</p>
+            {storage.cleanup && <p className="mt-1">Last cleanup: {storage.cleanup.deletedStories || 0} stories and {storage.cleanup.deletedImages || 0} images removed; {storage.cleanup.freedImageMB || 0} MB of image data freed.</p>}
+            <p className="mt-1 text-slate-500">Measured: {new Date(storage.measuredAt).toLocaleString()}. MongoDB may retain allocated disk pages after document deletion; this is logical usage, not a guaranteed reduction in Atlas physical disk allocation.</p>
+          </div>
+        </> : <p className="mt-3 text-sm text-slate-500">{loading ? 'Reading MongoDB storage usage…' : 'Storage metrics are unavailable.'}</p>}
       </section>
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const Upload = require('../models/Upload');
 const env = require('../config/env');
+const storageManager = require('./storageManager');
 
 const LIMIT_BYTES = env.UPLOAD_STORE_LIMIT_MB * 1024 * 1024;
 
@@ -15,6 +16,12 @@ async function storedBytes() {
  * file onto the local disk as a cache express.static can serve without a query.
  */
 async function save({ buffer, filename, mimetype, user }) {
+  const usage = await storageManager.getUsage();
+  if (env.NODE_ENV === 'production' && (usage.usedPercent >= 60 || usage.uploadStorage.usedPercent >= 60)) {
+    const error = new Error('Uploads are paused because MongoDB storage has reached the 60% safety limit. RADAR storage cleanup must complete first.');
+    error.statusCode = 507;
+    throw error;
+  }
   const stored = await storedBytes();
   if (stored + buffer.length > LIMIT_BYTES) {
     const error = new Error('The image store is full. Free space in Settings before uploading again.');

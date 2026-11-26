@@ -108,6 +108,18 @@ router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform
       });
     }
 
+    // Recover a previous attempt that created the Article but lost the final
+    // lead update, instead of asking the model again or duplicating the draft.
+    const recoveredDraft = await Article.findOne({ globalNewsLead: claimedLead._id });
+    if (recoveredDraft) {
+      claimedLead.reviewStatus = 'verified';
+      claimedLead.englishTitle = recoveredDraft.title;
+      claimedLead.draftArticle = recoveredDraft._id;
+      claimedLead.draftCreatedAt = recoveredDraft.createdAt || new Date();
+      await claimedLead.save();
+      return res.json({ success: true, item: claimedLead, article: recoveredDraft, alreadyCreated: true, message: 'The existing RADAR draft was recovered.' });
+    }
+
     if (!geminiService.isConfigured()) {
       const error = new Error('RADAR AI is not configured. Add GEMINI_API_KEY to the backend environment before creating international drafts.');
       error.status = 503;

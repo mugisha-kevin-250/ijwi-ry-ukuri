@@ -1,11 +1,13 @@
 const crypto = require('crypto');
 const env = require('../config/env');
 const GlobalNewsItem = require('../models/GlobalNewsItem');
+const GlobalNewsSyncState = require('../models/GlobalNewsSyncState');
 
 const MAX_FEEDS = 80;
 const MAX_ITEMS_PER_FEED = 60;
 const FEED_TIMEOUT_MS = 12000;
 const MAX_AGE_DAYS = 30;
+const API_URL = 'https://api.worldnewsapi.com/search-news';
 
 function configuredFeeds() {
   let parsed;
@@ -82,34 +84,161 @@ async function readFeed(feed) {
     return { feed: feed.name, items: [], ok: false, error: error.name === 'AbortError' ? 'TIMEOUT' : String(error.message || 'FEED_ERROR').slice(0, 80) };
   } finally { clearTimeout(timer); }
 }
+
+function worldApiItem(article) {
+  if (!article || typeof article.title !== 'string' || typeof article.url !== 'string') return null;
+  const link = safeLink(article.url);
+  if (!link) return null;
+  let source;
+  try { source = new URL(link); } catch { return null; }
+  const published = article.publish_date ? new Date(article.publish_date.replace(' ', 'T') + 'Z') : null;
+  const sourceName = String(article.source_name || article.source || source.hostname.replace(/^www\./, '')).slice(0, 120);
+  return {
+    title: article.title.trim().slice(0, 300),
+    link,
+    sourceName,
+    sourceUrl: source.origin,
+    region: String(article.source_country || 'WORLD').toUpperCase().slice(0, 12),
+    language: String(article.language || env.WORLD_NEWS_API_LANGUAGE || 'en').toLowerCase().slice(0, 12),
+    publishedAt: published && !Number.isNaN(published.getTime()) ? published : null,
+  };
+}
+
+async function saveItems(items) {
+  let saved = 0;
+  let processed = 0;
+  for (const item of items) {
+    if (!item || !item.title || !item.link) continue;
+    const dedupeKey = keyFor(item);
+    try {
+      const outcome = await GlobalNewsItem.updateOne(
+        { dedupeKey },
+        { $setOnInsert: { ...item, dedupeKey, reviewStatus: 'unreviewed', fetchedAt: new Date() } },
+        { upsert: true },
+      );
+      saved += Number(outcome.upsertedCount || 0);
+      processed += 1;
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+    }
+  }
+  return { saved, processed };
+}
+
+async function readWorldNewsApi() {
+  if (!env.WORLD_NEWS_API_KEY) return { configured: false, skipped: true, fetched: 0, saved: 0, reason: 'WORLD_NEWS_API_KEY is not configured.' };
+
+  const now = new Date();
+  const state = await GlobalNewsSyncState.findById('world-news-api').lean();
+  if (state?.nextAllowedAt && new Date(state.nextAllowedAt) > now) {
+    return {
+      configured: true, skipped: true, fetched: 0, saved: 0,
+      nextAllowedAt: state.nextAllowedAt,
+      quotaLeft: state.quotaLeft || null,
+      reason: 'World News API refresh is being rate-limited to protect the daily quota.',
+    };
+  }
+
+  const intervalMs = env.WORLD_NEWS_API_REFRESH_MINUTES * 60000;
+  if (state?.lastAttemptAt && now - new Date(state.lastAttemptAt) < intervalMs) {
+    return {
+      configured: true, skipped: true, fetched: 0, saved: 0,
+      nextAllowedAt: new Date(new Date(state.lastAttemptAt).getTime() + intervalMs),
+      quotaLeft: state.quotaLeft || null,
+      reason: 'The previous World News API refresh is still within its quota-safe interval.',
+    };
+  }
+
+  // Claim the refresh window in MongoDB before making the request. The scheduler's
+  // distributed lock is the primary guard; this persisted timestamp also protects
+  // against restarts and accidental manual refreshes.
+  await GlobalNewsSyncState.findByIdAndUpdate('world-news-api', {
+    $set: { lastAttemptAt: now, nextAllowedAt: new Date(now.getTime() + intervalMs), lastError: '' },
+    $setOnInsert: { _id: 'world-news-api' },
+  }, { upsert: true, new: true });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), env.WORLD_NEWS_API_TIMEOUT_MS);
+  try {
+    const params = new URLSearchParams({
+      language: env.WORLD_NEWS_API_LANGUAGE || 'en',
+      categories: 'politics,business,technology,science,health,sports,entertainment,education,environment',
+      sort: 'publish-time',
+      'sort-direction': 'DESC',
+      number: String(env.WORLD_NEWS_API_NUMBER),
+    });
+    const response = await fetch(API_URL + '?' + params.toString(), {
+      method: 'GET',
+      headers: { 'x-api-key': env.WORLD_NEWS_API_KEY, accept: 'application/json', 'user-agent': 'RADAR-Newsroom/1.0' },
+      signal: controller.signal,
+    });
+    const quota = {
+      quotaRequest: response.headers.get('x-api-quota-request') || '',
+      quotaUsed: response.headers.get('x-api-quota-used') || '',
+      quotaLeft: response.headers.get('x-api-quota-left') || '',
+    };
+    if (!response.ok) {
+      const errorCode = response.status === 402 ? 'DAILY_QUOTA_EXHAUSTED'
+        : response.status === 401 ? 'API_KEY_UNAUTHORIZED'
+          : response.status === 429 ? 'API_RATE_LIMITED' : 'HTTP_' + response.status;
+      const retryAt = response.status === 402
+        ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+        : new Date(Date.now() + (response.status === 429 ? 60 : 15) * 60000);
+      await GlobalNewsSyncState.findByIdAndUpdate('world-news-api', {
+        $set: { ...quota, lastError: errorCode, nextAllowedAt: retryAt },
+      });
+      return { configured: true, ok: false, fetched: 0, saved: 0, error: errorCode, quotaLeft: quota.quotaLeft || null, nextAllowedAt: retryAt };
+    }
+    const payload = await response.json();
+    const items = (Array.isArray(payload.news) ? payload.news : []).map(worldApiItem).filter(Boolean);
+    const result = await saveItems(items);
+    await GlobalNewsSyncState.findByIdAndUpdate('world-news-api', {
+      $set: { ...quota, lastSuccessAt: new Date(), lastError: '', nextAllowedAt: new Date(Date.now() + intervalMs) },
+    });
+    return {
+      configured: true, ok: true, fetched: items.length, saved: result.saved,
+      available: Number(payload.available || 0),
+      quotaRequest: quota.quotaRequest || null,
+      quotaUsed: quota.quotaUsed || null,
+      quotaLeft: quota.quotaLeft || null,
+    };
+  } catch (error) {
+    const reason = error.name === 'AbortError' ? 'TIMEOUT' : String(error.message || 'API_ERROR').slice(0, 120);
+    await GlobalNewsSyncState.findByIdAndUpdate('world-news-api', { $set: { lastError: reason } });
+    return { configured: true, ok: false, fetched: 0, saved: 0, error: reason };
+  } finally { clearTimeout(timer); }
+}
+
 async function refresh() {
   const feeds = configuredFeeds();
-  if (!feeds.length) return { configured: 0, fetched: 0, saved: 0, failed: 0, message: 'Set WORLD_NEWS_FEEDS to a JSON array of permitted HTTPS RSS/Atom sources.' };
   const results = [];
-  // Small batches keep a free Render instance from opening dozens of sockets at once.
   for (let i = 0; i < feeds.length; i += 5) {
     results.push(...await Promise.all(feeds.slice(i, i + 5).map(readFeed)));
   }
-  let saved = 0;
-  let processed = 0;
-  for (const result of results) {
-    for (const item of result.items) {
-      try {
-        const outcome = await GlobalNewsItem.updateOne(
-          { dedupeKey: keyFor(item) },
-          { $setOnInsert: { ...item, dedupeKey: keyFor(item), reviewStatus: 'unreviewed', fetchedAt: new Date() } },
-          { upsert: true },
-        );
-        saved += Number(outcome.upsertedCount || 0);
-        processed += 1;
-      } catch (error) {
-        if (error.code !== 11000) throw error;
-      }
-    }
-  }
-  await GlobalNewsItem.deleteMany({ fetchedAt: { $lt: new Date(Date.now() - MAX_AGE_DAYS * 86400000) }, reviewStatus: { $in: ['unreviewed', 'rejected'] } });
-  return { configured: feeds.length, fetched: results.reduce((n, x) => n + x.items.length, 0), saved, processed, failed: results.filter((x) => !x.ok).length, feeds: results.map(({ feed, ok, error, items }) => ({ feed, ok, error: error || null, items: items.length })) };
+
+  const rssItems = results.flatMap((result) => result.items);
+  const rssSaved = await saveItems(rssItems);
+  const api = await readWorldNewsApi();
+
+  await GlobalNewsItem.deleteMany({
+    fetchedAt: { $lt: new Date(Date.now() - MAX_AGE_DAYS * 86400000) },
+    reviewStatus: { $in: ['unreviewed', 'rejected'] },
+  });
+
+  return {
+    configured: feeds.length,
+    fetched: rssItems.length + Number(api.fetched || 0),
+    saved: rssSaved.saved + Number(api.saved || 0),
+    processed: rssSaved.processed,
+    failed: results.filter((x) => !x.ok).length + (api.ok === false ? 1 : 0),
+    feeds: results.map(({ feed, ok, error, items }) => ({ feed, ok, error: error || null, items: items.length })),
+    worldNewsApi: api,
+    message: !feeds.length && !api.configured
+      ? 'Set WORLD_NEWS_API_KEY and/or WORLD_NEWS_FEEDS to enable international news ingestion.'
+      : undefined,
+  };
 }
+
 async function list({ page = 1, limit = 20, region = '', status = '', includeReviewStatus = false } = {}) {
   const safePage = Math.max(1, Math.min(Number(page) || 1, 500));
   const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
@@ -124,13 +253,22 @@ async function list({ page = 1, limit = 20, region = '', status = '', includeRev
   return { items, page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) };
 }
 async function status() {
-  const [configured, total, unreviewed, verified, newest] = await Promise.all([
-    Promise.resolve(configuredFeeds().length),
+  const [total, unreviewed, verified, newest, apiState] = await Promise.all([
     GlobalNewsItem.countDocuments(),
     GlobalNewsItem.countDocuments({ reviewStatus: 'unreviewed' }),
     GlobalNewsItem.countDocuments({ reviewStatus: 'verified' }),
     GlobalNewsItem.findOne().sort({ fetchedAt: -1 }).select('fetchedAt').lean(),
+    GlobalNewsSyncState.findById('world-news-api').lean(),
   ]);
-  return { configuredFeeds: configured, totalLeads: total, unreviewed, verified, lastFetchedAt: newest?.fetchedAt || null };
+  return {
+    configuredFeeds: configuredFeeds().length,
+    worldNewsApiConfigured: Boolean(env.WORLD_NEWS_API_KEY),
+    worldNewsApiLastSuccessAt: apiState?.lastSuccessAt || null,
+    worldNewsApiNextAllowedAt: apiState?.nextAllowedAt || null,
+    worldNewsApiQuotaLeft: apiState?.quotaLeft || null,
+    worldNewsApiLastError: apiState?.lastError || null,
+    totalLeads: total, unreviewed, verified,
+    lastFetchedAt: newest?.fetchedAt || null,
+  };
 }
-module.exports = { configuredFeeds, parseFeed, refresh, list, status };
+module.exports = { configuredFeeds, parseFeed, refresh, list, status, worldApiItem };

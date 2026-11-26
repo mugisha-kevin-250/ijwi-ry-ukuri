@@ -133,3 +133,119 @@ export function canonicalCategoryId(categories: Category[], categoryId: string):
   const resolved = resolveCategories(categories).find((item) => item.visual.slug === visualFor(chosen)?.slug)
   return resolved ? String(resolved.category._id) : categoryId
 }
+
+
+export interface CommonsCategoryImage {
+  url: string
+  pageUrl: string
+  credit: string
+  width: number
+  height: number
+}
+const commonsImageCache = new Map<string, Promise<CommonsCategoryImage | null>>()
+const CATEGORY_SEARCH_TERMS: Record<string, string> = {
+  rwanda: 'Kigali Rwanda city landscape',
+  africa: 'African landscape wildlife city',
+  world: 'Earth planet world landscape',
+  politics: 'parliament government building chamber',
+  business: 'business office commerce company',
+  tech: 'technology computer electronics',
+  sports: 'football stadium sports athletics',
+  entertainment: 'music concert film entertainment',
+  health: 'healthcare hospital medical',
+  education: 'university classroom education',
+  campus: 'university campus students',
+  jobs: 'workplace professionals employment',
+  opportunities: 'scholarship students graduation',
+  lifestyle: 'travel lifestyle food culture',
+  opinions: 'newspaper editorial journalism',
+  other: 'community people society',
+  football: 'football soccer stadium match',
+  basketball: 'basketball court game',
+  cricket: 'cricket stadium match',
+  tennis: 'tennis court tournament',
+  elections: 'election voting ballot',
+  diplomacy: 'diplomacy international meeting',
+  markets: 'stock exchange financial market',
+  economy: 'economic industry trade',
+  crypto: 'bitcoin cryptocurrency technology',
+  energy: 'renewable energy solar power',
+  ai: 'artificial intelligence robotics',
+  gadgets: 'smartphone laptop electronics',
+  cybersecurity: 'cybersecurity computer security',
+  space: 'space telescope rocket',
+  movies: 'cinema film production',
+  music: 'music concert stage',
+  gaming: 'video game esports',
+  wellness: 'fitness wellness exercise',
+  medicine: 'medical research hospital',
+  science: 'science laboratory research',
+  climate: 'climate environment nature',
+  middleEast: 'Middle East city landscape',
+  americas: 'Americas city landscape',
+  europe: 'Europe city landscape',
+  asiaPacific: 'Asia Pacific landscape',
+}
+function categorySearchTerm(label: string): string {
+  const key = normalize(label).replace(/[^a-z0-9]/g, '')
+  const mapped = CATEGORY_SEARCH_TERMS[key]
+  return mapped || (label + ' news photography')
+}
+/**
+ * Search Wikimedia Commons for an actual photograph whose original file is
+ * UHD 4K (3840x2160 landscape or 2160x3840 portrait). No upscaling or
+ * dimension claims based on a filename; Commons imageinfo supplies pixels.
+ */
+export function search4kCategoryImage(label: string): Promise<CommonsCategoryImage | null> {
+  const query = String(label || '').trim()
+  if (!query) return Promise.resolve(null)
+  const key = normalize(query)
+  const cached = commonsImageCache.get(key)
+  if (cached) return cached
+  const request = (async () => {
+    const api = new URL('https://commons.wikimedia.org/w/api.php')
+    api.searchParams.set('action', 'query')
+    api.searchParams.set('format', 'json')
+    api.searchParams.set('generator', 'search')
+    api.searchParams.set('gsrnamespace', '6')
+    api.searchParams.set('gsrlimit', '20')
+    api.searchParams.set('gsrsearch', 'filetype:bitmap ' + categorySearchTerm(query))
+    api.searchParams.set('prop', 'imageinfo')
+    api.searchParams.set('iiprop', 'url|size|mime|extmetadata')
+    api.searchParams.set('iiurlwidth', '3840')
+    api.searchParams.set('origin', '*')
+    const response = await fetch(api.toString(), { headers: { accept: 'application/json' } })
+    if (!response.ok) throw new Error('Wikimedia Commons image search failed')
+    const payload = await response.json()
+    const pages = Object.values(payload?.query?.pages || {}) as any[]
+    const candidates = pages.map(page => {
+      const info = page?.imageinfo?.[0]
+      if (!info || !/^image\/(jpeg|png|webp)$/i.test(info.mime || '')) return null
+      const width = Number(info.width) || 0
+      const height = Number(info.height) || 0
+      const isUhd = (width >= 3840 && height >= 2160) || (height >= 3840 && width >= 2160)
+      if (!isUhd) return null
+      const thumbWidth = Number(info.thumbwidth) || 0
+      const thumbHeight = Number(info.thumbheight) || 0
+      const thumbIsUhd = (thumbWidth >= 3840 && thumbHeight >= 2160) || (thumbHeight >= 3840 && thumbWidth >= 2160)
+      const metadata = info.extmetadata || {}
+      const artist = String(metadata.Artist?.value || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+      const license = String(metadata.LicenseShortName?.value || '').replace(/<[^>]*>/g, '').trim()
+      return {
+        url: thumbIsUhd && info.thumburl ? info.thumburl : info.url,
+        pageUrl: info.descriptionurl || '',
+        credit: [artist || 'Wikimedia Commons contributor', 'Wikimedia Commons', license].filter(Boolean).join(' · ').slice(0, 180),
+        width,
+        height,
+        isPhoto: /photograph|photo/i.test(String(info.extmetadata?.ImageDescription?.value || '')),
+      }
+    }).filter(Boolean) as (CommonsCategoryImage & { isPhoto: boolean })[]
+    candidates.sort((a,b) => Number(b.isPhoto)-Number(a.isPhoto))
+    return candidates[0] || null
+  })().catch(error => {
+    commonsImageCache.delete(key)
+    throw error
+  })
+  commonsImageCache.set(key, request)
+  return request
+}

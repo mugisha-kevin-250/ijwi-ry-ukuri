@@ -96,9 +96,19 @@ export default function EmailAlertsCard() {
           setError(t('alerts.mailNoAddress'))
           return
         }
-        await newsletterAPI.subscribe(user.email, 'account', { sections, language })
+        const result = await newsletterAPI.subscribe(user.email, 'account', { sections, language })
         await load()
-        setNote(t('alerts.mailStartDone'))
+        if (result.delivered) {
+          setNote('Confirmation email accepted by the mail provider. Check your inbox and spam folder, then open the confirmation link.')
+        } else if (result.queued) {
+          setNote('Your address is saved. The mail server is still processing the confirmation email; check your inbox shortly.')
+        } else if (!result.configured) {
+          setError(`Your address was saved, but no email was sent because the newsroom mail service is not configured. ${result.deliveryReason || ''}`.trim())
+        } else if (!result.needsConfirmation) {
+          setNote('This email address is already confirmed for RADAR alerts.')
+        } else {
+          setError(`Your address was saved, but the confirmation email was not accepted by the mail provider. ${result.deliveryReason || 'Ask the newsroom administrator to check the Mail desk.'}`)
+        }
         return
       }
       const result = await newsletterAPI.updateMe({ sections, language })

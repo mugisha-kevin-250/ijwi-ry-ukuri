@@ -9,7 +9,7 @@ const pushSubscriptionSchema = new mongoose.Schema({
   // not to the account, because the phone in a pocket or on a bedside table is
   // the thing that decides whether a beep is welcome, and the same reader has
   // two of those that disagree.
-  quiet: { type: Boolean, default: false },
+  quiet: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 

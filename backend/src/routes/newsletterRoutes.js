@@ -125,6 +125,7 @@ router.post('/subscribe', optionalAuth, async (req, res, next) => {
         queued: result.queued === true,
         needsConfirmation: true,
         configured: state.configured,
+        deliveryReason: result.reason || state.reason || null,
       });
   } catch (error) {
     next(error);

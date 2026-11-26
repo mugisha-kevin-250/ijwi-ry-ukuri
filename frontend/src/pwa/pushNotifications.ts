@@ -24,7 +24,8 @@ const QUIET_KEY = 'radar.push.quiet'
 
 export function quietStoredLocally(): boolean {
   try {
-    return localStorage.getItem(QUIET_KEY) === '1'
+    const stored = localStorage.getItem(QUIET_KEY)
+    return stored === null ? true : stored === '1'
   } catch {
     return false
   }
@@ -113,6 +114,8 @@ export async function enablePushNotifications(): Promise<PushSubscription> {
       applicationServerKey: toUint8Array(publicKey),
     }))
 
+  // New installs receive visible but quiet alerts by default.
+  rememberQuiet(true)
   await apiClient.post('/push/subscribe', { subscription: subscription.toJSON(), quiet: quietStoredLocally() })
   return subscription
 }

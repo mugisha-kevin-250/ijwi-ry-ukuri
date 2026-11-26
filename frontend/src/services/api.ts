@@ -1553,6 +1553,7 @@ export interface NewsletterSubscribeResult {
   queued: boolean
   needsConfirmation: boolean
   configured: boolean
+  deliveryReason?: string | null
   message: string
 }
 
@@ -1610,12 +1611,13 @@ export const newsletterAPI = {
     // than the address being refused. The server itself no longer waits for the
     // mail relay to answer before it replies.
     const response = await apiClient.postWakingUp('/newsletter/subscribe', { email, source, ...(choices || {}) })
-    const payload = (response.data?.data || {}) as { delivered?: boolean; queued?: boolean; needsConfirmation?: boolean; configured?: boolean }
+    const payload = (response.data?.data || {}) as { delivered?: boolean; queued?: boolean; needsConfirmation?: boolean; configured?: boolean; deliveryReason?: string | null }
     return {
       delivered: payload.delivered === true,
       queued: payload.queued === true,
       needsConfirmation: payload.needsConfirmation === true,
       configured: payload.configured === true,
+      deliveryReason: payload.deliveryReason || null,
       message: response.data?.message || '',
     }
   },

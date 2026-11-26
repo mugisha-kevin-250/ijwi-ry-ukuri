@@ -167,6 +167,16 @@ export interface Article {
    * desk's note and the staffer who ruled are not sent to anybody else.
    */
   sources?: ArticleSource[]
+  /** Provenance captured when RADAR generated a draft from an international publisher lead. */
+  sourceResearch?: {
+    extractionStatus?: 'extracted' | 'limited' | 'restricted' | 'unavailable' | 'pending'
+    sourceWordCount?: number
+    sourceAuthor?: string
+    sourcePublishedAt?: string
+    extractedAt?: string | null
+    originalUrl?: string
+    usedFullSource?: boolean
+  }
   /** Desk-only, and `select: false` on the model: an earlier version of the copy. */
   revisions?: ArticleRevision[]
   author: string | { _id: string; fullName: string; username: string; avatar?: string; bio?: string }

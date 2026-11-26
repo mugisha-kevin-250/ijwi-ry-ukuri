@@ -19,6 +19,16 @@ const articleSchema = new mongoose.Schema({
   // credit on purpose: one line says where the picture came from, the other says
   // what is in it, and a reader searching an image wants both.
   imageCaption: String,
+  // Provenance for AI-assisted international drafts; visible to editors, not a claim of independent verification.
+  sourceResearch: {
+    extractionStatus: String,
+    sourceWordCount: Number,
+    sourceAuthor: String,
+    sourcePublishedAt: String,
+    extractedAt: Date,
+    originalUrl: String,
+    usedFullSource: Boolean,
+  },
   // The clip an author attached to the story. `videoUrl` is what they pasted or
   // uploaded, kept so the form can show and edit it; `videoEmbedUrl` is what the
   // reader's page is allowed to load and is rebuilt from the video id, never

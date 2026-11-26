@@ -443,7 +443,7 @@ export default function AdminAiWriterPage() {
               <div>
                 <h2 id="radar-auto-manage-title" className="font-bold text-slate-900">RADAR AI Auto Manage</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  {autoManage.enabled ? 'Enabled on the server — runs every 15 minutes without your browser.' : 'Off — enable server-side research and automatic draft preparation.'}
+                  {autoManage.enabled ? 'Enabled on the server — researches and can publish eligible stories every 15 minutes without your browser.' : 'Off — enable the autonomous newsroom.'}
                 </p>
               </div>
             </div>
@@ -456,9 +456,9 @@ export default function AdminAiWriterPage() {
           </div>
           {!autoManage.configured && <p className="mt-3 text-xs text-amber-700">Connect GEMINI_API_KEY on the backend before enabling automation.</p>}
           <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">
-            This mode runs on the backend, not your device. It researches current Google Trends leads and creates source-linked AI drafts in the review queue. It does not publish unverified AI copy, approve or reject writer applications, alter accounts, or delete/edit existing content. An editor must verify sources and approve each story.
+            This mode runs on the backend, not your device. It researches current Google Trends leads, writes original stories, and automatically publishes at most one per run only when two distinct HTTPS publishers are available, the article passes length and completeness checks, and no recent duplicate is found. Weak stories stay in the review queue. Credited source images are attached when available; video is included only when a valid source video is supplied. Every run is logged. It never changes user roles, approves writer applications, or edits/deletes existing content.
           </p>
-          {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} drafts created · {autoManage.lastResult?.held || 0} held for insufficient evidence.</p>}
+          {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} articles created · {autoManage.lastResult?.published || 0} published · {autoManage.lastResult?.held || 0} held for safeguards.</p>}
           {autoManage.lastResult?.notes?.length ? (
             <ul className="mt-2 space-y-1 text-xs text-slate-600">
               {autoManage.lastResult.notes.slice(0, 3).map((item, index) => <li key={item.id || item.topic || index}>{item.title || item.topic || item.error}</li>)}

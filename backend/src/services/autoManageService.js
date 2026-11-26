@@ -56,7 +56,7 @@ function sourceDomain(url) {
 
 function qualityGate(story, evidence) {
   const riskText = String(evidence?.topic || '') + ' ' + String(story?.title || '') + ' ' + String(story?.content || '');
-  if (/\\b(election|electoral|vote|voting|candidate|president|minister|court|lawsuit|arrest|accused|allegation|murder|killed|death|outbreak|disease|medicine|medical|health|war|conflict|attack|terror|rape|child abuse)\\b/i.test(riskText)) {
+  if (/\b(election|electoral|vote|voting|candidate|president|minister|court|lawsuit|arrest|accused|allegation|murder|killed|death|outbreak|disease|medicine|medical|health|war|conflict|attack|terror|rape|child abuse)\b/i.test(riskText)) {
     return 'Held: high-impact political, legal, health, violence or allegation-related reporting requires human editorial review.';
   }
   const sources = (evidence?.headlines || []).filter((item) => sourceDomain(item.url));

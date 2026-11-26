@@ -61,7 +61,7 @@ const DESK_PERMISSIONS = [
 router.post('/automation/radar/run', async (req, res, next) => {
   try {
     const expected = String(process.env.RADAR_AUTOMATION_TOKEN || '');
-    const supplied = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '');
+    const supplied = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     if (expected.length < 32 || supplied.length !== expected.length ||
         !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
       return errorResponse(res, 401, 'Scheduled automation is not authorised.');

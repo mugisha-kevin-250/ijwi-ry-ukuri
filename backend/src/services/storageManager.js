@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
 const Article = require('../models/Article');
 const Upload = require('../models/Upload');
 const env = require('../config/env');
 const auditLog = require('./auditLogService');
+const env = require('../config/env');
 
 const LIMIT_MB = Math.max(64, Number(env.MONGODB_STORAGE_LIMIT_MB) || 512);
 const LIMIT_BYTES = LIMIT_MB * 1024 * 1024;
@@ -62,6 +65,7 @@ async function removeUnreferencedArticleImages(filenames, ownerId) {
     if (removed.deletedCount) {
       deletedFiles += 1;
       freedBytes += Number(file.size || 0);
+      fs.promises.unlink(path.join(env.UPLOAD_DIR, filename)).catch(() => {});
     }
   }
   return { deletedFiles, freedMB: Number((freedBytes / 1048576).toFixed(2)) };
@@ -92,6 +96,7 @@ async function runCleanup(ownerId) {
     publishedAt: { $lte: cutoff },
     author: { $ne: ownerId },
     views: { $lte: 25 },
+    likes: { $lte: 0 },
     commentsCount: { $lte: 0 },
     isBreaking: { $ne: true },
     scheduledAt: null
@@ -106,6 +111,7 @@ async function runCleanup(ownerId) {
       author: { $ne: ownerId },
       publishedAt: { $lte: cutoff },
       views: { $lte: 25 },
+      likes: { $lte: 0 },
       commentsCount: { $lte: 0 },
       isBreaking: { $ne: true },
       scheduledAt: null

@@ -46,23 +46,22 @@ for (const pagePath of pages) {
   let html = fs.readFileSync(pagePath, 'utf8')
 
   if (!/\bsrc=["']\/src\/main\.tsx["']/.test(html)) {
-    // A page already finalized by a repeated build is left alone.
     if (/\bsrc=["']\/assets\//.test(html)) continue
-    throw new Error(\`Unexpected script entry point in \${path.relative(dist, pagePath)}\`)
+    throw new Error('Unexpected script entry point in ' + path.relative(dist, pagePath))
   }
 
   html = html.replace(
     /<script\b(?=[^>]*\bsrc=["']\/src\/main\.tsx["'])[^>]*>\s*<\/script>/i,
     moduleScript,
   )
-  html = html.replace('</head>', \`    \${assetLinks}\n  </head>\`)
+  html = html.replace('</head>', '    ' + assetLinks + '\n  </head>')
 
   if (/\bsrc=["']\/src\/main\.tsx["']/.test(html)) {
-    throw new Error(\`Development entry point remains in \${path.relative(dist, pagePath)}\`)
+    throw new Error('Development entry point remains in ' + path.relative(dist, pagePath))
   }
 
   fs.writeFileSync(pagePath, html)
   finalized += 1
 }
 
-console.log(\`SEO prerender: attached production Vite assets to \${finalized} article pages\`)
+console.log('SEO prerender: attached production Vite assets to ' + finalized + ' article pages')

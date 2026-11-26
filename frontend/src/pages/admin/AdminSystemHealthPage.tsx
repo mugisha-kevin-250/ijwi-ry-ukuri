@@ -7,7 +7,8 @@ type Health = {
   database: { connected: boolean }
   wired: Record<string, boolean | string | null>
 }
-type Readiness = { success: boolean; status: string; database: boolean }\ntype Storage = { capacityMB: number; usedMB: number; remainingMB: number; usedPercent: number; uploadStorage: { capacityMB: number; usedMB: number; remainingMB: number; usedPercent: number; files: number }; measuredAt: string; cleanup?: { deletedStories?: number; deletedImages?: number; freedImageMB?: number; after?: { usedPercent?: number } } | null }
+type Readiness = { success: boolean; status: string; database: boolean }
+type Storage = { capacityMB: number; usedMB: number; remainingMB: number; usedPercent: number; uploadStorage: { capacityMB: number; usedMB: number; remainingMB: number; usedPercent: number; files: number }; measuredAt: string; cleanup?: { deletedStories?: number; deletedImages?: number; freedImageMB?: number; after?: { usedPercent?: number } } | null }
 
 function State({ ok, yes = 'Available', no = 'Not configured' }: { ok: boolean; yes?: string; no?: string }) {
   return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
@@ -18,7 +19,8 @@ function State({ ok, yes = 'Available', no = 'Not configured' }: { ok: boolean; 
 
 export default function AdminSystemHealthPage() {
   const [health, setHealth] = useState<Health | null>(null)
-  const [readiness, setReadiness] = useState<Readiness | null>(null)\n  const [storage, setStorage] = useState<Storage | null>(null)
+  const [readiness, setReadiness] = useState<Readiness | null>(null)
+  const [storage, setStorage] = useState<Storage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [checkedAt, setCheckedAt] = useState<Date | null>(null)
@@ -29,10 +31,12 @@ export default function AdminSystemHealthPage() {
     try {
       const [healthResponse, readyResponse, storageResponse] = await Promise.all([
         apiClient.get('/health'),
-        apiClient.get('/health/ready'),\n        apiClient.get('/admin/system/storage'),
+        apiClient.get('/health/ready'),
+        apiClient.get('/admin/system/storage'),
       ])
       setHealth(healthResponse.data as unknown as Health)
-      setReadiness(readyResponse.data as unknown as Readiness)\n      setStorage((storageResponse.data as unknown as Storage))
+      setReadiness(readyResponse.data as unknown as Readiness)
+      setStorage(((storageResponse.data as any)?.data || storageResponse.data) as Storage)
       setCheckedAt(new Date())
     } catch (err) {
       setError(serverMessage(err, 'The backend health checks could not be reached.'))

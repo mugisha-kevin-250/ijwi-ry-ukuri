@@ -66,7 +66,12 @@ router.post('/automation/radar/run', async (req, res, next) => {
         !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
       return errorResponse(res, 401, 'Scheduled automation is not authorised.');
     }
-    const result = await autoManageService.run();
+    // Route scheduled wake-ups through the same distributed lock and
+    // persistent Scheduler Desk logger as the in-process cron. This prevents
+    // GitHub Actions and Render cron from publishing the same lead together.
+    const result = await scheduler.runJob('radar-auto-manage', { trigger: 'github-actions' });
+    if (result.status === 'failed') return errorResponse(res, 500, result.error || 'RADAR automation failed.');
+    if (result.status === 'skipped') return successResponse(res, 200, 'RADAR automation pass was safely skipped', result);
     return successResponse(res, 200, 'RADAR AI scheduled pass finished', result);
   } catch (error) { next(error); }
 });
@@ -528,7 +533,7 @@ router.put('/ai/auto-manage', requirePermission([PERMISSIONS.runAiWriter]), asyn
       ...config,
       configured: geminiService.isConfigured(),
       intervalMinutes: 15,
-      mode: 'editorial-review',
+      mode: 'autonomous-publish-with-safeguards',
     });
   } catch (error) { next(error); }
 });

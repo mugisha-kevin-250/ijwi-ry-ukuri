@@ -49,13 +49,19 @@ function safeLink(raw, base) {
   } catch { return ''; }
 }
 function imageFromFeed(block, base) {
-  const candidates = [
-    (String(block).match(/<enclosure[^>]+url=["']([^"']+)["']/i) || [])[1],
-    (String(block).match(/<media:content[^>]+url=["']([^"']+)["']/i) || [])[1],
-    (String(block).match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i) || [])[1],
-    (String(block).match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1],
-  ];
-  return safeLink(candidates.find(Boolean) || '', base);
+  const mediaTags = String(block).match(/<(?:enclosure|media:content|media:thumbnail)\\b[^>]*>/gi) || [];
+  for (const mediaTag of mediaTags) {
+    const raw = (mediaTag.match(/url=["']([^"']+)["']/i) || [])[1] || '';
+    const type = (mediaTag.match(/type=["']([^"']+)["']/i) || [])[1] || '';
+    const medium = (mediaTag.match(/medium=["']([^"']+)["']/i) || [])[1] || '';
+    const isThumbnail = /media:thumbnail/i.test(mediaTag);
+    if (isThumbnail || /^image\\//i.test(type) || /^image$/i.test(medium) || /\\.(?:jpe?g|png|webp|gif)(?:[?#]|$)/i.test(raw)) {
+      const safe = safeLink(raw, base);
+      if (safe) return safe;
+    }
+  }
+  const inline = (String(block).match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || '';
+  return safeLink(inline, base);
 }
 function parseFeed(xml, feed) {
   const blocks = [...String(xml || '').matchAll(/<(item|entry)(?:\s[^>]*)?>([\s\S]*?)<\/\1\s*>/gi)].slice(0, MAX_ITEMS_PER_FEED);

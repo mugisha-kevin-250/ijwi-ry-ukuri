@@ -1,6 +1,10 @@
 name: Build and deploy RADAR to Firebase Hosting
 
 on:
+  # Refresh the generated news, image and article sitemaps even when newsroom
+  # content changes without a source-code commit.
+  schedule:
+    - cron: '17 3 * * *'
   push:
     branches:
       - main

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const Article = require('../models/Article');
 const User = require('../models/User');
 const WriterEarning = require('../models/WriterEarning');
@@ -53,6 +54,22 @@ const DESK_PERMISSIONS = [
   PERMISSIONS.runAiWriter,
   PERMISSIONS.managePlatform,
 ];
+
+// A scheduled GitHub Actions wake-up for deployments whose free web service
+// may sleep between readers. This route accepts only a separately configured
+// bearer secret; it is intentionally mounted before the staff JWT guard.
+router.post('/automation/radar/run', async (req, res, next) => {
+  try {
+    const expected = String(process.env.RADAR_AUTOMATION_TOKEN || '');
+    const supplied = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '');
+    if (expected.length < 32 || supplied.length !== expected.length ||
+        !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
+      return errorResponse(res, 401, 'Scheduled automation is not authorised.');
+    }
+    const result = await autoManageService.run();
+    return successResponse(res, 200, 'RADAR AI scheduled pass finished', result);
+  } catch (error) { next(error); }
+});
 
 router.use(protect, requirePermission(DESK_PERMISSIONS));
 

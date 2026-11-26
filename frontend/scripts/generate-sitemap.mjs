@@ -133,8 +133,8 @@ function articlePlainText(value) {
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([\da-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (_, code) => { const point = Number(code); return point <= 0x10ffff ? String.fromCodePoint(point) : ' ' })
+    .replace(/&#x([\da-f]+);/gi, (_, code) => { const point = parseInt(code, 16); return point <= 0x10ffff ? String.fromCodePoint(point) : ' ' })
     .split(/\n+/)
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
@@ -187,11 +187,11 @@ function renderPrerenderedArticle(article, shell) {
     .replace(/<meta property="og:title" content="[^"]*"\s*\/?\s*>/i, `<meta property="og:title" content="${htmlEscape(title)}" />`)
     .replace(/<meta property="og:description" content="[^"]*"\s*\/?\s*>/i, `<meta property="og:description" content="${htmlEscape(description)}" />`)
     .replace(/<meta property="og:url" content="[^"]*"\s*\/?\s*>/i, `<meta property="og:url" content="${canonical}" />`)
-    .replace(/<meta property="og:image" content="[^"]*"\s*\/?\s*>/i, `<meta property="og:image" content="${image}" />`)
+    .replace(/<meta property="og:image" content="[^"]*"\s*\/?\s*>/i, `<meta property="og:image" content="${htmlEscape(image)}" />`)
     .replace(/<meta name="twitter:title" content="[^"]*"\s*\/?\s*>/i, `<meta name="twitter:title" content="${htmlEscape(title)}" />`)
     .replace(/<meta name="twitter:description" content="[^"]*"\s*\/?\s*>/i, `<meta name="twitter:description" content="${htmlEscape(description)}" />`)
     .replace(/<meta name="twitter:image" content="[^"]*"\s*\/?\s*>/i, `<meta name="twitter:image" content="${image}" />`)
-  const staticStory = `<main id="radar-prerendered-story"><article><header><p><a href="/">RADAR TIMES</a> / <a href="/articles">News</a></p><h1>${htmlEscape(article.title)}</h1>${description ? `<p>${htmlEscape(description)}</p>` : ''}${author?.fullName ? `<p>By ${htmlEscape(author.fullName)}</p>` : ''}${published ? `<time datetime="${published}">${published.slice(0, 10)}</time>` : ''}</header>${article.featuredImage ? `<figure><img src="${image}" alt="${htmlEscape(article.title)}" width="1200" height="675" /><figcaption>${htmlEscape(article.imageCaption || '')}</figcaption></figure>` : ''}<div>${body}</div></article></main>`
+  const staticStory = `<main id="radar-prerendered-story"><article><header><p><a href="/">RADAR TIMES</a> / <a href="/articles">News</a></p><h1>${htmlEscape(article.title)}</h1>${description ? `<p>${htmlEscape(description)}</p>` : ''}${author?.fullName ? `<p>By ${htmlEscape(author.fullName)}</p>` : ''}${published ? `<time datetime="${published}">${published.slice(0, 10)}</time>` : ''}</header>${article.featuredImage ? `<figure><img src="${htmlEscape(image)}" alt="${htmlEscape(article.title)}" width="1200" height="675" /><figcaption>${htmlEscape(article.imageCaption || '')}</figcaption></figure>` : ''}<div>${body}</div></article></main>`
   html = html.replace('</head>', `<script type="application/ld+json">${safeSchema}</script>\\n</head>`)
   html = html.replace('<div id="app"></div>', `<div id="app">${staticStory}</div>`)
   return html

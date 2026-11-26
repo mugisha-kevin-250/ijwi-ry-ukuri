@@ -24,7 +24,14 @@ router.get('/public-key', (req, res) => {
 });
 
 router.get('/status', (req, res) => {
-  return successResponse(res, 200, 'Push status', { enabled: pushService.configured });
+  return successResponse(res, 200, 'Push status', {
+    enabled: pushService.configured,
+    configured: pushService.configured,
+    publicKeyAvailable: Boolean(env.VAPID_PUBLIC_KEY),
+    privateKeyAvailable: Boolean(env.VAPID_PRIVATE_KEY),
+    subject: env.VAPID_SUBJECT,
+    reason: pushService.configured ? null : 'Set matching VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY values on the backend host, then redeploy.',
+  });
 });
 
 router.post('/subscribe', optionalAuth, async (req, res, next) => {
@@ -35,11 +42,12 @@ router.post('/subscribe', optionalAuth, async (req, res, next) => {
     // An existing install re-posting its subscription must not lose the quiet
     // switch it already has, so the field is only written when it was sent.
     const settings = typeof req.body?.quiet === 'boolean' ? { quiet: req.body.quiet } : {};
+    const owner = req.user?._id ? { user: req.user._id } : {};
 
     await PushSubscription.updateOne(
       { endpoint: subscription.endpoint },
-      { $set: { ...subscription, ...settings, user: req.user?._id ?? null } },
-      { upsert: true }
+      { $set: { ...subscription, ...settings, ...owner }, $setOnInsert: { quiet: true } },
+      { upsert: true, setDefaultsOnInsert: false }
     );
 
     const count = await PushSubscription.countDocuments();

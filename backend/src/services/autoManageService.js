@@ -15,6 +15,9 @@ const MIN_HEADLINES = 2;
 const MIN_DISTINCT_PUBLISHERS = 2;
 const MIN_BODY_CHARS = 1200;
 const MIN_PARAGRAPHS = 5;
+// High-impact subjects always require a human editor, even when other checks pass.
+const HUMAN_REVIEW_PATTERN = /\b(?:election|electoral|president|prime minister|parliament|government|minister|politic|war|military|attack|terror|conflict|killed|death|fatal|crime|murder|rape|assault|arrest|court|trial|lawsuit|health|medical|medicine|drug|disease|outbreak|epidemic|pandemic|earthquake|flood|disaster|missing child|child abuse)\b/i;
+
 
 async function getConfig() {
   const setting = await PlatformSetting.findOne({ key: SETTING_KEY }).lean();
@@ -80,6 +83,9 @@ function qualityGate(story, evidence) {
   }
   if (/\b(?:as an ai|i cannot verify|not enough information to write|placeholder text)\b/i.test(body)) {
     return 'Held: generated copy contains an AI limitation or placeholder statement.';
+  }
+  if (HUMAN_REVIEW_PATTERN.test(String(evidence?.topic || '') + ' ' + String(story?.title || '') + ' ' + body.slice(0, 1800))) {
+    return 'Held for human editorial review: the topic is sensitive or high-impact.';
   }
   return '';
 }

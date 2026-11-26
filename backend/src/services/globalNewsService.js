@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const env = require('../config/env');
 const GlobalNewsItem = require('../models/GlobalNewsItem');
 const GlobalNewsSyncState = require('../models/GlobalNewsSyncState');
+const geminiService = require('./geminiService');
 
 const MAX_FEEDS = 80;
 const MAX_ITEMS_PER_FEED = 60;
@@ -256,9 +257,38 @@ async function list({ page = 1, limit = 20, region = '', status = '', includeRev
   if (['unreviewed', 'reviewing', 'verified', 'rejected'].includes(status)) filter.reviewStatus = status;
   const [items, total] = await Promise.all([
     GlobalNewsItem.find(filter).sort({ publishedAt: -1, fetchedAt: -1 }).skip((safePage - 1) * safeLimit).limit(safeLimit)
-      .select(includeReviewStatus ? 'title description imageUrl englishTitle draftArticle link sourceName sourceUrl region language publishedAt fetchedAt reviewStatus' : 'title link sourceName sourceUrl region language publishedAt fetchedAt').lean(),
+      .select(includeReviewStatus ? 'title description imageUrl englishTitle englishDescription draftArticle link sourceName sourceUrl region language publishedAt fetchedAt reviewStatus' : 'title link sourceName sourceUrl region language publishedAt fetchedAt').lean(),
     GlobalNewsItem.countDocuments(filter),
   ]);
+
+  // The admin queue is English-first even when an RSS publisher files in
+  // Georgian, Greek or another language. Translate only once and cache the
+  // result; the original headline and source language remain available.
+  if (includeReviewStatus && geminiService.isConfigured()) {
+    const pendingTranslations = items.filter((item) => {
+      const language = String(item.language || '').toLowerCase();
+      const nonEnglishScript = /[^\\u0000-\\u024f]/.test(String(item.title || ''));
+      return !item.englishTitle && (nonEnglishScript || (language && language !== 'en' && !language.startsWith('en-')));
+    });
+    if (pendingTranslations.length) {
+      try {
+        const translated = await geminiService.translateGlobalLeadMetadata(pendingTranslations);
+        const byId = new Map(translated.map((entry) => [entry.id, entry]));
+        await Promise.all(pendingTranslations.map(async (item) => {
+          const value = byId.get(String(item._id));
+          if (!value?.title) return;
+          item.englishTitle = value.title;
+          item.englishDescription = value.description || '';
+          await GlobalNewsItem.updateOne(
+            { _id: item._id, englishTitle: '' },
+            { $set: { englishTitle: value.title, englishDescription: value.description || '', translatedAt: new Date() } }
+          );
+        }));
+      } catch (error) {
+        console.warn('[global-news] English headline translation unavailable:', error?.message || error);
+      }
+    }
+  }
   return { items, page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) };
 }
 async function status() {

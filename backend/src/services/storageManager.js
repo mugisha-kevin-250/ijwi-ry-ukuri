@@ -29,7 +29,7 @@ async function getUsage() {
   const usedMB = Number(stats.dataSize || 0) + Number(stats.indexSize || 0);
   const uploadBytes = Number(uploadTotals[0]?.bytes || 0);
   const uploadLimitBytes = Number(env.UPLOAD_STORE_LIMIT_MB) * 1024 * 1024;
-  const percent = LIMIT_BYTES > 0 ? usedMB / LIMIT_MB * 100 : 0;
+  const percent = LIMIT_MB > 0 ? usedMB / LIMIT_MB * 100 : 0;
   const uploadPercent = uploadLimitBytes > 0 ? uploadBytes / uploadLimitBytes * 100 : 0;
   return {
     capacityMB: LIMIT_MB,

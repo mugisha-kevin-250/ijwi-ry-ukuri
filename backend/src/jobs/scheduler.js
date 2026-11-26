@@ -104,7 +104,7 @@ const JOBS = {
   'radar-auto-manage': {
     manual: true,
     every: '*/15 * * * *',
-    summary: 'Research fresh Google Trends leads, write original stories, and publish at most one per pass when the source-diversity and article-quality safeguards pass; otherwise retain the story for review.',
+    summary: 'Manage the RADAR Global News desk: extract publisher reporting, write attributed stories, verify a genuine 4K featured image, attach available video, and publish at most one eligible story per pass.',
     run: () => autoManageService.run(),
   },
   'weekly-pay': {

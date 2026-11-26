@@ -304,6 +304,9 @@ export function useVoiceDesk({ language, onQuestion }: { language: string; onQue
   const say = useCallback(
     (text: string) => {
       const clean = String(text || '').trim()
+      // Text chat answers stay silent. Speech is reserved for an explicitly
+      // active voice-chat session, regardless of the saved voice preference.
+      if (!chatRef.current) return
       // The conversation this sentence belongs to. A sentence cancelled because
       // the reader stopped the chat and started it again must not hand the
       // microphone to the new one on top of the listener that already has it.

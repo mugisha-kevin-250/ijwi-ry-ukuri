@@ -271,7 +271,7 @@ async function list({ page = 1, limit = 20, region = '', status = '', includeRev
   if (includeReviewStatus && geminiService.isConfigured()) {
     const pendingTranslations = items.filter((item) => {
       const language = String(item.language || '').toLowerCase();
-      const nonEnglishScript = /[^\\u0000-\\u024f]/.test(String(item.title || ''));
+      const nonEnglishScript = /[^\x00-\x7F]/.test(String(item.title || ''));
       return !item.englishTitle && (nonEnglishScript || (language && language !== 'en' && !language.startsWith('en-')));
     });
     if (pendingTranslations.length) {
@@ -284,7 +284,7 @@ async function list({ page = 1, limit = 20, region = '', status = '', includeRev
           item.englishTitle = value.title;
           item.englishDescription = value.description || '';
           await GlobalNewsItem.updateOne(
-            { _id: item._id, englishTitle: '' },
+            { _id: item._id },
             { $set: { englishTitle: value.title, englishDescription: value.description || '', translatedAt: new Date() } }
           );
         }));

@@ -163,6 +163,52 @@ function creditFor(info) {
   return `${who} / Wikimedia Commons${license ? ` · ${license}` : ''}`.slice(0, 160);
 }
 
+// MediaWiki API:Images workflow: find the closest encyclopedia page, read the
+// files embedded on that page with prop=images, then resolve each file's real
+// URL, dimensions, author and licence through prop=imageinfo.
+async function searchWikiPageImages(query, { limit = 4 } = {}) {
+  const request = async (params) => {
+    const api = new URL('https://en.wikipedia.org/w/api.php');
+    Object.entries({ action: 'query', format: 'json', ...params }).forEach(([key, value]) => api.searchParams.set(key, String(value)));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS * 2);
+    try {
+      const response = await fetch(api.toString(), { signal: controller.signal, headers: { 'user-agent': 'RADAR newsroom https://ijwi-ry--ukuri.web.app' } });
+      if (!response.ok) throw new Error('Wikipedia API answered ' + response.status);
+      return await response.json();
+    } finally { clearTimeout(timer); }
+  };
+
+  const searchResult = await request({ list: 'search', srsearch: String(query).slice(0, 180), srlimit: 1 });
+  const pageTitle = searchResult?.query?.search?.[0]?.title;
+  if (!pageTitle) return [];
+  const pageResult = await request({ prop: 'images', titles: pageTitle, imlimit: 30 });
+  const page = Object.values(pageResult?.query?.pages || {})[0];
+  const titles = (page?.images || []).map((entry) => entry.title).filter((title) => /^File:/i.test(title)).slice(0, 30);
+  if (!titles.length) return [];
+  const infoResult = await request({
+    prop: 'imageinfo', titles: titles.join('|'),
+    iiprop: 'url|size|mime|extmetadata', iiurlwidth: MAX_EDGE,
+  });
+  return Object.values(infoResult?.query?.pages || {}).map((filePage) => {
+    const info = filePage?.imageinfo?.[0];
+    if (!info || !SEARCHABLE_MIME.test(info.mime || '')) return null;
+    const width = Number(info.width) || 0;
+    const height = Number(info.height) || 0;
+    if (Math.min(width, height) < SHORTEST_USEFUL_EDGE) return null;
+    const asked = Math.min(MAX_EDGE, width);
+    const url = info.thumburl && Number(info.thumbwidth) === asked ? info.thumburl : info.url;
+    return {
+      url, originalUrl: info.url, pageUrl: info.descriptionurl || '',
+      width, height, bytes: Number(info.size) || 0,
+      credit: creditFor(info), source: 'Wikipedia page images',
+      why: String(filePage.title || '').replace(/^(File|Image):/i, '').replace(/\.[a-z0-9]+$/i, '').replace(/_/g, ' ').slice(0, 200),
+      served: Math.max(width, height) > asked ? 'resized to ' + asked + 'px wide' : 'served at full size',
+      atUhd: Math.max(width, height) >= MAX_EDGE,
+    };
+  }).filter(Boolean).sort((a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height)).slice(0, limit);
+}
+
 async function search(query, { limit = 8 } = {}) {
   const term = String(query || '').trim();
   if (!term) return { photos: [], note: '' };
@@ -230,11 +276,22 @@ async function search(query, { limit = 8 } = {}) {
     .filter(Boolean);
 
   pages.sort((a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height));
+  // Search page-embedded Wikipedia images (API:Images) as well as Commons'
+  // topic index. Keep real file-page metadata and remove duplicate URLs.
+  const wikiPages = await searchWikiPageImages(term, { limit }).catch((error) => {
+    console.warn('[ai-photos] Wikipedia API:Images lookup unavailable:', error?.message || error);
+    return [];
+  });
+  const seen = new Set();
+  const combined = [...wikiPages, ...pages].filter((photo) => {
+    const key = String(photo.originalUrl || photo.url).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height));
   return {
-    photos: pages.slice(0, limit),
-    // Saying the search came back empty is better than padding the picker with
-    // pictures of something else.
-    note: pages.length ? '' : `Commons has no photograph at least ${SHORTEST_USEFUL_EDGE}px tall or wide under "${term.slice(0, 80)}".`
+    photos: combined.slice(0, limit),
+    note: combined.length ? '' : `Wikipedia and Commons have no photograph at least ${SHORTEST_USEFUL_EDGE}px tall or wide under "${term.slice(0, 80)}".`
   };
 }
 
@@ -383,4 +440,4 @@ async function verify(photos = [], { limit = 8 } = {}) {
   return { photos: checked, dropped };
 }
 
-module.exports = { verify, search, isPublicHttpsImage, readImageSize, commonsFile, MAX_EDGE };
+module.exports = { verify, search, searchWikiPageImages, isPublicHttpsImage, readImageSize, commonsFile, MAX_EDGE };

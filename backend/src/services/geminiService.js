@@ -540,6 +540,42 @@ async function writeGlobalNewsDraft({ title, description = '', sourceName, sourc
 }
 
 /**
+ * Translate a batch of international desk headlines and short excerpts into
+ * English in one model call. Original source text remains stored unchanged.
+ */
+async function translateGlobalLeadMetadata(items = []) {
+  const list = (Array.isArray(items) ? items : []).slice(0, 50).map((item, index) => ({
+    id: String(item._id || index),
+    title: String(item.title || '').slice(0, 300),
+    description: String(item.description || '').slice(0, 1800),
+    language: String(item.language || 'unknown').slice(0, 20),
+  }));
+  if (!list.length) return [];
+  const text = await callGemini({
+    contents: [{ role: 'user', parts: [{ text: [
+      'Translate these international news lead headlines and short excerpts into natural, accurate English.',
+      'Do not add facts, interpretation, or details. Preserve names and numbers. If an excerpt is empty, return an empty description.',
+      'Return only JSON: {"items":[{"id":string,"title":string,"description":string}]}',
+      JSON.stringify(list),
+    ].join('\n') }] }],
+    temperature: 0.1,
+    maxOutputTokens: 2400,
+    responseMimeType: 'application/json',
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+  const parsed = parseJson(text);
+  const byId = new Map((Array.isArray(parsed.items) ? parsed.items : []).map((item) => [String(item.id), item]));
+  return list.map((item) => {
+    const translated = byId.get(item.id) || {};
+    return {
+      id: item.id,
+      title: String(translated.title || '').trim().slice(0, 300),
+      description: String(translated.description || '').trim().slice(0, 4000),
+    };
+  }).filter((item) => item.title);
+}
+
+/**
  * The research desk.
  *
  * An admin asks it what to look into before a story is written: who to call,
@@ -1087,4 +1123,4 @@ async function adCreative({ advertiser, offer, link, placement, tone, mustInclud
   return creative;
 }
 
-module.exports = { isConfigured, activeModel, fallbackModel, searchGroundingEnabled, lastFailureInfo, keyShape, writeStory, writeGlobalNewsDraft, chat, askReader, photoLinks, radioScript, adCreative };
+module.exports = { isConfigured, activeModel, fallbackModel, searchGroundingEnabled, lastFailureInfo, keyShape, writeStory, writeGlobalNewsDraft, translateGlobalLeadMetadata, chat, askReader, photoLinks, radioScript, adCreative };

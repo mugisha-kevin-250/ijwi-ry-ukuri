@@ -49,13 +49,13 @@ function safeLink(raw, base) {
   } catch { return ''; }
 }
 function imageFromFeed(block, base) {
-  const mediaTags = String(block).match(/<(?:enclosure|media:content|media:thumbnail)\\b[^>]*>/gi) || [];
+  const mediaTags = String(block).match(/<(?:enclosure|media:content|media:thumbnail)\b[^>]*>/gi) || [];
   for (const mediaTag of mediaTags) {
     const raw = (mediaTag.match(/url=["']([^"']+)["']/i) || [])[1] || '';
     const type = (mediaTag.match(/type=["']([^"']+)["']/i) || [])[1] || '';
     const medium = (mediaTag.match(/medium=["']([^"']+)["']/i) || [])[1] || '';
     const isThumbnail = /media:thumbnail/i.test(mediaTag);
-    if (isThumbnail || /^image\\//i.test(type) || /^image$/i.test(medium) || /\\.(?:jpe?g|png|webp|gif)(?:[?#]|$)/i.test(raw)) {
+    if (isThumbnail || /^image\//i.test(type) || /^image$/i.test(medium) || /\.(?:jpe?g|png|webp|gif)(?:[?#]|$)/i.test(raw)) {
       const safe = safeLink(raw, base);
       if (safe) return safe;
     }

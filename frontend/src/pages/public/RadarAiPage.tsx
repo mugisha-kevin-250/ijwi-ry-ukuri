@@ -371,6 +371,24 @@ export default function RadarAiPage() {
           }}
           className="sticky bottom-20 mt-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:bottom-4"
         >
+          {/* The voice control is a corner of its own, not a key on the typing
+              row: a reader who wants to talk should not have to aim at a strip
+              of buttons under a box they are busy reading. It rides the top
+              right of the bar, so it is reachable on any length of thread, and
+              the ring is the state - blue means the microphone is open. */}
+          {voice.micSupported && (
+            <button
+              type="button"
+              onClick={voice.toggleChat}
+              aria-pressed={voice.chatOn}
+              className={`absolute -top-3.5 right-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white shadow-lg ring-4 ring-slate-100 transition ${
+                voice.chatOn ? 'bg-blue-800 ring-blue-100' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              {voice.chatOn ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+              {voice.chatOn ? t('ai.voiceStop') : t('ai.voiceChat')}
+            </button>
+          )}
           <textarea
             ref={inputRef}
             value={draft}
@@ -413,19 +431,6 @@ export default function RadarAiPage() {
           <div className="mt-2 flex items-center justify-between gap-3">
             <p className="text-[11px] text-slate-500">{t('ai.enterToSend')}</p>
             <div className="flex items-center gap-2">
-              {voice.micSupported && (
-                <button
-                  type="button"
-                  onClick={voice.toggleChat}
-                  aria-pressed={voice.chatOn}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-bold text-white shadow-sm transition ${
-                    voice.chatOn ? 'bg-blue-800 ring-2 ring-blue-200' : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                >
-                  {voice.chatOn ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                  {voice.chatOn ? t('ai.voiceStop') : t('ai.voiceChat')}
-                </button>
-              )}
               <button
                 type="submit"
                 disabled={busy || !draft.trim()}

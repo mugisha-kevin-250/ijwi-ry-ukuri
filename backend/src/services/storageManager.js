@@ -7,7 +7,6 @@ const env = require('../config/env');
 const auditLog = require('./auditLogService');
 
 const LIMIT_MB = Math.max(64, Number(env.MONGODB_STORAGE_LIMIT_MB) || 512);
-const LIMIT_BYTES = LIMIT_MB * 1024 * 1024;
 const TARGET_PERCENT = 55;
 const CLEANUP_TRIGGER_PERCENT = 60;
 const MIN_AGE_DAYS = 180;

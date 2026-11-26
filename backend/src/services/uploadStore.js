@@ -17,7 +17,7 @@ async function storedBytes() {
  */
 async function save({ buffer, filename, mimetype, user }) {
   const usage = await storageManager.getUsage();
-  if (usage.usedPercent >= 60 || usage.uploadStorage.usedPercent >= 60) {
+  if (env.NODE_ENV === 'production' && (usage.usedPercent >= 60 || usage.uploadStorage.usedPercent >= 60)) {
     const error = new Error('Uploads are paused because MongoDB storage has reached the 60% safety limit. RADAR storage cleanup must complete first.');
     error.statusCode = 507;
     throw error;

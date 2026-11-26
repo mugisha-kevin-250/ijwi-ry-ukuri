@@ -9,6 +9,7 @@ const breakingNews = require('../utils/breakingNews');
 const env = require('../config/env');
 const globalNewsService = require('../services/globalNewsService');
 const schedulerLock = require('../services/schedulerLock');
+const autoManageService = require('../services/autoManageService');
 
 // Work the lifecycle has to finish on its own, because no person is standing
 // at the server at 00:00 on Monday. Before this file existed node-cron was an
@@ -99,6 +100,12 @@ const JOBS = {
     every: '*/10 * * * *',
     summary: 'Refresh configured international RSS feeds and deduplicate story leads.',
     run: () => globalNewsService.refresh(),
+  },
+  'radar-auto-manage': {
+    manual: true,
+    every: '*/15 * * * *',
+    summary: 'Research fresh Google Trends leads and create sourced AI drafts for editorial review when Auto Manage is enabled.',
+    run: () => autoManageService.run(),
   },
   'weekly-pay': {
     manual: false,
@@ -195,7 +202,7 @@ function startScheduler() {
     cron.schedule(job.every, () => runJob(name), options);
   }
 
-  console.log('Scheduler started: story publishing and the breaking expiry every 5 minutes, the radio bulletin and live scores on the minute, global news every 10 minutes, weekly pay on Mondays.');
+  console.log('Scheduler started: story publishing and the breaking expiry every 5 minutes, the radio bulletin and live scores on the minute, global news every 10 minutes, RADAR AI Auto Manage every 15 minutes when enabled, weekly pay on Mondays.');
   return { runJob, JOBS };
 }
 

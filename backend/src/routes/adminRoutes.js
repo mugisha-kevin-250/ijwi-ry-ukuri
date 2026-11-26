@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const Article = require('../models/Article');
 const User = require('../models/User');
 const WriterEarning = require('../models/WriterEarning');
@@ -23,6 +24,7 @@ const storyMedia = require('../services/storyMedia');
 const trendService = require('../services/trendService');
 const mailer = require('../services/mailerService');
 const scheduler = require('../jobs/scheduler');
+const autoManageService = require('../services/autoManageService');
 const schedulerLog = require('../services/schedulerLog');
 const auditLog = require('../services/auditLogService');
 const generateSlug = require('../utils/generateSlug');
@@ -52,6 +54,22 @@ const DESK_PERMISSIONS = [
   PERMISSIONS.runAiWriter,
   PERMISSIONS.managePlatform,
 ];
+
+// A scheduled GitHub Actions wake-up for deployments whose free web service
+// may sleep between readers. This route accepts only a separately configured
+// bearer secret; it is intentionally mounted before the staff JWT guard.
+router.post('/automation/radar/run', async (req, res, next) => {
+  try {
+    const expected = String(process.env.RADAR_AUTOMATION_TOKEN || '');
+    const supplied = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '');
+    if (expected.length < 32 || supplied.length !== expected.length ||
+        !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
+      return errorResponse(res, 401, 'Scheduled automation is not authorised.');
+    }
+    const result = await autoManageService.run();
+    return successResponse(res, 200, 'RADAR AI scheduled pass finished', result);
+  } catch (error) { next(error); }
+});
 
 router.use(protect, requirePermission(DESK_PERMISSIONS));
 
@@ -487,6 +505,34 @@ router.get('/ai/status', requirePermission([PERMISSIONS.runAiWriter]), async (re
   }
 });
 
+router.get('/ai/auto-manage', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
+  try {
+    const config = await autoManageService.getConfig();
+    return successResponse(res, 200, 'RADAR AI Auto Manage status', {
+      ...config,
+      configured: geminiService.isConfigured(),
+      model: geminiService.activeModel(),
+      intervalMinutes: 15,
+      mode: 'editorial-review',
+    });
+  } catch (error) { next(error); }
+});
+
+router.put('/ai/auto-manage', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
+  try {
+    const enabled = req.body?.enabled === true || req.body?.enabled === 'true';
+    const config = await autoManageService.setEnabled(enabled, req.user._id);
+    return successResponse(res, 200, enabled
+      ? 'RADAR AI Auto Manage enabled. Server-side research will run every 15 minutes.'
+      : 'RADAR AI Auto Manage disabled.', {
+      ...config,
+      configured: geminiService.isConfigured(),
+      intervalMinutes: 15,
+      mode: 'editorial-review',
+    });
+  } catch (error) { next(error); }
+});
+
 router.put('/ai/auto-publish', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const enabled = req.body?.enabled === true || req.body?.enabled === 'true';
@@ -780,7 +826,9 @@ router.get('/ai/articles', requirePermission([PERMISSIONS.runAiWriter]), async (
 router.get('/trends', requirePermission([PERMISSIONS.manageSeo]), async (req, res, next) => {
   try {
     const force = req.query.refresh === '1' || req.query.refresh === 'true';
-    return successResponse(res, 200, 'Trending searches', await trendService.radar({ force }));
+    const geo = String(req.query.geo || '').trim().toUpperCase();
+    if (geo && !/^[A-Z]{2}$/.test(geo)) return errorResponse(res, 400, 'Country must be a two-letter ISO code.');
+    return successResponse(res, 200, 'Trending searches', await trendService.radar({ force, geos: geo ? [geo] : undefined }));
   } catch (error) {
     next(error);
   }

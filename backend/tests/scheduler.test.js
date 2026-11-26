@@ -95,7 +95,7 @@ test('the scheduler desk lists its jobs and says whether the clock is running he
   const names = response.body.data.jobs.map((job) => job.name);
   assert.deepEqual(
     names.sort(),
-    ['breaking', 'global-news', 'publish', 'radio', 'scores', 'weekly-pay'].sort(),
+    ['breaking', 'global-news', 'publish', 'radar-auto-manage', 'radio', 'scores', 'weekly-pay'].sort(),
     'every scheduled job is on the board, including the ones that cannot be pressed',
   );
 

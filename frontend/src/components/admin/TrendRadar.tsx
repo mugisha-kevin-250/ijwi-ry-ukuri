@@ -2,6 +2,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, ExternalLink, History, RefreshCw, TrendingUp } from 'lucide-react'
 import { adminAPI, type TrendCluster, type TrendGeoRecord, type TrendHistory, type TrendRadar as TrendRadarData, type TrendScore, type TrendTopicRecord } from '../../services/api'
 
+// Google Trends accepts country-specific two-letter ISO regions. This complete
+// directory lets editors look up a region even when it is not in TREND_GEOS;
+// only the selected country is fetched, so opening this control never fans out
+// 200+ upstream requests.
+const COUNTRY_CODES = 'AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW'.split(' ')
+const CountryDisplayNames = (Intl as unknown as { DisplayNames: new (locales: string[], options: { type: 'region' }) => { of(code: string): string | undefined } }).DisplayNames
+const COUNTRY_NAMES = new CountryDisplayNames(['en'], { type: 'region' })
+const COUNTRIES = COUNTRY_CODES.map((code) => ({ code, name: COUNTRY_NAMES.of(code) || code }))
+
 /**
  * The searches Google reports for the regions this newsroom writes about.
  *
@@ -300,19 +309,21 @@ function summary(clusters: TrendCluster[] | undefined): string {
 export default function TrendRadar({ onUse }: { onUse?: (topic: string, geo: string) => void }) {
   const [data, setData] = useState<TrendRadarData | null>(null)
   const [geo, setGeo] = useState('')
+  const [countrySearch, setCountrySearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [grouped, setGrouped] = useState(true)
 
-  const load = useCallback(async (force: boolean) => {
+  const load = useCallback(async (force: boolean, selectedGeo?: string) => {
     if (force) setRefreshing(true)
     else setLoading(true)
     setError('')
     try {
-      const result = await adminAPI.getTrends(force)
+      const result = await adminAPI.getTrends(force, selectedGeo)
       setData(result)
       setGeo((current) => {
+        if (selectedGeo) return selectedGeo
         const stillThere = result.geos.some((item) => item.geo === current)
         if (stillThere) return current
         const firstLive = result.geos.find((item) => item.topics.length > 0)
@@ -373,6 +384,31 @@ export default function TrendRadar({ onUse }: { onUse?: (topic: string, geo: str
         <p className="px-5 py-8 text-center text-sm text-slate-500">No regions are being watched.</p>
       ) : (
         <>
+          <div className="border-b border-slate-100 px-5 py-3">
+            <label htmlFor="trend-country-search" className="mb-1.5 block text-xs font-bold text-slate-700">Explore trends by country</label>
+            <input
+              id="trend-country-search"
+              list="trend-country-options"
+              value={countrySearch}
+              onChange={(event) => {
+                const value = event.target.value
+                setCountrySearch(value)
+                const match = COUNTRIES.find((item) => item.code.toLowerCase() === value.trim().toLowerCase() || item.name.toLowerCase() === value.trim().toLowerCase())
+                if (match) {
+                  setGeo(match.code)
+                  void load(false, match.code)
+                }
+              }}
+              placeholder="Search any country, e.g. Rwanda or United States"
+              autoComplete="off"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
+            <datalist id="trend-country-options">
+              {COUNTRIES.map((item) => <option key={item.code} value={item.name}>{item.code}</option>)}
+            </datalist>
+            <p className="mt-1 text-[11px] text-slate-500">Search the full country directory. Google Trends availability varies by country; unavailable feeds are shown honestly.</p>
+          </div>
+
           <div className="flex flex-wrap gap-1.5 border-b border-slate-100 px-5 py-3">
             {data.geos.map((item) => {
               const selected = item.geo === geo

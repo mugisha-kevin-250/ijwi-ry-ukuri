@@ -1,0 +1,31 @@
+name: RADAR AI scheduled wake-up
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-radar-auto-manage:
+    name: Wake backend and run RADAR AI Auto Manage
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger the protected backend job
+        env:
+          RADAR_AUTOMATION_URL: ${{ secrets.RADAR_AUTOMATION_URL }}
+          RADAR_AUTOMATION_TOKEN: ${{ secrets.RADAR_AUTOMATION_TOKEN }}
+        run: |
+          if [ -z "$RADAR_AUTOMATION_URL" ] || [ -z "$RADAR_AUTOMATION_TOKEN" ]; then
+            echo "::warning::Set RADAR_AUTOMATION_URL and RADAR_AUTOMATION_TOKEN repository secrets to enable scheduled runs."
+            exit 0
+          fi
+          url="${RADAR_AUTOMATION_URL%/}/api/admin/automation/radar/run"
+          curl --fail-with-body --silent --show-error \
+            --retry 2 --retry-delay 10 --max-time 180 \
+            -X POST "$url" \
+            -H "Authorization: Bearer $RADAR_AUTOMATION_TOKEN" \
+            -H "Accept: application/json"

@@ -1213,7 +1213,7 @@ export const adminAPI = {
       lastResult: payload?.lastResult || null,
       configured: payload?.configured === true,
       intervalMinutes: Number(payload?.intervalMinutes || 15),
-      mode: 'editorial-review',
+      mode: 'autonomous-publish-with-safeguards',
     }
   },
 
@@ -1227,7 +1227,7 @@ export const adminAPI = {
       lastResult: payload?.lastResult || null,
       configured: payload?.configured === true,
       intervalMinutes: Number(payload?.intervalMinutes || 15),
-      mode: 'editorial-review',
+      mode: 'autonomous-publish-with-safeguards',
     }
   },
 

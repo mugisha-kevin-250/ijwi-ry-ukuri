@@ -198,7 +198,7 @@ function renderPrerenderedArticle(article, shell) {
 }
 
 function writePrerenderedArticles(articles) {
-  const shellPath = path.join(root, 'public', 'index.html')
+  const shellPath = path.join(root, 'index.html')
   if (!fs.existsSync(shellPath)) throw new Error('Cannot prerender articles: public/index.html is missing')
   const shell = fs.readFileSync(shellPath, 'utf8')
   const outputRoot = path.join(root, 'public', 'article')

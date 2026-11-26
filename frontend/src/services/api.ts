@@ -696,7 +696,7 @@ export interface RadarAutoManageStatus {
   lastResult: { researched?: number; drafted?: number; duplicates?: number; held?: number; notes?: { id?: string; title?: string; category?: string; status?: string; topic?: string; error?: string }[] } | null
   configured: boolean
   intervalMinutes: number
-  mode: 'editorial-review'
+  mode: 'autonomous-publishing'
 }
 
 export interface AiDraftResult {
@@ -1213,7 +1213,7 @@ export const adminAPI = {
       lastResult: payload?.lastResult || null,
       configured: payload?.configured === true,
       intervalMinutes: Number(payload?.intervalMinutes || 15),
-      mode: 'editorial-review',
+      mode: 'autonomous-publishing',
     }
   },
 
@@ -1227,7 +1227,7 @@ export const adminAPI = {
       lastResult: payload?.lastResult || null,
       configured: payload?.configured === true,
       intervalMinutes: Number(payload?.intervalMinutes || 15),
-      mode: 'editorial-review',
+      mode: 'autonomous-publishing',
     }
   },
 

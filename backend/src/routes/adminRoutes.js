@@ -385,7 +385,15 @@ router.put('/articles/:id/status', requirePermission([PERMISSIONS.review]), asyn
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 404, 'Article not found');
 
-    const result = await workflow.moveStory({ article, to: status, by: req.user, note: req.body.note });
+    let result = await workflow.moveStory({ article, to: status, by: req.user, note: req.body.note });
+    // The admin's explicit "Published" selection is an approval decision too.
+    // Preserve the lifecycle's required states and audit both steps rather than
+    // attempting the forbidden pending_review -> published shortcut.
+    if (result.error && status === 'published' && article.status === 'pending_review') {
+      const approved = await workflow.moveStory({ article, to: 'approved', by: req.user, note: req.body.note });
+      if (approved.error) return errorResponse(res, approved.status, approved.error);
+      result = await workflow.moveStory({ article: approved.article, to: 'published', by: req.user, note: req.body.note });
+    }
     if (result.error) return errorResponse(res, result.status, result.error);
 
     const populated = await result.article.populate([

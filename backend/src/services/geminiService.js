@@ -400,10 +400,14 @@ function buildPrompt({ topic, angle, audience, evidence, region }) {
     '',
     evidence && evidence.length
       ? [
-          'Real coverage Google listed against this topic, for background only:',
-          ...evidence.map((item) => `- ${item.source || 'unknown'}: ${item.title}`),
-          'Do not copy a sentence from any of them, do not put words in their mouths, and do not credit a',
-          'detail to one of them unless it is the only thing you were told about it.',
+          'Publisher evidence supplied for original reporting. Use extracted article text where present; headline-only entries are context, not proof:',
+          ...evidence.map((item) => [
+            `- ${item.source || 'unknown'}: ${item.title}`,
+            item.url ? `  Publisher URL: ${item.url}` : '',
+            item.text ? `  Extracted publisher article text (paraphrase; do not reproduce): ${String(item.text).slice(0, 4000)}` : '  Full article text was not supplied for this source.',
+          ].filter(Boolean).join('\n')),
+          'Use only facts supported by the supplied source material. Attribute contested or uncertain claims.',
+          'Do not copy source wording, invent quotations, or claim RADAR independently verified a publisher claim.',
           ''
         ].join('\n')
       : '',

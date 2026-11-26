@@ -5,7 +5,6 @@ const Article = require('../models/Article');
 const Upload = require('../models/Upload');
 const env = require('../config/env');
 const auditLog = require('./auditLogService');
-const env = require('../config/env');
 
 const LIMIT_MB = Math.max(64, Number(env.MONGODB_STORAGE_LIMIT_MB) || 512);
 const LIMIT_BYTES = LIMIT_MB * 1024 * 1024;

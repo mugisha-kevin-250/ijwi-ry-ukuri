@@ -104,6 +104,12 @@ module.exports = {
   // Operator-managed, licensed/permissioned RSS feeds. JSON array of {url,name,region,language}.
   // WORLD_NEWS_FEEDS is the canonical Render variable; keep the old name as a fallback during migration.
   WORLD_NEWS_FEEDS: process.env.WORLD_NEWS_FEEDS || process.env.GLOBAL_NEWS_FEEDS || '[]',
+  // World News API is called only by the backend. Never expose this key to clients.
+  WORLD_NEWS_API_KEY: process.env.WORLD_NEWS_API_KEY || '',
+  WORLD_NEWS_API_LANGUAGE: process.env.WORLD_NEWS_API_LANGUAGE || 'en',
+  WORLD_NEWS_API_NUMBER: Math.max(1, Math.min(20, Number(process.env.WORLD_NEWS_API_NUMBER || 10))),
+  WORLD_NEWS_API_REFRESH_MINUTES: Math.max(55, Number(process.env.WORLD_NEWS_API_REFRESH_MINUTES || 60)),
+  WORLD_NEWS_API_TIMEOUT_MS: Number(process.env.WORLD_NEWS_API_TIMEOUT_MS || 15000),
   TREND_CACHE_MINUTES: Number(process.env.TREND_CACHE_MINUTES || 15),
   TREND_TIMEOUT_MS: Number(process.env.TREND_TIMEOUT_MS || 15000),
   RATE_PER_1000_VIEWS: Number(process.env.RATE_PER_1000_VIEWS || 5000),

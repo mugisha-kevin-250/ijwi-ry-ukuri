@@ -40,3 +40,11 @@ test('all article publishing paths reject stories without a featured image', () 
   assert.match(lifecycle.publishable(article), /featured image is required/i);
   assert.equal(lifecycle.publishable({ ...article, featuredImage: 'https://images.example/photo.jpg' }), '');
 });
+
+test('RADAR assigns trending leads to relevant newsroom categories', () => {
+  assert.ok(autoManage.categoryScore({ slug: 'football', name: 'Football' }, { title: 'Champions League football final', region: 'GB' }) > 0);
+  assert.ok(autoManage.categoryScore({ slug: 'sports', name: 'Sports' }, { title: 'NBA basketball playoff series', region: 'US' }) > 0);
+  assert.ok(autoManage.categoryScore({ slug: 'technology', name: 'Technology' }, { title: 'New artificial intelligence model released', region: 'US' }) > 0);
+  assert.ok(autoManage.categoryScore({ slug: 'rwanda', name: 'Rwanda' }, { title: 'Local development update', region: 'RW' }) > 0);
+  assert.equal(autoManage.categoryScore({ slug: 'football', name: 'Football' }, { title: 'Central bank adjusts interest rates', region: 'US' }), 0);
+});

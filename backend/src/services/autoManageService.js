@@ -185,7 +185,17 @@ async function run() {
 
       // Attach only a source-provided image with a named publisher and source
       // article. storyMedia applies the same public-HTTPS/media rules as editors.
-      const photo = trendService.photoCreditFor(evidence);
+      const trendPhoto = trendService.photoCreditFor(evidence);
+      const publisherPhotoSource = fullSources.find((item) => Array.isArray(item.images) && item.images.some((image) => image.url));
+      const publisherPhoto = publisherPhotoSource
+        ? publisherPhotoSource.images.find((image) => image.url)
+        : null;
+      const photo = trendPhoto || (publisherPhoto && publisherPhotoSource ? {
+        url: publisherPhoto.url,
+        source: publisherPhotoSource.source || sourceDomain(publisherPhotoSource.url),
+        articleUrl: publisherPhotoSource.url,
+        caption: publisherPhoto.caption || publisherPhotoSource.title || title,
+      } : null);
       let media = [];
       let featuredImage = '';
       let imageCredit = '';

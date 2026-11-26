@@ -462,7 +462,7 @@ export default function AdminAiWriterPage() {
           {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} articles created · {autoManage.lastResult?.published || 0} published · {autoManage.lastResult?.held || 0} held for safeguards · {autoManage.lastResult?.mediaAttached || 0} media items attached.</p>}
           {autoManage.lastResult?.notes?.length ? (
             <ul className="mt-2 space-y-1 text-xs text-slate-600">
-              {autoManage.lastResult.notes.slice(0, 3).map((item, index) => <li key={item.id || item.topic || index}>{item.title || item.topic || item.reason || item.error}</li>)}
+              {autoManage.lastResult.notes.slice(0, 5).map((item, index) => <li key={item.id || item.topic || index}><span className="font-medium">{item.title || item.topic || item.error}</span>{item.outcome && <span className="ml-2 uppercase text-[10px] text-slate-500">{item.outcome}</span>}{item.reason && <span className="ml-2 text-slate-500">— {item.reason}</span>}</li>)}
             </ul>
           ) : null}
         </section>

@@ -513,7 +513,7 @@ router.get('/ai/auto-manage', requirePermission([PERMISSIONS.runAiWriter]), asyn
       configured: geminiService.isConfigured(),
       model: geminiService.activeModel(),
       intervalMinutes: 15,
-      mode: 'editorial-review',
+      mode: 'autonomous-publish-with-safeguards',
     });
   } catch (error) { next(error); }
 });
@@ -523,7 +523,7 @@ router.put('/ai/auto-manage', requirePermission([PERMISSIONS.runAiWriter]), asyn
     const enabled = req.body?.enabled === true || req.body?.enabled === 'true';
     const config = await autoManageService.setEnabled(enabled, req.user._id);
     return successResponse(res, 200, enabled
-      ? 'RADAR AI Auto Manage enabled. Server-side research will run every 15 minutes.'
+      ? 'RADAR AI Auto Manage enabled. Research, safeguarded automatic publishing, media attachment when credited, and run logging will run every 15 minutes.'
       : 'RADAR AI Auto Manage disabled.', {
       ...config,
       configured: geminiService.isConfigured(),

@@ -124,8 +124,8 @@ function articlePlainText(value) {
   return value
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<\/(p|div|h[1-6]|li|blockquote|section|article)>/gi, '\\n')
-    .replace(/<br\s*\/?>/gi, '\\n')
+    .replace(/<\/(p|div|h[1-6]|li|blockquote|section|article)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;|&#160;/gi, ' ')
     .replace(/&amp;/gi, '&')
@@ -151,7 +151,7 @@ function renderPrerenderedArticle(article, shell) {
   const category = article.category && typeof article.category === 'object' ? article.category : null
   const paragraphs = articlePlainText(article.content || article.body || article.text || article.summary || '')
   const body = paragraphs.length
-    ? paragraphs.map((paragraph) => `<p>${htmlEscape(paragraph)}</p>`).join('\\n')
+    ? paragraphs.map((paragraph) => `<p>${htmlEscape(paragraph)}</p>`).join('\n')
     : (description ? `<p>${htmlEscape(description)}</p>` : '')
   const schema = {
     '@context': 'https://schema.org',
@@ -384,6 +384,7 @@ async function main() {
     console.warn('sitemap: keeping the files already in public/, none were rewritten')
     return
   }
+  writePrerenderedArticles(articles)
   try {
     categories = (await json(`${base}/categories`))?.categories ?? []
   } catch (error) {

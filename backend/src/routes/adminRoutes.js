@@ -25,6 +25,7 @@ const trendService = require('../services/trendService');
 const mailer = require('../services/mailerService');
 const scheduler = require('../jobs/scheduler');
 const autoManageService = require('../services/autoManageService');
+const storageManager = require('../services/storageManager');
 const schedulerLog = require('../services/schedulerLog');
 const auditLog = require('../services/auditLogService');
 const generateSlug = require('../utils/generateSlug');
@@ -516,6 +517,15 @@ router.get('/ai/status', requirePermission([PERMISSIONS.runAiWriter]), async (re
   } catch (error) {
     next(error);
   }
+});
+
+router.get('/system/storage', requirePermission([PERMISSIONS.managePlatform]), async (req, res, next) => {
+  try {
+    const usage = await storageManager.getUsage();
+    const setting = await PlatformSetting.findOne({ key: 'radarAutoManage' }).lean();
+    const cleanup = setting?.value?.lastResult?.storageCleanup || null;
+    return successResponse(res, 200, 'MongoDB storage usage', { ...usage, cleanup, cleanupTriggerPercent: 60, cleanupTargetPercent: 55 });
+  } catch (error) { next(error); }
 });
 
 router.get('/ai/auto-manage', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {

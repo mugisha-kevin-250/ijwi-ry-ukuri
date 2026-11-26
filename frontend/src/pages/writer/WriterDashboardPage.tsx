@@ -5,6 +5,7 @@ import { writerAPI, type WriterStoryMetric } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useI18n } from '../../context/I18nContext'
 import AiWriterPanel from '../../components/writers/AiWriterPanel'
+import WriterWorldNewsDesk from '../../components/writers/WriterWorldNewsDesk'
 
 interface WriterSummary {
   totalArticles?: number
@@ -121,6 +122,10 @@ export default function WriterDashboardPage() {
           out, exactly as with anything they typed themselves. */}
       <div className="mt-6">
         <AiWriterPanel />
+      </div>
+
+      <div className="mt-6">
+        <WriterWorldNewsDesk />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">

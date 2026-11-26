@@ -62,13 +62,15 @@ function parseFeed(xml, feed) {
   return blocks.map((match) => {
     const block = match[2];
     const title = tag(block, 'title').slice(0, 300);
+    const description = (tag(block, 'description') || tag(block, 'summary') || tag(block, 'content')).slice(0, 4000);
+    const imageUrl = imageFromFeed(block, feed.url);
     const rawLink = tag(block, 'link') || (block.match(/<link[^>]*href=["']([^"']+)["']/i) || [])[1] || '';
     const link = safeLink(rawLink, feed.url);
     const rawDate = tag(block, 'pubDate') || tag(block, 'published') || tag(block, 'updated') || tag(block, 'date');
     const parsedDate = rawDate ? new Date(rawDate) : null;
     if (!title || !link) return null;
     return {
-      title, link, sourceName: feed.name, sourceUrl: feed.url,
+      title, description, imageUrl, link, sourceName: feed.name, sourceUrl: feed.url,
       region: feed.region, language: feed.language,
       publishedAt: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null,
     };
@@ -105,6 +107,8 @@ function worldApiItem(article) {
   const sourceName = String(article.source_name || article.source || source.hostname.replace(/^www\./, '')).slice(0, 120);
   return {
     title: article.title.trim().slice(0, 300),
+    description: String(article.summary || article.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4000),
+    imageUrl: safeLink(String(article.image || article.image_url || ''), link),
     link,
     sourceName,
     sourceUrl: source.origin,

@@ -8,6 +8,8 @@ const globalNewsItemSchema = new mongoose.Schema({
   description: { type: String, trim: true, maxlength: 4000, default: '' },
   imageUrl: { type: String, trim: true, maxlength: 1200, default: '' },
   englishTitle: { type: String, trim: true, maxlength: 300, default: '' },
+  englishDescription: { type: String, trim: true, maxlength: 4000, default: '' },
+  translatedAt: Date,
   draftArticle: { type: mongoose.Schema.Types.ObjectId, ref: 'Article', default: null },
   link: { type: String, required: true, trim: true, maxlength: 1200 },
   sourceName: { type: String, required: true, trim: true, maxlength: 120 },

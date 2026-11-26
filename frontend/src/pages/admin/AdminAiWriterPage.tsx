@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Ref } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, FileText, RefreshCw, Sparkles } from 'lucide-react'
+import { apiClient } from '../../services/apiClient'
 import { adminAPI, publicAPI, type AiDraftResult, type AiWriterStatus, type RadarAutoManageStatus } from '../../services/api'
 import type { Article, Category } from '../../types'
 import { useI18n } from '../../context/I18nContext'
@@ -114,6 +115,7 @@ export default function AdminAiWriterPage() {
   const [status, setStatus] = useState<AiWriterStatus | null>(null)
   const [autoManage, setAutoManage] = useState<RadarAutoManageStatus | null>(null)
   const [autoManageBusy, setAutoManageBusy] = useState(false)
+  const [storageSnapshot, setStorageSnapshot] = useState<{ usedMB: number; remainingMB: number; capacityMB: number; usedPercent: number; uploadStorage: { usedMB: number; remainingMB: number; capacityMB: number; usedPercent: number } } | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [sectionTree, setSectionTree] = useState<TreeSection[]>([])
   const [loading, setLoading] = useState(true)
@@ -181,14 +183,16 @@ export default function AdminAiWriterPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError('')
-    const [statusResult, categoryResult, autoManageResult] = await Promise.allSettled([
+    const [statusResult, categoryResult, autoManageResult, storageResult] = await Promise.allSettled([
       adminAPI.getAiStatus(),
       publicAPI.getCategories(),
-      adminAPI.getRadarAutoManage()
+      adminAPI.getRadarAutoManage(),
+      apiClient.get('/admin/system/storage')
     ])
     if (statusResult.status === 'fulfilled') setStatus(statusResult.value)
     else setLoadError('Only staff with AI writer access can open the AI writer.')
     if (autoManageResult.status === 'fulfilled') setAutoManage(autoManageResult.value)
+    if (storageResult.status === 'fulfilled') setStorageSnapshot(((storageResult.value.data as any)?.data || storageResult.value.data) as typeof storageSnapshot)
     if (categoryResult.status === 'fulfilled') {
       const payload = categoryResult.value.data.data as
         | { categories?: Category[]; sections?: TreeSection[] }
@@ -454,8 +458,13 @@ export default function AdminAiWriterPage() {
             </button>
           </div>
           {!autoManage.configured && <p className="mt-3 text-xs text-amber-700">Connect GEMINI_API_KEY on the backend before enabling automation.</p>}
+          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold text-slate-800">MongoDB storage protection</p><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${storageSnapshot && storageSnapshot.usedPercent < 60 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{storageSnapshot ? `${storageSnapshot.usedPercent}% used` : 'Loading storage…'}</span></div>
+            {storageSnapshot && <><p className="mt-2 text-xs text-slate-600">{storageSnapshot.usedMB} MB used · {storageSnapshot.remainingMB} MB remaining · {storageSnapshot.capacityMB} MB configured capacity</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><div className={`h-full ${storageSnapshot.usedPercent >= 60 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, storageSnapshot.usedPercent)}%` }} /></div><p className="mt-2 text-xs text-slate-500">Uploaded media: {storageSnapshot.uploadStorage.usedMB} / {storageSnapshot.uploadStorage.capacityMB} MB · {storageSnapshot.uploadStorage.remainingMB} MB free. Cleanup triggers above 60% and targets 55%.</p></>}
+          </div>
+
           <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">
-            This is a server-side autonomous newsroom manager. Every 15 minutes it checks Google Trends across the configured regions and refreshes RADAR Global News, combines the leads, and tries to create source-backed coverage for every active news category, including sports and its subcategories. It targets daily coverage: categories already receiving a published story today are skipped. It may create up to two drafts and publish at most one eligible story per run. Automatic publication requires at least two distinct publishers with full extracted articles, editorial quality checks, duplicate checks, and a genuinely verified 4K featured image (3840×2160 landscape or 2160×3840 portrait). No featured image or no verified 4K image means no publication. Available publisher video is attached with its source; video is optional. Sensitive high-impact political, legal, medical, violence and allegation reporting remains held for human review, and categories with no credible current source are skipped rather than filled with invented news. Every run and its category coverage are logged. It does not change user roles, approve writer applications, manage payouts, or delete existing content. Global News desk: https://www.radartimes.2bd.net/mugishaimekevin/global-news
+            This is a server-side autonomous newsroom manager. Every 15 minutes it checks Google Trends across the configured regions and refreshes RADAR Global News, combines the leads, and tries to create source-backed coverage for every active news category, including sports and its subcategories. It targets daily coverage: categories already receiving a published story today are skipped. It may create up to two drafts and publish at most one eligible story per run. Automatic publication requires at least two distinct publishers with full extracted articles, editorial quality checks, duplicate checks, and a genuinely verified 4K featured image (3840×2160 landscape or 2160×3840 portrait). No featured image or no verified 4K image means no publication. Available publisher video is attached with its source; video is optional. Sensitive high-impact political, legal, medical, violence and allegation reporting remains held for human review, and categories with no credible current source are skipped rather than filled with invented news. Every run and its category coverage are logged. Storage management also checks MongoDB usage every pass; above 60% it can remove only non-owner, low-engagement published stories older than 180 days and their unreferenced uploaded images, then aims for 55%. It never deletes owner-authored stories, owner-uploaded files, drafts, review-queue stories, breaking stories, scheduled stories, or stories with comments, likes or more than 25 views. It does not change user roles, approve writer applications or manage payouts. Global News desk: https://www.radartimes.2bd.net/mugishaimekevin/global-news
           </p>
           {autoManage.lastRunAt && <p className="mt-2 text-xs text-slate-500">Last run: {new Date(autoManage.lastRunAt).toLocaleString()} · {autoManage.lastResult?.drafted || 0} articles created · {autoManage.lastResult?.published || 0} published · {autoManage.lastResult?.held || 0} held · {autoManage.lastResult?.verified4kImages || 0} verified 4K images · {autoManage.lastResult?.videosAttached || 0} videos attached · {autoManage.lastResult?.trendResearch?.topics || 0} Google Trends topics · {autoManage.lastResult?.categoriesAttempted || 0} categories checked this pass · {autoManage.lastResult?.categoriesAlreadyCovered || 0}/{autoManage.lastResult?.categoriesChecked || 0} categories already covered today.</p>}
           {autoManage.lastResult?.notes?.length ? (

@@ -185,13 +185,27 @@ async function run() {
           credit: photo.source,
         }]);
         if (checked.ok && checked.media.length) {
-          media = checked.media;
+          media.push(checked.media[0]);
           featuredImage = checked.media[0].url;
           imageCredit = String(photo.source).slice(0, 160);
           imageSourceUrl = String(photo.articleUrl).slice(0, 1200);
-          result.mediaAttached += 1;
         }
       }
+
+      // Videos are attached only when the upstream news item actually supplies
+      // a clip URL and a named publisher. Current Google Trends RSS often has
+      // no video field, so stories publish without a video rather than inventing one.
+      const videoItem = evidence.headlines.find((item) => item.videoUrl || item.video);
+      if (videoItem && videoItem.source && sourceDomain(videoItem.url)) {
+        const checkedVideo = storyMedia.normalize([{
+          kind: 'video',
+          url: videoItem.videoUrl || videoItem.video,
+          caption: videoItem.title || title,
+          credit: videoItem.source,
+        }]);
+        if (checkedVideo.ok && checkedVideo.media.length) media.push(checkedVideo.media[0]);
+      }
+      result.mediaAttached += media.length;
 
       const slugBase = generateSlug(title) || 'radar-ai-story';
       const article = await Article.create({

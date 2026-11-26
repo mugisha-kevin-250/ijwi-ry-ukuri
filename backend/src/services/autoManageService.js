@@ -118,7 +118,7 @@ function normalizeWords(value) {
   return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9+ ]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 function categoryScore(category, lead) {
-  const slug = normalizeWords(category?.slug || category?.name).replace(/\s+/g, '-');
+  const slug = canonicalCategorySlug(category);
   const text = ' ' + normalizeWords([lead?.title, lead?.description, lead?.region].join(' ')) + ' ';
   let score = 0;
   for (const term of (CATEGORY_KEYWORDS[slug] || [])) {

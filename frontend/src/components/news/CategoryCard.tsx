@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Tag } from 'lucide-react'
 import { cn } from '../../utils/cn'
-import { categoryHref } from '../../data/categoryVisuals'
+import { categoryHref, search4kCategoryImage, type CommonsCategoryImage } from '../../data/categoryVisuals'
 
 interface CategoryCardProps {
   category: {
@@ -19,6 +20,16 @@ interface CategoryCardProps {
 
 export default function CategoryCard({ category, label, image, subsections = [], className }: CategoryCardProps) {
   const href = categoryHref(category)
+  const [remoteImage, setRemoteImage] = useState<CommonsCategoryImage | null>(null)
+  useEffect(() => {
+    let active = true
+    setRemoteImage(null)
+    search4kCategoryImage(label || category.name)
+      .then((result) => { if (active) setRemoteImage(result) })
+      .catch((error) => console.warn('4K category image lookup unavailable:', error))
+    return () => { active = false }
+  }, [category.slug, category.name, label])
+  const displayImage = remoteImage?.url || image
   return (
     <article
       className={cn(
@@ -43,6 +54,13 @@ export default function CategoryCard({ category, label, image, subsections = [],
           <h3 className="text-lg font-bold text-white">{label}</h3>
         </div>
       </Link>
+      {remoteImage?.pageUrl && (
+        <div className="px-4 pt-2 text-[10px] text-gray-500 dark:text-gray-400">
+          <a href={remoteImage.pageUrl} target="_blank" rel="noreferrer" className="hover:underline">
+            Image: {remoteImage.credit} · verified {remoteImage.width}×{remoteImage.height} px
+          </a>
+        </div>
+      )}
       {category.description && (
         <Link to={href} className="flex-1 px-4 py-3 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
           {category.description}

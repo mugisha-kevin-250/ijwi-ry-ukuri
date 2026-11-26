@@ -155,7 +155,7 @@ async function relatedGlobalLeads(lead) {
   const pool = await GlobalNewsItem.find({
     _id: { $ne: lead._id },
     reviewStatus: { $in: ['unreviewed', 'verified'] },
-    publishedAt: { $gte: since },
+    $or: [{ publishedAt: { $gte: since } }, { publishedAt: null, fetchedAt: { $gte: since } }],
   }).sort({ publishedAt: -1, fetchedAt: -1 }).limit(80).lean();
   return pool
     .filter((item) => relatedScore(lead.title, item.title) >= 0.34)
@@ -190,7 +190,7 @@ async function run() {
   const since = new Date(Date.now() - 7 * DAY_MS);
   const leads = await GlobalNewsItem.find({
     reviewStatus: { $in: ['unreviewed', 'verified'] },
-    publishedAt: { $gte: since },
+    $or: [{ publishedAt: { $gte: since } }, { publishedAt: null, fetchedAt: { $gte: since } }],
   }).sort({ publishedAt: -1, fetchedAt: -1 }).limit(80).lean();
 
   const result = {
@@ -226,7 +226,14 @@ async function run() {
           source: item.sourceName || sourceDomain(page.url || item.link),
           feedTitle: item.title,
           feedLeadId: String(item._id),
-          feedImageUrl: item.imageUrl || '',
+          images: [
+            ...(page.images || []),
+            ...(item.imageUrl ? [{
+              url: item.imageUrl,
+              caption: item.imageCaption || item.title,
+              credit: item.imageCredit || item.imageProvider || item.sourceName,
+            }] : []),
+          ],
         };
       }));
       const fullSources = extracted.filter(Boolean);

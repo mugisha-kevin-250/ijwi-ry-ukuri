@@ -24,7 +24,8 @@ const QUIET_KEY = 'radar.push.quiet'
 
 export function quietStoredLocally(): boolean {
   try {
-    return localStorage.getItem(QUIET_KEY) === '1'
+    const stored = localStorage.getItem(QUIET_KEY)
+    return stored === null ? true : stored === '1'
   } catch {
     return false
   }
@@ -113,6 +114,9 @@ export async function enablePushNotifications(): Promise<PushSubscription> {
       applicationServerKey: toUint8Array(publicKey),
     }))
 
+  // Quiet is the default for new installs: the phone still displays the story,
+  // but does not beep or vibrate unless the reader changes this device setting.
+  rememberQuiet(true)
   await apiClient.post('/push/subscribe', { subscription: subscription.toJSON(), quiet: quietStoredLocally() })
   return subscription
 }

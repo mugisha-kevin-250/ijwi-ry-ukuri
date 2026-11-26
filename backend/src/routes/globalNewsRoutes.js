@@ -7,6 +7,7 @@ const { protect, requirePermission } = require('../middleware/auth');
 const { PERMISSIONS } = require('../config/permissions');
 const service = require('../services/globalNewsService');
 const geminiService = require('../services/geminiService');
+const publisherArticleService = require('../services/publisherArticleService');
 const generateSlug = require('../utils/generateSlug');
 const { plainText, cleanText, cleanTags, safeMediaUrl } = require('../utils/textFields');
 const auditLog = require('../services/auditLogService');
@@ -133,18 +134,62 @@ router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform
       throw error;
     }
 
+    // Reuse a previous successful extraction; otherwise retrieve the publisher's
+    // publicly accessible article page. The extractor respects robots.txt,
+    // rejects private-network targets, follows only a few HTTPS redirects and
+    // never bypasses logins, paywalls or other access controls.
+    let sourceResearch = claimedLead.sourceContent
+      ? {
+          status: claimedLead.extractionStatus || 'extracted',
+          text: claimedLead.sourceContent,
+          title: claimedLead.title,
+          author: claimedLead.sourceAuthor || '',
+          publishedAt: claimedLead.sourcePublishedAt || '',
+          images: claimedLead.sourceImages || [],
+          wordCount: claimedLead.sourceWordCount || claimedLead.sourceContent.split(/\\s+/).length,
+          extractedAt: claimedLead.sourceExtractedAt,
+          reason: claimedLead.extractionNote || '',
+        }
+      : await publisherArticleService.fetchPublisherArticle(claimedLead.link);
+
+    claimedLead.extractionStatus = sourceResearch.status || 'unavailable';
+    claimedLead.extractionNote = sourceResearch.reason || '';
+    if (sourceResearch.status === 'extracted') {
+      claimedLead.sourceContent = String(sourceResearch.text || '').slice(0, 30000);
+      claimedLead.sourceAuthor = sourceResearch.author || '';
+      claimedLead.sourcePublishedAt = sourceResearch.publishedAt || '';
+      claimedLead.sourceImages = (sourceResearch.images || []).slice(0, 12);
+      claimedLead.sourceWordCount = sourceResearch.wordCount || 0;
+      claimedLead.sourceExtractedAt = sourceResearch.extractedAt || new Date();
+    }
+    await claimedLead.save();
+
     const draft = await geminiService.writeGlobalNewsDraft({
       title: claimedLead.title,
-      description: claimedLead.description,
+      sourceTitle: sourceResearch.title || claimedLead.title,
+      description: sourceResearch.description || claimedLead.description,
+      sourceContent: sourceResearch.text || '',
+      sourceAuthor: sourceResearch.author || '',
+      sourcePublishedAt: sourceResearch.publishedAt || '',
+      extractionStatus: sourceResearch.status || 'unavailable',
       sourceName: claimedLead.sourceName,
-      sourceUrl: claimedLead.link,
+      sourceUrl: sourceResearch.url || claimedLead.link,
       region: claimedLead.region,
     });
 
-    // Only a safe HTTPS image URL from the feed/API is attached. It remains a
-    // draft asset for the editor to check for reuse rights and credit before
-    // publication; it is never treated as RADAR-owned photography.
-    const image = safeMediaUrl(claimedLead.imageUrl);
+    // Publisher-supplied images are references, not RADAR-owned assets. Keep
+    // source links, captions and credits attached so an editor can verify reuse
+    // permission before publication.
+    const extractedImages = (sourceResearch.images || []).filter((entry) => safeMediaUrl(entry.url));
+    const image = safeMediaUrl(extractedImages[0]?.url || claimedLead.imageUrl);
+    const gallery = extractedImages.slice(image && extractedImages[0]?.url === image ? 1 : 0, 9)
+      .map((entry) => ({
+        kind: 'image',
+        url: safeMediaUrl(entry.url),
+        source: 'link',
+        caption: plainText(entry.caption || 'Image supplied by the original publisher; verify reuse rights.', { maxLength: 300 }),
+        credit: plainText(entry.credit || claimedLead.sourceName || 'Original publisher', { maxLength: 160 }),
+      })).filter((entry) => entry.url);
     const sourceName = plainText(claimedLead.sourceName || 'Original publisher', { maxLength: 120 });
     const sourceLink = safeMediaUrl(claimedLead.link);
     const baseSlug = generateSlug(draft.title) || 'international-news';
@@ -158,6 +203,16 @@ router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform
       imageCredit: image ? sourceName : '',
       imageCaption: image ? 'Image supplied by the original publisher. Confirm reuse rights before publication.' : '',
       imageSourceUrl: image ? (sourceLink || '') : '',
+      media: gallery,
+      sourceResearch: {
+        extractionStatus: sourceResearch.status || 'unavailable',
+        sourceWordCount: sourceResearch.wordCount || 0,
+        sourceAuthor: sourceResearch.author || '',
+        sourcePublishedAt: sourceResearch.publishedAt || '',
+        extractedAt: sourceResearch.extractedAt || null,
+        originalUrl: sourceResearch.url || claimedLead.link,
+        usedFullSource: Boolean(draft.research?.usedFullSource),
+      },
       author: req.user._id,
       category: category._id,
       tags: cleanTags(draft.tags, { max: 6 }),
@@ -197,12 +252,12 @@ router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform
       actor: req.user, action: 'global_news.draft_created', entityType: 'article',
       entityId: article._id, entityLabel: article.title,
       summary: 'English RADAR draft created from a verified international lead',
-      details: { leadId: String(claimedLead._id), source: sourceName, hasImage: Boolean(image) }, req,
+      details: { leadId: String(claimedLead._id), source: sourceName, hasImage: Boolean(image), extractionStatus: sourceResearch.status, sourceWordCount: sourceResearch.wordCount || 0, usedFullSource: Boolean(draft.research?.usedFullSource) }, req,
     });
 
     return res.status(201).json({
       success: true,
-      message: 'Verified lead converted into an English RADAR draft. It has not been published.',
+      message: draft.research?.usedFullSource\n        ? 'Publisher article researched and converted into a detailed original RADAR draft. It has not been published.'\n        : 'A limited-source RADAR draft was created because the publisher page did not expose its full article. Review the extraction note before publication.',\n      research: draft.research,\n      extractionNote: sourceResearch.reason || '',
       item: claimedLead,
       article,
       alreadyCreated: false,

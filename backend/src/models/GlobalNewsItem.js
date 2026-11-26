@@ -5,6 +5,10 @@ const mongoose = require('mongoose');
 const globalNewsItemSchema = new mongoose.Schema({
   dedupeKey: { type: String, required: true, unique: true, index: true },
   title: { type: String, required: true, trim: true, maxlength: 300 },
+  description: { type: String, trim: true, maxlength: 4000, default: '' },
+  imageUrl: { type: String, trim: true, maxlength: 1200, default: '' },
+  englishTitle: { type: String, trim: true, maxlength: 300, default: '' },
+  draftArticle: { type: mongoose.Schema.Types.ObjectId, ref: 'Article', default: null },
   link: { type: String, required: true, trim: true, maxlength: 1200 },
   sourceName: { type: String, required: true, trim: true, maxlength: 120 },
   sourceUrl: { type: String, required: true, trim: true, maxlength: 1200 },
@@ -16,6 +20,7 @@ const globalNewsItemSchema = new mongoose.Schema({
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   reviewedAt: Date,
   editorNote: { type: String, maxlength: 2000, default: '' },
+  draftCreatedAt: Date,
 }, { timestamps: true });
 globalNewsItemSchema.index({ region: 1, publishedAt: -1 });
 globalNewsItemSchema.index({ reviewStatus: 1, fetchedAt: -1 });

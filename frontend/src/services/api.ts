@@ -701,10 +701,24 @@ export interface RadarAutoManageStatus {
   enabled: boolean
   ownerId: string
   lastRunAt: string | null
-  lastResult: { researched?: number; drafted?: number; published?: number; duplicates?: number; held?: number; mediaAttached?: number; notes?: { id?: string; title?: string; category?: string; status?: string; topic?: string; error?: string; outcome?: string; reason?: string; media?: boolean }[] } | null
+  lastResult: {
+    source?: string
+    refreshed?: number
+    researched?: number
+    drafted?: number
+    published?: number
+    duplicates?: number
+    held?: number
+    mediaAttached?: number
+    verified4kImages?: number
+    videosAttached?: number
+    notes?: { id?: string; title?: string; category?: string; status?: string; topic?: string; error?: string; outcome?: string; reason?: string; media?: boolean }[]
+  } | null
   configured: boolean
   intervalMinutes: number
-  mode: 'autonomous-publish-with-safeguards'
+  sourceDeskUrl?: string
+  imagePolicy?: string
+  mode: 'autonomous-publish-with-safeguards' | 'autonomous-global-news-manager'
 }
 
 export interface AiDraftResult {

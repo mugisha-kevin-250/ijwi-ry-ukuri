@@ -23,6 +23,7 @@ const storyMedia = require('../services/storyMedia');
 const trendService = require('../services/trendService');
 const mailer = require('../services/mailerService');
 const scheduler = require('../jobs/scheduler');
+const autoManageService = require('../services/autoManageService');
 const schedulerLog = require('../services/schedulerLog');
 const auditLog = require('../services/auditLogService');
 const generateSlug = require('../utils/generateSlug');
@@ -487,6 +488,34 @@ router.get('/ai/status', requirePermission([PERMISSIONS.runAiWriter]), async (re
   }
 });
 
+router.get('/ai/auto-manage', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
+  try {
+    const config = await autoManageService.getConfig();
+    return successResponse(res, 200, 'RADAR AI Auto Manage status', {
+      ...config,
+      configured: geminiService.isConfigured(),
+      model: geminiService.activeModel(),
+      intervalMinutes: 15,
+      mode: 'editorial-review',
+    });
+  } catch (error) { next(error); }
+});
+
+router.put('/ai/auto-manage', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
+  try {
+    const enabled = req.body?.enabled === true || req.body?.enabled === 'true';
+    const config = await autoManageService.setEnabled(enabled, req.user._id);
+    return successResponse(res, 200, enabled
+      ? 'RADAR AI Auto Manage enabled. Server-side research will run every 15 minutes.'
+      : 'RADAR AI Auto Manage disabled.', {
+      ...config,
+      configured: geminiService.isConfigured(),
+      intervalMinutes: 15,
+      mode: 'editorial-review',
+    });
+  } catch (error) { next(error); }
+});
+
 router.put('/ai/auto-publish', requirePermission([PERMISSIONS.runAiWriter]), async (req, res, next) => {
   try {
     const enabled = req.body?.enabled === true || req.body?.enabled === 'true';
@@ -780,7 +809,9 @@ router.get('/ai/articles', requirePermission([PERMISSIONS.runAiWriter]), async (
 router.get('/trends', requirePermission([PERMISSIONS.manageSeo]), async (req, res, next) => {
   try {
     const force = req.query.refresh === '1' || req.query.refresh === 'true';
-    return successResponse(res, 200, 'Trending searches', await trendService.radar({ force }));
+    const geo = String(req.query.geo || '').trim().toUpperCase();
+    if (geo && !/^[A-Z]{2}$/.test(geo)) return errorResponse(res, 400, 'Country must be a two-letter ISO code.');
+    return successResponse(res, 200, 'Trending searches', await trendService.radar({ force, geos: geo ? [geo] : undefined }));
   } catch (error) {
     next(error);
   }

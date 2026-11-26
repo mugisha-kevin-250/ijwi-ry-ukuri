@@ -47,6 +47,15 @@ function safeLink(raw, base) {
     return url.protocol === 'https:' && !url.username && !url.password ? url.toString() : '';
   } catch { return ''; }
 }
+function imageFromFeed(block, base) {
+  const candidates = [
+    (String(block).match(/<enclosure[^>]+url=["']([^"']+)["']/i) || [])[1],
+    (String(block).match(/<media:content[^>]+url=["']([^"']+)["']/i) || [])[1],
+    (String(block).match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i) || [])[1],
+    (String(block).match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1],
+  ];
+  return safeLink(candidates.find(Boolean) || '', base);
+}
 function parseFeed(xml, feed) {
   const blocks = [...String(xml || '').matchAll(/<(item|entry)(?:\s[^>]*)?>([\s\S]*?)<\/\1\s*>/gi)].slice(0, MAX_ITEMS_PER_FEED);
   return blocks.map((match) => {
@@ -247,7 +256,7 @@ async function list({ page = 1, limit = 20, region = '', status = '', includeRev
   if (['unreviewed', 'reviewing', 'verified', 'rejected'].includes(status)) filter.reviewStatus = status;
   const [items, total] = await Promise.all([
     GlobalNewsItem.find(filter).sort({ publishedAt: -1, fetchedAt: -1 }).skip((safePage - 1) * safeLimit).limit(safeLimit)
-      .select(includeReviewStatus ? 'title link sourceName sourceUrl region language publishedAt fetchedAt reviewStatus' : 'title link sourceName sourceUrl region language publishedAt fetchedAt').lean(),
+      .select(includeReviewStatus ? 'title description imageUrl englishTitle draftArticle link sourceName sourceUrl region language publishedAt fetchedAt reviewStatus' : 'title link sourceName sourceUrl region language publishedAt fetchedAt').lean(),
     GlobalNewsItem.countDocuments(filter),
   ]);
   return { items, page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) };

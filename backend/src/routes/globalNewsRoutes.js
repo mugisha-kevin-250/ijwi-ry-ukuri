@@ -181,10 +181,10 @@ router.post('/:id/review', protect, requirePermission(PERMISSIONS.managePlatform
     // source links, captions and credits attached so an editor can verify reuse
     // permission before publication.
     const extractedImages = (sourceResearch.images || []).filter((entry) => safeMediaUrl(entry.url));
-    const extractedFeatured = extractedImages.find((entry) => safeMediaUrl(entry.url) === safeMediaUrl(extractedImages[0]?.url || ''));
+    const extractedFeatured = extractedImages.find((entry) => safeMediaUrl(entry.url));
     const image = safeMediaUrl(extractedFeatured?.url || claimedLead.imageUrl);
     const featuredIsPublisherExtract = Boolean(extractedFeatured && image === safeMediaUrl(extractedFeatured.url));
-    const gallery = extractedImages.slice(image && extractedImages[0]?.url === image ? 1 : 0, 9)
+    const gallery = extractedImages.filter((entry) => safeMediaUrl(entry.url) && safeMediaUrl(entry.url) !== image).slice(0, 8)
       .map((entry) => ({
         kind: 'image',
         url: safeMediaUrl(entry.url),

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const Article = require('../models/Article');
 const Upload = require('../models/Upload');
+const User = require('../models/User');
 const env = require('../config/env');
 const auditLog = require('./auditLogService');
 
@@ -56,7 +57,7 @@ async function removeUnreferencedArticleImages(filenames, ownerId) {
     const stillUsed = await Article.exists({
       $or: [{ featuredImage: url }, { 'media.url': url }]
     });
-    if (stillUsed) continue;
+    if (stillUsed || await User.exists({ avatar: url })) continue;
     const file = await Upload.findOne({ filename, uploadedBy: { $ne: ownerId } }).select('size').lean();
     if (!file) continue;
     const removed = await Upload.deleteOne({ _id: file._id, uploadedBy: { $ne: ownerId } });

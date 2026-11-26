@@ -477,6 +477,69 @@ async function writeStory({ topic, angle, audience = 'rwanda', evidence, region 
 }
 
 /**
+ * Turn an international lead into an English-language original RADAR draft.
+ * The source supplies only a headline and a short excerpt: never scrape or
+ * reproduce the publisher's full article. The model must keep uncertainty
+ * visible and must not invent missing facts, quotes, dates or statistics.
+ */
+async function writeGlobalNewsDraft({ title, description = '', sourceName, sourceUrl, region } = {}) {
+  const headline = String(title || '').trim().slice(0, 300);
+  const excerpt = String(description || '').trim().slice(0, 3000);
+  if (!headline) {
+    const error = new Error('This international lead has no headline to draft from');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+  const prompt = [
+    'You are an English-language international news editor writing an ORIGINAL draft for RADAR, a Rwanda-based newsroom.',
+    'Translate the source headline into clear, natural English if it is not already English.',
+    'Create a concise, original news draft using ONLY the source headline and short excerpt supplied below.',
+    'Do not copy sentences or reproduce the publisher article. Do not claim RADAR independently confirmed anything.',
+    'Do not invent people, places, dates, quotes, numbers, causes, outcomes or context that is not explicitly in the supplied material.',
+    'If the supplied material is too limited, write a short cautious brief and clearly state that details remain limited and readers should consult the attributed source. Do not pad the story with guesses.',
+    'Use 2 to 4 short paragraphs. The headline, summary and body must all be in English.',
+    'Return only JSON with keys: title, metaDescription, summary, paragraphs, tags.',
+    'title must be at most 100 characters; metaDescription at most 155; summary at most 220; paragraphs is an array of 2 to 4 strings; tags is an array of 3 to 5 lowercase strings.',
+    '',
+    'SOURCE ATTRIBUTION:',
+    'Publisher: ' + String(sourceName || 'Original publisher').slice(0, 120),
+    'Publisher link: ' + String(sourceUrl || '').slice(0, 1200),
+    'Region: ' + String(region || 'International').slice(0, 80),
+    'Original headline: ' + headline,
+    'Publisher excerpt (may be empty): ' + (excerpt || '[No excerpt was supplied]'),
+  ].join('\n');
+  const text = await callGemini({
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    temperature: 0.25,
+    maxOutputTokens: 1200,
+    responseMimeType: 'application/json',
+  });
+  let story;
+  try { story = parseStory(text); } catch (err) {
+    const error = new Error('RADAR AI returned a draft that could not be read');
+    error.code = 'AI_BAD_OUTPUT';
+    error.cause = err;
+    throw error;
+  }
+  if (!story.title || story.paragraphs.length < 2 || !story.summary) {
+    const error = new Error('RADAR AI did not return a complete international draft');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+  return {
+    ...story,
+    title: story.title.slice(0, 100),
+    metaDescription: story.metaDescription.slice(0, 155),
+    summary: story.summary.slice(0, 220),
+    paragraphs: story.paragraphs.slice(0, 4),
+    tags: [...new Set([...story.tags, 'international', 'world-news'])].slice(0, 6),
+    content: story.paragraphs.slice(0, 4).join('\n\n'),
+    model: activeModel(),
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * The research desk.
  *
  * An admin asks it what to look into before a story is written: who to call,
@@ -1024,4 +1087,4 @@ async function adCreative({ advertiser, offer, link, placement, tone, mustInclud
   return creative;
 }
 
-module.exports = { isConfigured, activeModel, fallbackModel, searchGroundingEnabled, lastFailureInfo, keyShape, writeStory, chat, askReader, photoLinks, radioScript, adCreative };
+module.exports = { isConfigured, activeModel, fallbackModel, searchGroundingEnabled, lastFailureInfo, keyShape, writeStory, writeGlobalNewsDraft, chat, askReader, photoLinks, radioScript, adCreative };

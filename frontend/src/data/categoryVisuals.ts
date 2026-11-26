@@ -145,6 +145,13 @@ export interface CommonsCategoryImage {
 const commonsImageCache = new Map<string, Promise<CommonsCategoryImage | null>>()
 const CATEGORY_SEARCH_TERMS: Record<string, string> = {
   rwanda: 'Kigali Rwanda city landscape',
+  trending: 'breaking news newspaper journalism',
+  globalleaders: 'world leaders summit diplomacy',
+  personalfinance: 'personal finance budgeting money',
+  apps: 'mobile apps smartphone software',
+  esports: 'esports gaming arena tournament',
+  celebrity: 'celebrity red carpet portrait',
+  streaming: 'streaming television film media',
   africa: 'African landscape wildlife city',
   world: 'Earth planet world landscape',
   politics: 'parliament government building chamber',
@@ -208,7 +215,7 @@ export function search4kCategoryImage(label: string): Promise<CommonsCategoryIma
     api.searchParams.set('format', 'json')
     api.searchParams.set('generator', 'search')
     api.searchParams.set('gsrnamespace', '6')
-    api.searchParams.set('gsrlimit', '20')
+    api.searchParams.set('gsrlimit', '50')
     api.searchParams.set('gsrsearch', 'filetype:bitmap ' + categorySearchTerm(query))
     api.searchParams.set('prop', 'imageinfo')
     api.searchParams.set('iiprop', 'url|size|mime|extmetadata')

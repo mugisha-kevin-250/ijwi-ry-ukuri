@@ -706,6 +706,7 @@ export interface RadarAutoManageStatus {
     refreshed?: number
     researched?: number
     categoriesChecked?: number
+    categoriesAttempted?: number
     categoriesAlreadyCovered?: number
     categoriesMatched?: number
     trendResearch?: { liveRegions?: number; regionsChecked?: number; topics?: number; headlinesProcessed?: number; leadsSaved?: number }

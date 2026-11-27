@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const dist = path.join(root, 'dist')
 const builtIndexPath = path.join(dist, 'index.html')
-const contentRoots = [path.join(dist, 'article'), path.join(dist, 'articles')]
+const contentRoots = [path.join(dist, 'article'), path.join(dist, 'articles.html')]
 
 if (!fs.existsSync(builtIndexPath)) {
   throw new Error('Production index.html is missing; cannot finalize prerendered articles')
@@ -39,7 +39,10 @@ function walk(directory) {
   })
 }
 
-const pages = contentRoots.flatMap((directory) => walk(directory))
+const pages = contentRoots.flatMap((target) => {
+  if (!fs.existsSync(target)) return []
+  return fs.statSync(target).isFile() ? [target] : walk(target)
+})
 let finalized = 0
 
 for (const pagePath of pages) {

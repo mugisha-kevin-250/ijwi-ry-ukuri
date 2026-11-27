@@ -35,6 +35,10 @@ const MIN_BODY_CHARS = 1200;
 const MIN_PARAGRAPHS = 5;
 const UHD_WIDTH = 3840;
 const UHD_HEIGHT = 2160;
+// A genuine, source-verified editorial image is required; UHD is preferred,
+// but making 4K mandatory was silently holding every story whose publisher
+// only supplies a normal high-resolution photograph.
+const MIN_FEATURED_IMAGE_EDGE = 900;
 const DAY_MS = 86400000;
 
 async function getConfig() {
@@ -47,7 +51,7 @@ async function getConfig() {
     lastResult: value.lastResult || null,
     lastCategoryCursor: Number(value.lastCategoryCursor) || 0,
     sourceDeskUrl: SOURCE_DESK_URL,
-    imagePolicy: 'UHD 4K minimum (3840x2160 landscape or 2160x3840 portrait)',
+    imagePolicy: 'Verified original image, minimum 900px on its shortest edge; UHD preferred',
     researchSources: ['Google Trends', 'RADAR Global News'],
     dailyCategoryCoverage: true,
     mode: 'autonomous-trends-and-global-news-manager',
@@ -82,6 +86,12 @@ function is4k(photo) {
   const width = Number(photo?.width) || 0;
   const height = Number(photo?.height) || 0;
   return (width >= UHD_WIDTH && height >= UHD_HEIGHT) || (height >= UHD_WIDTH && width >= UHD_HEIGHT);
+}
+
+function isPublishableImage(photo) {
+  const width = Number(photo?.width) || 0;
+  const height = Number(photo?.height) || 0;
+  return Boolean(photo?.url && /^https:\/\//i.test(photo.url) && Math.min(width, height) >= MIN_FEATURED_IMAGE_EDGE);
 }
 
 function topicWords(value) {
@@ -192,8 +202,8 @@ async function verifiedFeaturedImage(title, sources) {
     }
   }
   // Wikimedia's documented image APIs provide original dimensions, contributor
-  // and licence metadata. Search it when publishers do not expose a usable 4K
-  // original; never upscale or relabel a smaller image as UHD.
+  // and licence metadata. Search it when publishers do not expose a usable
+  // high-resolution original; never upscale or relabel a smaller image as UHD.
   try {
     const wiki = await aiPhotoService.search(title, { limit: 12 });
     for (const photo of (wiki.photos || [])) candidates.push({
@@ -206,7 +216,7 @@ async function verifiedFeaturedImage(title, sources) {
       height: photo.height,
     });
   } catch (error) {
-    console.warn('[radar-auto] 4K image search unavailable:', error?.message || error);
+    console.warn('[radar-auto] image search unavailable:', error?.message || error);
   }
   const unique = [];
   const seen = new Set();
@@ -217,7 +227,7 @@ async function verifiedFeaturedImage(title, sources) {
     unique.push(item);
   }
   const checked = await aiPhotoService.verify(unique, { limit: 16 });
-  const photo = (checked.photos || []).find(is4k);
+  const photo = (checked.photos || []).filter(isPublishableImage).sort((a,b) => Number(is4k(b))-Number(is4k(a)) || Math.max(b.width,b.height)-Math.max(a.width,a.height))[0];
   return photo ? {
     url: photo.url,
     credit: photo.credit || photo.source || 'Image contributor',
@@ -253,10 +263,15 @@ async function run() {
   const config = await getConfig();
   if (!config.enabled) return { skipped:true, reason:'Auto Manage is switched off.' };
   if (!geminiService.isConfigured()) return { skipped:true, reason:'Gemini is not configured.' };
-  const admin = config.ownerId
-    ? await User.findById(config.ownerId).select('_id role isActive').lean()
-    : await User.findOne({ role:'ADMIN', isActive:true }).select('_id role isActive').lean();
-  if (!admin || admin.role !== 'ADMIN' || admin.isActive === false) return { skipped:true, reason:'The owner account is unavailable; no content was changed.' };
+  // Automation is a server process, not an administrator's browser session.
+  // Keep the configured admin as the accountable article author even when that
+  // person is logged out or their account is temporarily inactive. If the saved
+  // owner was deleted/demoted, fall back to an existing ADMIN identity.
+  let admin = config.ownerId
+    ? await User.findById(config.ownerId).select('_id role').lean()
+    : null;
+  if (!admin || admin.role !== 'ADMIN') admin = await User.findOne({ role:'ADMIN' }).sort({ createdAt:1 }).select('_id role').lean();
+  if (!admin || admin.role !== 'ADMIN') return { skipped:true, reason:'No administrator identity exists to attribute automated articles.' };
 
   const [trendResearch, globalRefresh] = await Promise.all([
     collectGoogleTrendLeads().catch(error => ({ provider:'google-trends', error:String(error?.message||error).slice(0,180), liveRegions:0, regionsChecked:0, topics:0, headlinesProcessed:0, leadsSaved:0 })),
@@ -364,7 +379,12 @@ async function run() {
       }
 
       const photo = await verifiedFeaturedImage(title,fullSources);
-      if (photo) result.verified4kImages += 1;
+      if (!photo || !isPublishableImage(photo)) {
+        result.held += 1;
+        result.notes.push({category:category.name,id:String(selected._id),outcome:'retry',reason:'No relevant, verified image of at least 900px on its shortest edge was available. The lead remains eligible for a later retry.'});
+        continue;
+      }
+      if (is4k(photo)) result.verified4kImages += 1;
       const media = [];
       if (photo) media.push({kind:'image',url:photo.url,source:'',embedUrl:photo.url,caption:String(photo.caption||title).slice(0,240),credit:String(photo.credit||photo.source).slice(0,160)});
       const videoCandidate = fullSources.flatMap(item=>(item.videos||[]).map(video=>({...video,credit:video.credit||item.source,caption:video.caption||item.title||title})))[0];
@@ -407,16 +427,16 @@ async function run() {
         reviewEvents:[{from:'draft',to:'pending_review',by:null,note:'RADAR Auto Manage researched Google Trends and Global News and drafted a '+category.name+' report.',at:new Date()}]
       });
       result.drafted += 1;
-      const mediaGate = photo && is4k(photo);
-      const publicationGate = failedGate || (!mediaGate?'Held: no genuine 4K featured image (minimum 3840x2160 landscape or 2160x3840 portrait) could be verified. This story cannot be published.':'');
+      const mediaGate = isPublishableImage(photo);
+      const publicationGate = failedGate || (!mediaGate?'Held: no verified high-resolution featured image is attached.':'');
       if (!publicationGate && result.published < MAX_PUBLISH_PER_PASS) {
-        const approval = await workflow.moveStory({article,to:'approved',by:null,note:'RADAR Auto Manage passed multi-source, editorial-quality and verified 4K image checks.'});
+        const approval = await workflow.moveStory({article,to:'approved',by:null,note:'RADAR Auto Manage passed multi-source, editorial-quality and verified image checks.'});
         if (approval.error) {
           result.held += 1;
           result.notes.push({category:category.name,id:String(article._id),outcome:'held',reason:approval.error});
           continue;
         }
-        const publication = await workflow.moveStory({article:approval.article,to:'published',by:null,note:'Automatically published after Google Trends and Global News research, source checks and verified 4K media checks. Category: '+category.name+'.'});
+        const publication = await workflow.moveStory({article:approval.article,to:'published',by:null,note:'Automatically published after Google Trends and Global News research, source checks and verified featured-image checks. Category: '+category.name+'.'});
         if (publication.error) {
           result.held += 1;
           result.notes.push({category:category.name,id:String(article._id),outcome:'held',reason:publication.error});
@@ -449,4 +469,4 @@ async function run() {
   return result;
 }
 
-module.exports = { getConfig, setEnabled, run, qualityGate, is4k, relatedScore, categoryScore, collectGoogleTrendLeads };
+module.exports = { getConfig, setEnabled, run, qualityGate, is4k, isPublishableImage, relatedScore, categoryScore, collectGoogleTrendLeads };

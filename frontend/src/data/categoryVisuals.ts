@@ -57,11 +57,6 @@ function visualFor(category?: { slug?: string; name?: string } | null): Category
   return ALIAS_TO_VISUAL.get(normalize(category.slug || '')) || ALIAS_TO_VISUAL.get(normalize(category.name || ''))
 }
 
-/** The picture a section is printed with; sections outside the table get none. */
-export function categoryImage(category?: { slug?: string; name?: string } | null): string | undefined {
-  return visualFor(category)?.image || undefined
-}
-
 /**
  * The section name in the language the reader is reading in, so a category
  * stored as "Amasport" is offered as Sports, Imikino, Sport or Michezo.

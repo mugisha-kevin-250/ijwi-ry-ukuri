@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { qualityGate } = require('../src/services/autoManageService');
+const { qualityGate, is4k, isPublishableImage } = require('../src/services/autoManageService');
 
 const paragraph = 'The report describes the confirmed development and attributes the information to the named publisher. '.repeat(3);
 const story = {
@@ -39,4 +39,19 @@ test('RADAR quality gate holds high-impact topics for human editorial review', (
 test('RADAR quality gate holds short generated copy', () => {
   const short = { ...story, paragraphs: ['A short paragraph.'], content: 'A short paragraph.' };
   assert.match(qualityGate(short, evidence), /too short/);
+});
+
+
+test('RADAR accepts a verified high-resolution image without requiring UHD', () => {
+  const photo = { url: 'https://images.example/photo.jpg', width: 1600, height: 1000 };
+  assert.equal(isPublishableImage(photo), true);
+  assert.equal(is4k(photo), false);
+});
+
+test('RADAR prefers real UHD dimensions but never treats a thumbnail as publishable', () => {
+  assert.equal(isPublishableImage({ url: 'https://images.example/uhd.jpg', width: 3840, height: 2160 }), true);
+  assert.equal(is4k({ url: 'https://images.example/uhd.jpg', width: 3840, height: 2160 }), true);
+  assert.equal(isPublishableImage({ url: 'https://images.example/thumb.jpg', width: 640, height: 480 }), false);
+  assert.equal(isPublishableImage({ url: 'http://images.example/photo.jpg', width: 1600, height: 1000 }), false);
+  assert.equal(isPublishableImage({ url: 'https://images.example/photo.jpg', width: 1600, height: 0 }), false);
 });

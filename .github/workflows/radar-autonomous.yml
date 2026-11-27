@@ -1,0 +1,43 @@
+name: RADAR unattended newsroom wake-up
+
+on:
+  schedule:
+    # Render free web services may sleep while idle. GitHub Actions wakes the
+    # authenticated server-side job every 15 minutes; MongoDB scheduler leases
+    # prevent overlap with Render's own cron or another runner.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: radar-autonomous-publishing
+  cancel-in-progress: false
+
+jobs:
+  wake-radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check required secrets
+        env:
+          RADAR_API_URL: ${{ secrets.RADAR_API_URL }}
+          RADAR_AUTOMATION_TOKEN: ${{ secrets.RADAR_AUTOMATION_TOKEN }}
+        run: |
+          if [ -z "$RADAR_API_URL" ] || [ -z "$RADAR_AUTOMATION_TOKEN" ]; then
+            echo "::error::Set RADAR_API_URL and RADAR_AUTOMATION_TOKEN in repository Actions secrets."
+            exit 1
+          fi
+      - name: Wake Render and run the protected RADAR job
+        env:
+          RADAR_API_URL: ${{ secrets.RADAR_API_URL }}
+          RADAR_AUTOMATION_TOKEN: ${{ secrets.RADAR_AUTOMATION_TOKEN }}
+        run: |
+          base="${RADAR_API_URL%/}"
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 20 \
+            --connect-timeout 20 --max-time 240 \
+            -X POST "$base/api/admin/automation/radar/run" \
+            -H "Authorization: Bearer $RADAR_AUTOMATION_TOKEN" \
+            -H "Accept: application/json"

@@ -251,7 +251,8 @@ function renderPrerenderedListingPage(articles, shell, options) {
     ? 'Independent reporting and useful updates from Rwanda, Africa and around the world. Explore the latest headlines, understand the context, and follow the stories shaping our communities.'
     : 'Browse the latest reporting from RADAR TIMES, with news and analysis from Rwanda, Africa and around the world. Open each story for its full report, sources and updates.'
   const listing = '<main id="radar-prerendered-' + pageType + '" class="radar-seo-listing"><nav aria-label="Main navigation"><a href="/">RADAR TIMES</a><a href="/articles">All news</a><a href="/categories">Categories</a><a href="/about">About RADAR</a></nav><header><p class="radar-seo-eyebrow">RADAR TIMES · RWANDA AND THE WORLD</p><h1>' + htmlEscape(heading) + '</h1><p>' + htmlEscape(intro) + '</p></header><section aria-label="Latest news">' + (cards || '<p>New reports are being prepared. Please check back soon.</p>') + '</section><footer><a href="/articles">Browse all news</a> · <a href="/editorial-policy">Editorial policy</a> · <a href="/contact">Contact the newsroom</a></footer></main>'
-  html = html.replace('</head>', '<script type="application/ld+json">' + safeSchema + '</script>\n</head>')
+  const listingStyles = '<style>.radar-seo-listing{max-width:1120px;margin:0 auto;padding:24px 18px;color:#172033;font-family:Inter,Arial,sans-serif}.radar-seo-listing nav{display:flex;gap:18px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #e5e7eb}.radar-seo-listing nav a,.radar-seo-listing a{color:#1456b8;text-decoration:none}.radar-seo-listing header{padding:28px 0 18px}.radar-seo-listing h1{font-size:clamp(28px,5vw,44px);line-height:1.12;font-weight:800;margin:8px 0}.radar-seo-listing header p{max-width:760px;line-height:1.7;color:#526071}.radar-seo-eyebrow,.radar-seo-meta{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748b}.radar-seo-story{display:grid;grid-template-columns:minmax(110px,220px) 1fr;gap:18px;padding:18px 0;border-top:1px solid #e5e7eb}.radar-seo-story img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:10px}.radar-seo-story h2{font-size:20px;line-height:1.3;margin:6px 0}.radar-seo-story p{line-height:1.6;color:#526071}.radar-seo-read{font-weight:700;font-size:13px}.radar-seo-listing footer{padding:24px 0;border-top:1px solid #e5e7eb}@media(max-width:600px){.radar-seo-story{grid-template-columns:1fr}.radar-seo-story img{max-height:220px}}</style>'
+  html = html.replace('</head>', listingStyles + '<script type="application/ld+json">' + safeSchema + '</script>\n</head>')
   html = html.replace(/<div id="app"><\/div>/i, '<div id="app">' + listing + '</div>')
   return html
 }
@@ -440,6 +441,25 @@ ${entries.join('\n')}
   return { xml, count: entries.length }
 }
 
+
+function articlesFromExistingSitemap() {
+  const sitemapPath = path.join(root, 'public', 'sitemap-articles.xml')
+  if (!fs.existsSync(sitemapPath)) return []
+  const xml = fs.readFileSync(sitemapPath, 'utf8')
+  return [...xml.matchAll(/<loc>https:\/\/www\.radartimes\.2bd\.net\/article\/([^<]+)<\/loc>/g)]
+    .slice(0, 48)
+    .map((match) => {
+      const slug = match[1]
+      const title = slug
+        .replace(/-\d{10,}$/, '')
+        .split('-')
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+      return { slug, title }
+    })
+}
+
 async function main() {
   const base = apiBase()
   const today = isoDate(new Date().toISOString())
@@ -468,6 +488,11 @@ async function main() {
     // busiest. The files already in public/ stay live; run `npm run sitemap`
     // again once the API answers.
     console.warn('sitemap: keeping the files already in public/, none were rewritten')
+    // Render crawlable landing pages from the last known-good sitemap when the
+    // free backend is asleep. Never replace a populated sitemap with an empty one.
+    const fallbackArticles = articlesFromExistingSitemap()
+    writePrerenderedLandingPages(fallbackArticles)
+    console.log('sitemap: landing pages used ' + fallbackArticles.length + ' last-known-good article URLs')
     return
   }
   writePrerenderedArticles(articles)

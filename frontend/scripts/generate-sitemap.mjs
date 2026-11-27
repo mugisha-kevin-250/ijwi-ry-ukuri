@@ -270,8 +270,7 @@ function writePrerenderedLandingPages(articles) {
     pageType: 'home',
   })
   fs.writeFileSync(shellPath, homepage)
-  const articlesDirectory = path.join(root, 'public', 'articles')
-  fs.mkdirSync(articlesDirectory, { recursive: true })
+  const articlesPagePath = path.join(root, 'public', 'articles.html')
   const articlesPage = renderPrerenderedListingPage(articles, shell, {
     pathname: '/articles',
     title: 'Latest News and Reports',
@@ -280,7 +279,7 @@ function writePrerenderedLandingPages(articles) {
     limit: 48,
     pageType: 'articles',
   })
-  fs.writeFileSync(path.join(articlesDirectory, 'index.html'), articlesPage)
+  fs.writeFileSync(articlesPagePath, articlesPage)
   console.log('static landing pages: homepage and /articles generated with ' + Math.min(articles.length, 48) + ' published story links')
 }
 

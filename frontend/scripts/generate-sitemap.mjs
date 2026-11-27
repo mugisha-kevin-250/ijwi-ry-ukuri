@@ -197,6 +197,92 @@ function renderPrerenderedArticle(article, shell) {
   return html
 }
 
+
+function renderPrerenderedListingPage(articles, shell, options) {
+  const { pathname, title, description, heading, limit, pageType } = options
+  const canonical = SITE_URL + pathname
+  const stories = byNewest(articles.filter((article) => article?.slug && article?.title)).slice(0, limit)
+  const cards = stories.map((article, index) => {
+    const url = articleUrl(article)
+    const image = mediaUrl(article.featuredImage) || SITE_URL + '/icons/icon-512x512.png'
+    const summary = String(article.metaDescription || article.summary || article.content || '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 260)
+    const stamp = isoStamp(publishedStamp(article))
+    const author = article.author?.fullName || article.author?.username || ''
+    const meta = htmlEscape(article.category?.name || 'News') +
+      (stamp ? ' · <time datetime="' + stamp + '">' + stamp.slice(0, 10) + '</time>' : '') +
+      (author ? ' · By ' + htmlEscape(author) : '')
+    return '<article class="radar-seo-story"><a href="' + htmlEscape(url) + '" aria-label="Read ' + htmlEscape(article.title) + '"><img src="' + htmlEscape(image) + '" alt="' + htmlEscape(article.title) + '" width="640" height="360" ' + (index > 5 ? 'loading="lazy"' : 'fetchpriority="high"') + ' /></a><div><p class="radar-seo-meta">' + meta + '</p><h2><a href="' + htmlEscape(url) + '">' + htmlEscape(article.title) + '</a></h2>' + (summary ? '<p>' + htmlEscape(summary) + '</p>' : '') + '<a class="radar-seo-read" href="' + htmlEscape(url) + '">Read full story</a></div></article>'
+  }).join('\n')
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: title,
+    description,
+    url: canonical,
+    isPartOf: { '@id': SITE_URL + '/#website' },
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListOrder: 'https://schema.org/ItemListOrderDescending',
+      numberOfItems: stories.length,
+      itemListElement: stories.map((article, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        url: articleUrl(article),
+        name: article.title,
+      })),
+    },
+  }
+  const safeSchema = JSON.stringify(schema).replace(/</g, '\\u003c')
+  let html = shell
+    .replace(/<title>[\s\S]*?<\/title>/i, '<title>' + htmlEscape(title) + '</title>')
+    .replace(/<meta name="description" content="[^"]*"\s*\/?\s*>/i, '<meta name="description" content="' + htmlEscape(description) + '" />')
+    .replace(/<link rel="canonical" href="[^"]*"\s*\/?\s*>/i, '<link rel="canonical" href="' + canonical + '" />')
+    .replace(/<meta property="og:type" content="[^"]*"\s*\/?\s*>/i, '<meta property="og:type" content="website" />')
+    .replace(/<meta property="og:title" content="[^"]*"\s*\/?\s*>/i, '<meta property="og:title" content="' + htmlEscape(title) + '" />')
+    .replace(/<meta property="og:description" content="[^"]*"\s*\/?\s*>/i, '<meta property="og:description" content="' + htmlEscape(description) + '" />')
+    .replace(/<meta property="og:url" content="[^"]*"\s*\/?\s*>/i, '<meta property="og:url" content="' + canonical + '" />')
+    .replace(/<meta name="twitter:title" content="[^"]*"\s*\/?\s*>/i, '<meta name="twitter:title" content="' + htmlEscape(title) + '" />')
+    .replace(/<meta name="twitter:description" content="[^"]*"\s*\/?\s*>/i, '<meta name="twitter:description" content="' + htmlEscape(description) + '" />')
+  const intro = pageType === 'home'
+    ? 'Independent reporting and useful updates from Rwanda, Africa and around the world. Explore the latest headlines, understand the context, and follow the stories shaping our communities.'
+    : 'Browse the latest reporting from RADAR TIMES, with news and analysis from Rwanda, Africa and around the world. Open each story for its full report, sources and updates.'
+  const listing = '<main id="radar-prerendered-' + pageType + '" class="radar-seo-listing"><nav aria-label="Main navigation"><a href="/">RADAR TIMES</a><a href="/articles">All news</a><a href="/categories">Categories</a><a href="/about">About RADAR</a></nav><header><p class="radar-seo-eyebrow">RADAR TIMES · RWANDA AND THE WORLD</p><h1>' + htmlEscape(heading) + '</h1><p>' + htmlEscape(intro) + '</p></header><section aria-label="Latest news">' + (cards || '<p>New reports are being prepared. Please check back soon.</p>') + '</section><footer><a href="/articles">Browse all news</a> · <a href="/editorial-policy">Editorial policy</a> · <a href="/contact">Contact the newsroom</a></footer></main>'
+  html = html.replace('</head>', '<script type="application/ld+json">' + safeSchema + '</script>\n</head>')
+  html = html.replace(/<div id="app"><\/div>/i, '<div id="app">' + listing + '</div>')
+  return html
+}
+
+function writePrerenderedLandingPages(articles) {
+  const shellPath = path.join(root, 'index.html')
+  if (!fs.existsSync(shellPath)) throw new Error('Cannot prerender public landing pages: index.html is missing')
+  const shell = fs.readFileSync(shellPath, 'utf8')
+  const homepage = renderPrerenderedListingPage(articles, shell, {
+    pathname: '/',
+    title: 'Latest News from Rwanda, Africa and the World',
+    description: 'Read the latest independent news, reporting and analysis from Rwanda, Africa and around the world on RADAR TIMES.',
+    heading: 'Latest News from Rwanda, Africa and the World',
+    limit: 12,
+    pageType: 'home',
+  })
+  fs.writeFileSync(shellPath, homepage)
+  const articlesDirectory = path.join(root, 'public', 'articles')
+  fs.mkdirSync(articlesDirectory, { recursive: true })
+  const articlesPage = renderPrerenderedListingPage(articles, shell, {
+    pathname: '/articles',
+    title: 'Latest News and Reports',
+    description: 'Browse the latest published news and reports from Rwanda, Africa and around the world on RADAR TIMES.',
+    heading: 'All News and Latest Reports',
+    limit: 48,
+    pageType: 'articles',
+  })
+  fs.writeFileSync(path.join(articlesDirectory, 'index.html'), articlesPage)
+  console.log('static landing pages: homepage and /articles generated with ' + Math.min(articles.length, 48) + ' published story links')
+}
+
 function writePrerenderedArticles(articles) {
   const shellPath = path.join(root, 'index.html')
   if (!fs.existsSync(shellPath)) throw new Error('Cannot prerender articles: public/index.html is missing')
@@ -385,6 +471,7 @@ async function main() {
     return
   }
   writePrerenderedArticles(articles)
+  writePrerenderedLandingPages(articles)
   try {
     categories = (await json(`${base}/categories`))?.categories ?? []
   } catch (error) {

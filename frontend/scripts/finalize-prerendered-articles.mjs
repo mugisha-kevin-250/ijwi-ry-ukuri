@@ -5,14 +5,14 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const dist = path.join(root, 'dist')
 const builtIndexPath = path.join(dist, 'index.html')
-const articlesRoot = path.join(dist, 'article')
+const contentRoots = [path.join(dist, 'article'), path.join(dist, 'articles')]
 
 if (!fs.existsSync(builtIndexPath)) {
   throw new Error('Production index.html is missing; cannot finalize prerendered articles')
 }
 
-if (!fs.existsSync(articlesRoot)) {
-  console.log('No prerendered article pages to finalize')
+if (!contentRoots.some((directory) => fs.existsSync(directory))) {
+  console.log('No prerendered public pages to finalize')
   process.exit(0)
 }
 
@@ -39,7 +39,7 @@ function walk(directory) {
   })
 }
 
-const pages = walk(articlesRoot)
+const pages = contentRoots.flatMap((directory) => walk(directory))
 let finalized = 0
 
 for (const pagePath of pages) {
@@ -64,4 +64,4 @@ for (const pagePath of pages) {
   finalized += 1
 }
 
-console.log('SEO prerender: attached production Vite assets to ' + finalized + ' article pages')
+console.log('SEO prerender: attached production Vite assets to ' + finalized + ' prerendered public pages')
